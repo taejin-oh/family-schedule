@@ -63,4 +63,35 @@ describe('uploadHomework', () => {
     const res = await uploadHomework({ academyId: a.id, files: [] }, { appDb, jobsDb, storageRoot })
     expect(res.ok).toBe(false)
   })
+
+  it('accepts a PDF; stores original without resizing', async () => {
+    const { appDb, jobsDb, storageRoot } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({
+      name: 'X', subject: 'math', color: '#000000',
+    }).returning().all()
+
+    // Minimal valid-ish PDF byte sequence (header + EOF marker — enough for storage tests)
+    const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, 0x0A, 0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A, 0x25, 0x25, 0x45, 0x4F, 0x46])
+    const pdf = new File([pdfBytes], 'hw.pdf', { type: 'application/pdf' })
+
+    const res = await uploadHomework({ academyId: academy.id, files: [pdf] }, { appDb, jobsDb, storageRoot })
+    expect(res.ok).toBe(true)
+
+    const photos = appDb.select().from(appSchema.homeworkPhotos).all()
+    expect(photos).toHaveLength(1)
+    expect(photos[0].originalPath).toMatch(/\.pdf$/)
+    // For non-image inputs, resizedPath equals originalPath (no sharp call)
+    expect(photos[0].resizedPath).toBe(photos[0].originalPath)
+    expect(photos[0].width).toBe(0)
+    expect(photos[0].height).toBe(0)
+  })
+
+  it('rejects unsupported MIME types', async () => {
+    const { appDb, jobsDb, storageRoot } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const txt = new File([new Uint8Array([72, 105])], 'note.txt', { type: 'text/plain' })
+    const res = await uploadHomework({ academyId: a.id, files: [txt] }, { appDb, jobsDb, storageRoot })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/지원하지 않는|unsupported/i)
+  })
 })

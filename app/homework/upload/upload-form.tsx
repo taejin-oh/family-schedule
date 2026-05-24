@@ -20,11 +20,21 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!academyId) { setError('학원을 선택하세요.'); return }
-    if (files.length === 0) { setError('사진을 1장 이상 추가하세요.'); return }
+    if (files.length === 0) { setError('파일을 1장 이상 추가하세요.'); return }
     setBusy(true); setError(null)
     const res = await uploadHomework({ academyId, files })
     if (!res.ok) { setError(res.error); setBusy(false); return }
     router.push(`/homework/batches/${res.data.batchId}`)
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+    return `${Math.round(bytes / 1024)}KB`
+  }
+
+  function iconFor(file: File): string {
+    if (file.type === 'application/pdf') return '📄'
+    return '🖼️'
   }
 
   if (academies.length === 0) {
@@ -63,11 +73,11 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="photos">사진 (1장 이상)</Label>
+          <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
           <input
             id="photos"
             type="file"
-            accept="image/*"
+            accept="image/*,application/pdf"
             capture="environment"
             multiple
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
@@ -75,10 +85,14 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
           />
           {files.length > 0 && (
             <div className="text-sm text-muted-foreground">
-              {files.length}장 선택됨
-              <ul className="mt-1 list-disc list-inside text-xs">
-                {files.slice(0, 5).map((f, i) => <li key={i} className="truncate">{f.name} ({Math.round(f.size / 1024)}KB)</li>)}
-                {files.length > 5 && <li>… 외 {files.length - 5}장</li>}
+              {files.length}개 선택됨
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {files.slice(0, 5).map((f, i) => (
+                  <li key={i} className="truncate">
+                    {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
+                  </li>
+                ))}
+                {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
               </ul>
             </div>
           )}

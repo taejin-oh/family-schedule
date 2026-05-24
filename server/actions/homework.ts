@@ -33,14 +33,27 @@ function extFromMime(mime: string): string {
   if (mime === 'image/png') return 'png'
   if (mime === 'image/webp') return 'webp'
   if (mime === 'image/heic') return 'heic'
+  if (mime === 'application/pdf') return 'pdf'
   return 'bin'
+}
+
+function isResizableImage(mime: string): boolean {
+  return mime.startsWith('image/') && mime !== 'image/heic'
+  // heic skipped: sharp on macOS sometimes lacks libheif; pass through as-is
 }
 
 export type UploadInput = { academyId: number; files: File[] }
 export type UploadResult = { ok: true; data: { batchId: number } } | { ok: false; error: string }
 
+const ACCEPTED_MIMES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+])
+
 export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise<UploadResult> {
-  if (!input.files || input.files.length === 0) return { ok: false, error: '사진을 한 장 이상 선택하세요.' }
+  if (!input.files || input.files.length === 0) return { ok: false, error: '파일을 한 장 이상 선택하세요.' }
+  const bad = input.files.find((f) => !ACCEPTED_MIMES.has(f.type))
+  if (bad) return { ok: false, error: `지원하지 않는 파일 형식: ${bad.type || bad.name}. 이미지(JPG/PNG/WEBP/HEIC) 또는 PDF만 가능합니다.` }
+
   const appDb = ctx.appDb ?? getDb()
   const jobsDb = ctx.jobsDb ?? defaultJobsDb()
   const storageRoot = ctx.storageRoot ?? resolve(process.cwd(), 'storage')
@@ -57,7 +70,12 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
     const bytes = Buffer.from(await f.arrayBuffer())
     const ext = extFromMime(f.type)
     const orig = await saveOriginal({ root: storageRoot, batchId: batch.id, index: i, ext, bytes })
-    const resized = await makeResized({ root: storageRoot, batchId: batch.id, index: i, originalPath: orig.path })
+
+    // Resize images; for PDFs (and HEIC) pass through original as the "resized" path.
+    const resized = isResizableImage(f.type)
+      ? await makeResized({ root: storageRoot, batchId: batch.id, index: i, originalPath: orig.path })
+      : { path: orig.path, width: 0, height: 0, bytes: orig.bytes }
+
     appDb.insert(appSchema.homeworkPhotos).values({
       batchId: batch.id,
       originalPath: orig.path,
