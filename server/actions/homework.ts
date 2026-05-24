@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -304,4 +304,74 @@ export async function rerunBatch(
 
   await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
   return { ok: true, data: { batchId: newBatch.id } }
+}
+
+/**
+ * Delete a batch (cascade deletes its photos + items via FK ON DELETE CASCADE).
+ * Disk files (originalPath/resizedPath) are intentionally NOT removed —
+ * other batches created via rerunBatch may still reference the same files.
+ * A separate orphan-file cleanup job can handle disk later.
+ */
+export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: boolean; error?: string }> {
+  const appDb = ctx.appDb ?? getDb()
+  const exists = appDb.select({ id: appSchema.homeworkBatches.id }).from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).get()
+  if (!exists) return { ok: false, error: '존재하지 않는 batch' }
+  appDb.delete(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).run()
+  return { ok: true }
+}
+
+/**
+ * Find batches that share at least one file (by originalPath) with the
+ * given batch. Returns the related batches with their status, hint,
+ * item counts, and created date. Used by re-analyze view to show
+ * "이 파일의 분석 이력" — every attempt that used these files.
+ */
+export async function listRelatedBatches(batchId: number, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+
+  const myPaths = appDb
+    .select({ originalPath: appSchema.homeworkPhotos.originalPath })
+    .from(appSchema.homeworkPhotos)
+    .where(eq(appSchema.homeworkPhotos.batchId, batchId))
+    .all()
+    .map((r) => r.originalPath)
+
+  if (myPaths.length === 0) return []
+
+  const related = appDb
+    .selectDistinct({ batchId: appSchema.homeworkPhotos.batchId })
+    .from(appSchema.homeworkPhotos)
+    .where(inArray(appSchema.homeworkPhotos.originalPath, myPaths))
+    .all()
+
+  const ids = related.map((r) => r.batchId)
+  if (ids.length === 0) return []
+
+  const batches = appDb.select({
+    id: appSchema.homeworkBatches.id,
+    capturedAt: appSchema.homeworkBatches.capturedAt,
+    status: appSchema.homeworkBatches.status,
+    userHint: appSchema.homeworkBatches.userHint,
+    providerUsed: appSchema.homeworkBatches.providerUsed,
+    modelUsed: appSchema.homeworkBatches.modelUsed,
+    failureReason: appSchema.homeworkBatches.failureReason,
+  })
+    .from(appSchema.homeworkBatches)
+    .where(inArray(appSchema.homeworkBatches.id, ids))
+    .all()
+
+  const itemCounts = appDb
+    .select({
+      batchId: appSchema.homeworkItems.batchId,
+      cnt: sql<number>`count(*)`.as('cnt'),
+    })
+    .from(appSchema.homeworkItems)
+    .where(inArray(appSchema.homeworkItems.batchId, ids))
+    .groupBy(appSchema.homeworkItems.batchId)
+    .all()
+  const itemMap = new Map(itemCounts.map((c) => [c.batchId, Number(c.cnt)]))
+
+  return batches
+    .map((b) => ({ ...b, itemCount: itemMap.get(b.id) ?? 0 }))
+    .sort((x, y) => y.capturedAt.getTime() - x.capturedAt.getTime())
 }

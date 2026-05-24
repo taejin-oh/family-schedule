@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw } from 'lucide-react'
-import { uploadHomework, rerunBatch } from '@/server/actions/homework'
+import { RefreshCw, X } from 'lucide-react'
+import { uploadHomework, rerunBatch, deleteBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -50,18 +50,32 @@ function formatDate(d: Date): string {
   return `${mm}/${dd} ${hh}:${min}`
 }
 
+type RelatedBatch = {
+  id: number
+  capturedAt: Date
+  status: BatchSummary['status']
+  userHint: string | null
+  providerUsed: string | null
+  modelUsed: string | null
+  failureReason: string | null
+  itemCount: number
+}
+
 export function UploadForm({
   academies,
   batchesByAcademy,
   hintsByAcademy,
   reuse,
+  related,
 }: {
   academies: Academy[]
   batchesByAcademy: Record<number, BatchSummary[]>
   hintsByAcademy: Record<number, string[]>
   reuse: ReuseSource | null
+  related: RelatedBatch[]
 }) {
   const router = useRouter()
+  const [, startDelete] = useTransition()
   const initialAcademyId =
     reuse?.academyId ?? (academies.length === 1 ? academies[0].id : null)
 
@@ -111,6 +125,19 @@ export function UploadForm({
   function iconFor(file: File): string {
     if (file.type === 'application/pdf') return '📄'
     return '🖼️'
+  }
+
+  function handleDeleteBatch(b: BatchSummary, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const msg = `이 batch를 삭제할까요?\n\n${formatDate(b.capturedAt)} · ${STATUS_LABEL[b.status]}` +
+      (b.itemCount > 0 ? `\n추출된 항목 ${b.itemCount}개도 같이 삭제됩니다.` : '') +
+      `\n\n원본 파일은 디스크에 남아있고, 같은 파일을 쓰는 다른 batch엔 영향 없음.`
+    if (!window.confirm(msg)) return
+    startDelete(async () => {
+      await deleteBatch(b.id)
+      router.refresh()
+    })
   }
 
   if (academies.length === 0) {
@@ -180,36 +207,46 @@ export function UploadForm({
             <Label>이 학원의 이전 업로드 ({pastBatches.length})</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {pastBatches.slice(0, 6).map((b) => (
-                <Link
-                  key={b.id}
-                  href={`/homework/upload?reuse=${b.id}`}
-                  className="block p-2.5 rounded-md border bg-card hover:bg-accent transition-colors text-xs space-y-1"
-                  title="이 파일로 다시 분석"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground tabular-nums">{formatDate(b.capturedAt)}</span>
-                    <span
-                      className={cn(
-                        'px-1.5 py-0.5 rounded text-[10px]',
-                        b.status === 'committed' && 'bg-green-100 text-green-700',
-                        b.status === 'ready' && 'bg-blue-100 text-blue-700',
-                        b.status === 'failed' && 'bg-red-100 text-red-700',
-                        (b.status === 'pending' || b.status === 'processing') && 'bg-muted text-muted-foreground'
-                      )}
-                    >
-                      {STATUS_LABEL[b.status]}
-                    </span>
-                  </div>
-                  <div className="text-foreground">
-                    {b.isPdf ? '📄' : '🖼️'} {b.photoCount}개 파일
-                    {b.itemCount > 0 && ` · 항목 ${b.itemCount}`}
-                  </div>
-                  {b.userHint && (
-                    <div className="text-muted-foreground line-clamp-1 italic">
-                      “{b.userHint}”
+                <div key={b.id} className="relative group">
+                  <Link
+                    href={`/homework/upload?reuse=${b.id}`}
+                    className="block p-2.5 pr-7 rounded-md border bg-card hover:bg-accent transition-colors text-xs space-y-1"
+                    title="이 파일로 다시 분석"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-muted-foreground tabular-nums">{formatDate(b.capturedAt)}</span>
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[10px] shrink-0',
+                          b.status === 'committed' && 'bg-green-100 text-green-700',
+                          b.status === 'ready' && 'bg-blue-100 text-blue-700',
+                          b.status === 'failed' && 'bg-red-100 text-red-700',
+                          (b.status === 'pending' || b.status === 'processing') && 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {STATUS_LABEL[b.status]}
+                      </span>
                     </div>
-                  )}
-                </Link>
+                    <div className="text-foreground">
+                      {b.isPdf ? '📄' : '🖼️'} {b.photoCount}개 파일
+                      {b.itemCount > 0 && ` · 항목 ${b.itemCount}`}
+                    </div>
+                    {b.userHint && (
+                      <div className="text-muted-foreground line-clamp-1 italic">
+                        “{b.userHint}”
+                      </div>
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteBatch(b, e)}
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-50 group-hover:opacity-100"
+                    aria-label="삭제"
+                    title="삭제"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
               ))}
             </div>
             {pastBatches.length > 6 && (
@@ -217,6 +254,76 @@ export function UploadForm({
                 최근 6개 표시 · 더 보기는 향후 추가 예정
               </p>
             )}
+          </div>
+        )}
+
+        {/* Analysis history (reuse mode only): batches that share this file's photos */}
+        {reuse && related.length > 0 && (
+          <div className="space-y-2">
+            <Label>이 파일의 분석 이력 ({related.length})</Label>
+            <div className="rounded-md border bg-card divide-y">
+              {related.map((r) => {
+                const isCurrent = r.id === reuse.batchId
+                return (
+                  <div key={r.id} className={cn('p-3 text-xs space-y-1', isCurrent && 'bg-accent/40')}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground tabular-nums">
+                        {formatDate(r.capturedAt)}
+                        {isCurrent && <span className="ml-2 text-foreground font-medium">(현재 선택됨)</span>}
+                      </span>
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[10px] shrink-0',
+                          r.status === 'committed' && 'bg-green-100 text-green-700',
+                          r.status === 'ready' && 'bg-blue-100 text-blue-700',
+                          r.status === 'failed' && 'bg-red-100 text-red-700',
+                          (r.status === 'pending' || r.status === 'processing') && 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </div>
+                    <div className="text-foreground">
+                      {r.modelUsed && <span className="text-muted-foreground">{r.modelUsed} · </span>}
+                      {r.status === 'failed'
+                        ? <span className="text-destructive">실패</span>
+                        : <>항목 {r.itemCount}개</>}
+                    </div>
+                    {r.userHint ? (
+                      <div className="text-muted-foreground italic line-clamp-2">
+                        “{r.userHint}”
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground/60 italic">힌트 없음</div>
+                    )}
+                    {r.failureReason && (
+                      <div className="text-destructive line-clamp-2">{r.failureReason}</div>
+                    )}
+                    {!isCurrent && (
+                      <div className="flex gap-2 pt-1">
+                        <Link
+                          href={`/homework/upload?reuse=${r.id}`}
+                          className="text-foreground/80 hover:text-foreground underline underline-offset-2"
+                        >
+                          이 batch 기준으로
+                        </Link>
+                        {(r.status === 'ready' || r.status === 'committed') && (
+                          <Link
+                            href={`/homework/batches/${r.id}/review`}
+                            className="text-foreground/80 hover:text-foreground underline underline-offset-2"
+                          >
+                            리뷰 열기
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              같은 파일을 기준으로 한 모든 분석 시도. 힌트나 모델만 바꿔서 결과 비교 가능.
+            </p>
           </div>
         )}
 

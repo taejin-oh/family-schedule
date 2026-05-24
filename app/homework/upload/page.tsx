@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { listAcademies } from '@/server/actions/academies'
-import { listRecentBatches } from '@/server/actions/homework'
+import { listRecentBatches, listRelatedBatches } from '@/server/actions/homework'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
@@ -41,8 +41,9 @@ export default async function UploadPage({
     if (!list.includes(h)) list.push(h)
   }
 
-  // If reuse mode, fetch the source batch
+  // If reuse mode, fetch the source batch + its analysis history
   let reuse: { batchId: number; academyId: number; photos: { path: string; isPdf: boolean }[]; userHint: string | null; capturedAt: Date } | null = null
+  let related: Awaited<ReturnType<typeof listRelatedBatches>> = []
   if (reuseId !== null) {
     const batch = getDb().select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, reuseId)).get()
     if (!batch) notFound()
@@ -54,6 +55,7 @@ export default async function UploadPage({
       userHint: batch.userHint,
       photos: photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') })),
     }
+    related = await listRelatedBatches(reuseId)
   }
 
   return (
@@ -66,6 +68,7 @@ export default async function UploadPage({
         batchesByAcademy={batchesByAcademy}
         hintsByAcademy={hintsByAcademy}
         reuse={reuse}
+        related={related}
       />
     </div>
   )
