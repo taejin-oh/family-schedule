@@ -38,6 +38,7 @@ export async function processExtractHomework(
         subject: academy.subject,
         nextSessionAt: computeNextSession(academy.scheduleRule, new Date()),
       },
+      userHint: batch.userHint,
       model: payload.model,
     })
 

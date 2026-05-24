@@ -30,7 +30,7 @@ export class ClaudeCliProvider implements VisionProvider {
 
   async extractHomework(input: ExtractInput): Promise<ExtractOutput> {
     const model = input.model ?? this.defaultModel
-    const prompt = buildPrompt({ academy: input.academy, imagePaths: input.imagePaths })
+    const prompt = buildPrompt({ academy: input.academy, imagePaths: input.imagePaths, userHint: input.userHint })
     const timeoutMs = input.timeoutMs ?? 60_000
 
     const stdout = await this.runClaude(prompt, model, timeoutMs)

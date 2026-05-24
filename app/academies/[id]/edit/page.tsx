@@ -24,6 +24,7 @@ export default async function EditAcademyPage({ params }: { params: Promise<{ id
         initial={{
           name: row.name, subject: row.subject as any, color: row.color,
           scheduleRule: row.scheduleRule, location: row.location, notes: row.notes,
+          extractionHint: row.extractionHint,
         }}
         onSubmit={submit}
         submitLabel="저장"

@@ -47,6 +47,7 @@ export function AcademyForm({
   const [slots, setSlots] = useState<Slot[]>(initial?.scheduleRule?.slots ?? [])
   const [location, setLocation] = useState(initial?.location ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [extractionHint, setExtractionHint] = useState(initial?.extractionHint ?? '')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -79,6 +80,7 @@ export function AcademyForm({
       scheduleRule: slots.length > 0 ? { slots } : null,
       location: location.trim() || null,
       notes: notes.trim() || null,
+      extractionHint: extractionHint.trim() || null,
     }
     const res = await onSubmit(input)
     if (!res.ok) { setError(res.error ?? '저장 실패'); setBusy(false) }
@@ -171,6 +173,24 @@ export function AcademyForm({
         <div className="space-y-2">
           <Label htmlFor="notes">메모 (선택)</Label>
           <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="extractionHint">
+            AI 추출 힌트 (선택)
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              이 학원의 종이/PDF 구조를 설명해두면 AI가 더 정확히 추출함
+            </span>
+          </Label>
+          <Textarea
+            id="extractionHint"
+            value={extractionHint}
+            onChange={(e) => setExtractionHint(e.target.value)}
+            placeholder="예: 'Lesson topics' 열은 수업 토픽이라 무시. 오른쪽 'Homework' 열만 숙제. 맨 위 파란 바탕은 책 이름. 날짜 열이 마감일."
+            rows={4}
+            className="resize-y text-sm"
+          />
+          <p className="text-xs text-muted-foreground">한 번 입력하면 이 학원 업로드 때마다 자동으로 적용됨 (매번 수정 가능).</p>
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

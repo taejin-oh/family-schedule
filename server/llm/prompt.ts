@@ -7,16 +7,40 @@ function fmtDate(d: Date): string {
 export function buildPrompt(input: {
   academy: AcademyContext
   imagePaths: string[]
+  userHint?: string | null
 }): string {
   const next = input.academy.nextSessionAt ? fmtDate(input.academy.nextSessionAt) : '미정'
   const imgs = input.imagePaths.map((p) => `- ${p}`).join('\n')
-  return [
+  const hint = input.userHint?.trim()
+
+  const lines: string[] = [
     `다음 파일(들)은 학원 "${input.academy.name}" (과목: ${input.academy.subject})의 숙제입니다. 사진이거나 PDF일 수 있습니다.`,
     `다음 학원일은 ${next}.`,
     ``,
     `파일:`,
     imgs,
     ``,
+  ]
+
+  if (hint) {
+    lines.push(
+      `🔍 부모가 알려준 이 학원의 파일 구조 힌트 (반드시 따를 것):`,
+      hint,
+      ``,
+      `위 힌트가 가리키는 영역만 숙제로 추출하고, 힌트가 "무시"하라고 한 영역은 절대 항목으로 만들지 마세요.`,
+      ``,
+    )
+  } else {
+    lines.push(
+      `힌트가 없으므로 파일을 검토해서 무엇이 숙제이고 무엇이 수업 토픽·시간표·안내문인지 스스로 판단하세요.`,
+      `- 명확히 학생이 해야 할 일(과제·문제·암기·연습·읽기 등)만 숙제로 추출`,
+      `- 수업 계획·교사 안내·일정표·연락처 같은 정보성 텍스트는 숙제 아님`,
+      `- 헷갈리면 차라리 추출 안 함 (false positive보다 누락이 나음)`,
+      ``,
+    )
+  }
+
+  lines.push(
     `각 숙제 항목을 가능한 한 자세하게 추출해서 JSON으로만 응답해주세요. 다른 설명 문장은 넣지 마세요.`,
     `형식:`,
     `{"items":[{"title":"한 줄 핵심 요약","dueDate":"YYYY-MM-DD or null","notes":"부가 정보"}]}`,
@@ -39,5 +63,7 @@ export function buildPrompt(input: {
     `규칙 - 일반:`,
     `- 한 페이지에 여러 종류 숙제가 있으면 각각을 별도 항목으로 분리`,
     `- 항목이 없으면 빈 배열 반환`,
-  ].join('\n')
+  )
+
+  return lines.join('\n')
 }

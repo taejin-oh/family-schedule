@@ -21,6 +21,7 @@ export const academies = sqliteTable('academies', {
   scheduleRule: text('schedule_rule', { mode: 'json' }).$type<ScheduleRule>(),
   location: text('location'),
   notes: text('notes'),
+  extractionHint: text('extraction_hint'),   // AI에게 줄 학원별 파일 해석 힌트 (영구 디폴트)
   archivedAt: integer('archived_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 })
@@ -30,6 +31,7 @@ export const homeworkBatches = sqliteTable('homework_batches', {
   academyId: integer('academy_id').notNull().references(() => academies.id),
   capturedAt: integer('captured_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   status: text('status', { enum: ['pending','processing','ready','committed','failed'] }).notNull().default('pending'),
+  userHint: text('user_hint'),               // 이 batch에 실제로 사용된 힌트 스냅샷
   providerUsed: text('provider_used'),
   modelUsed: text('model_used'),
   rawResponse: text('raw_response'),

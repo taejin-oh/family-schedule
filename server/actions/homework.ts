@@ -43,7 +43,7 @@ function isResizableImage(mime: string): boolean {
   // heic skipped: sharp on macOS sometimes lacks libheif; pass through as-is
 }
 
-export type UploadInput = { academyId: number; files: File[] }
+export type UploadInput = { academyId: number; files: File[]; userHint?: string | null }
 export type UploadResult = { ok: true; data: { batchId: number } } | { ok: false; error: string }
 
 const ACCEPTED_MIMES = new Set([
@@ -63,7 +63,9 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
   if (!academy) return { ok: false, error: '학원을 찾을 수 없습니다.' }
 
   const [batch] = appDb.insert(appSchema.homeworkBatches).values({
-    academyId: academy.id, status: 'pending',
+    academyId: academy.id,
+    status: 'pending',
+    userHint: input.userHint?.trim() || null,
   }).returning().all()
 
   for (let i = 0; i < input.files.length; i++) {

@@ -25,6 +25,7 @@ const InputSchema = z.object({
   ]),
   location: z.string().nullable(),
   notes: z.string().nullable(),
+  extractionHint: z.string().nullable().optional(),
 })
 
 export type AcademyInput = z.infer<typeof InputSchema>
