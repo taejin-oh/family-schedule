@@ -33,16 +33,21 @@ export default async function AcademiesPage() {
         <Card className="divide-y p-0">
           {rows.map((r) => (
             <div key={r.id} className="p-4 flex items-center gap-3">
-              <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: r.color }} />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium">{r.name}</div>
-                <div className="text-sm text-muted-foreground">
-                  {SUBJECT_KO[r.subject] ?? r.subject}
-                  {r.scheduleRule?.slots && r.scheduleRule.slots.length > 0 && (
-                    ' · ' + r.scheduleRule.slots.map((s) => `${DAY_KO[s.day] ?? s.day} ${s.start}–${s.end}`).join(' · ')
-                  )}
+              <Link
+                href={`/academies/${r.id}`}
+                className="flex items-center gap-3 flex-1 min-w-0 -m-2 p-2 rounded-md hover:bg-accent transition-colors"
+              >
+                <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium">{r.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {SUBJECT_KO[r.subject] ?? r.subject}
+                    {r.scheduleRule?.slots && r.scheduleRule.slots.length > 0 && (
+                      ' · ' + r.scheduleRule.slots.map((s) => `${DAY_KO[s.day] ?? s.day} ${s.start}–${s.end}`).join(' · ')
+                    )}
+                  </div>
                 </div>
-              </div>
+              </Link>
               <Link href={`/academies/${r.id}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>편집</Link>
               <form action={onArchive}>
                 <input type="hidden" name="id" value={r.id} />

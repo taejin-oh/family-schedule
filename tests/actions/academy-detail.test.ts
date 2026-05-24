@@ -23,6 +23,16 @@ describe('getAcademyDetail', () => {
     expect(res).toBeNull()
   })
 
+  it('returns null for archived academy (hidden from detail)', async () => {
+    const db = makeDb()
+    const [a] = db.insert(schema.academies).values({
+      name: 'OLD', subject: 'math', color: '#000000',
+      archivedAt: new Date(),
+    }).returning().all()
+    const res = await getAcademyDetail(a.id, { appDb: db })
+    expect(res).toBeNull()
+  })
+
   it('splits items into active vs done', async () => {
     const db = makeDb()
     const [a] = db.insert(schema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()

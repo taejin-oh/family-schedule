@@ -13,6 +13,8 @@ export async function getAcademyDetail(academyId: number, ctx: Ctx = {}) {
 
   const academy = appDb.select().from(appSchema.academies).where(eq(appSchema.academies.id, academyId)).get()
   if (!academy) return null
+  // Archived academies are not viewable as a detail page (treat like not-found).
+  if (academy.archivedAt !== null) return null
 
   // All items for this academy (any batch state)
   const items = appDb.select().from(appSchema.homeworkItems)
