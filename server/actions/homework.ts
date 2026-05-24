@@ -166,3 +166,32 @@ export async function listCommittedItems(ctx: Ctx = {}) {
       return x.dueDate.localeCompare(y.dueDate)
     })
 }
+
+/**
+ * Items completed in the current local calendar day, newest completion first.
+ * "Today" boundary is computed by the caller's timezone (server clock).
+ */
+export async function listDoneToday(ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const end = new Date(start); end.setDate(end.getDate() + 1)
+
+  const rows = appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    notes: appSchema.homeworkItems.notes,
+    dueDate: appSchema.homeworkItems.dueDate,
+    doneAt: appSchema.homeworkItems.doneAt,
+    academyId: appSchema.homeworkItems.academyId,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(eq(appSchema.homeworkItems.isCommitted, true))
+  .all()
+
+  return rows
+    .filter((r) => r.doneAt !== null && r.doneAt >= start && r.doneAt < end)
+    .sort((x, y) => (y.doneAt!.getTime() - x.doneAt!.getTime()))
+}

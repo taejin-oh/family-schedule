@@ -10,7 +10,7 @@ import sharp from 'sharp'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
 import { uploadHomework, commitBatch, updateDraftItem, addDraftItem, deleteDraftItem } from '@/server/actions/homework'
-import { toggleItemDone, listCommittedItems } from '@/server/actions/homework'
+import { toggleItemDone, listCommittedItems, listDoneToday } from '@/server/actions/homework'
 
 function makeDbs() {
   const dir = mkdtempSync(join(tmpdir(), 'fs-up-'))
@@ -183,5 +183,27 @@ describe('toggleItemDone + listCommittedItems', () => {
     expect(out.map((x) => x.title)).toEqual(['soon', 'late', 'no-date'])
     expect(out[0].academyName).toBe('수학')
     expect(out[0].academyColor).toBe('#ef4444')
+  })
+
+  it('listDoneToday returns only items completed in current local day, newest first', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+
+    const now = Date.now()
+    const oneHourAgo = new Date(now - 60 * 60 * 1000)
+    const tenMinAgo = new Date(now - 10 * 60 * 1000)
+    const yesterday = new Date(now - 24 * 60 * 60 * 1000); yesterday.setHours(12, 0, 0, 0)
+
+    appDb.insert(appSchema.homeworkItems).values([
+      { batchId: b.id, academyId: a.id, title: 'old (yesterday)', source: 'ai', isCommitted: true, doneAt: yesterday, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'older (1h ago)',  source: 'ai', isCommitted: true, doneAt: oneHourAgo,  dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'newer (10m ago)', source: 'ai', isCommitted: true, doneAt: tenMinAgo,   dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'still active',    source: 'ai', isCommitted: true, doneAt: null,        dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'draft (skip)',    source: 'ai', isCommitted: false, doneAt: tenMinAgo,   dueDate: null },
+    ]).run()
+
+    const out = await listDoneToday({ appDb })
+    expect(out.map((x) => x.title)).toEqual(['newer (10m ago)', 'older (1h ago)'])
   })
 })
