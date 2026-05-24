@@ -132,3 +132,37 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   })
   return { ok: true }
 }
+
+export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const appDb = ctx.appDb ?? getDb()
+  appDb.update(appSchema.homeworkItems).set({ doneAt: done ? new Date() : null }).where(eq(appSchema.homeworkItems.id, id)).run()
+  return { ok: true }
+}
+
+export async function listCommittedItems(ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const rows = appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    notes: appSchema.homeworkItems.notes,
+    dueDate: appSchema.homeworkItems.dueDate,
+    doneAt: appSchema.homeworkItems.doneAt,
+    academyId: appSchema.homeworkItems.academyId,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(eq(appSchema.homeworkItems.isCommitted, true))
+  .all()
+
+  // Filter undone + sort: dueDate asc, null dates last
+  return rows
+    .filter((r) => r.doneAt === null)
+    .sort((x, y) => {
+      if (x.dueDate === null && y.dueDate === null) return 0
+      if (x.dueDate === null) return 1
+      if (y.dueDate === null) return -1
+      return x.dueDate.localeCompare(y.dueDate)
+    })
+}

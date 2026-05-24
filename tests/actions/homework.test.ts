@@ -10,6 +10,7 @@ import sharp from 'sharp'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
 import { uploadHomework, commitBatch, updateDraftItem, addDraftItem, deleteDraftItem } from '@/server/actions/homework'
+import { toggleItemDone, listCommittedItems } from '@/server/actions/homework'
 
 function makeDbs() {
   const dir = mkdtempSync(join(tmpdir(), 'fs-up-'))
@@ -149,5 +150,38 @@ describe('reviewBatch actions', () => {
     const res = await deleteDraftItem(item.id, { appDb })
     expect(res.ok).toBe(true)
     expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(0)
+  })
+})
+
+describe('toggleItemDone + listCommittedItems', () => {
+  it('toggleItemDone flips done_at on/off', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    const [it] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: b.id, academyId: a.id, title: 'x', source: 'ai', isCommitted: true, dueDate: null,
+    }).returning().all()
+    let res = await toggleItemDone(it.id, true, { appDb })
+    expect(res.ok).toBe(true)
+    expect(appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, it.id)).get()?.doneAt).not.toBeNull()
+    res = await toggleItemDone(it.id, false, { appDb })
+    expect(appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, it.id)).get()?.doneAt).toBeNull()
+  })
+
+  it('listCommittedItems returns only committed undone items joined with academy color/name + ordered by due date asc nulls last', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: '수학', subject: 'math', color: '#ef4444' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    appDb.insert(appSchema.homeworkItems).values([
+      { batchId: b.id, academyId: a.id, title: 'done one',  source: 'ai', isCommitted: true, doneAt: new Date(), dueDate: '2026-05-25' },
+      { batchId: b.id, academyId: a.id, title: 'no-date',   source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'late',      source: 'ai', isCommitted: true, dueDate: '2026-06-10' },
+      { batchId: b.id, academyId: a.id, title: 'soon',      source: 'ai', isCommitted: true, dueDate: '2026-05-27' },
+      { batchId: b.id, academyId: a.id, title: 'draft',     source: 'ai', isCommitted: false, dueDate: '2026-05-26' },
+    ]).run()
+    const out = await listCommittedItems({ appDb })
+    expect(out.map((x) => x.title)).toEqual(['soon', 'late', 'no-date'])
+    expect(out[0].academyName).toBe('수학')
+    expect(out[0].academyColor).toBe('#ef4444')
   })
 })
