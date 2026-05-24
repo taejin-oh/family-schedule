@@ -1,0 +1,66 @@
+import { describe, it, expect } from 'vitest'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import sharp from 'sharp'
+import * as appSchema from '@/server/db/schema'
+import * as jobsSchema from '@/server/jobs/schema'
+import { uploadHomework } from '@/server/actions/homework'
+
+function makeDbs() {
+  const dir = mkdtempSync(join(tmpdir(), 'fs-up-'))
+  const appPath = join(dir, 'app.db')
+  const jobsPath = join(dir, 'jobs.db')
+  const appSqlite = new Database(appPath); appSqlite.pragma('foreign_keys = ON')
+  const appDb = drizzle(appSqlite, { schema: appSchema })
+  migrate(appDb, { migrationsFolder: './server/db/migrations' })
+  const jobsSqlite = new Database(jobsPath)
+  const jobsDb = drizzle(jobsSqlite, { schema: jobsSchema })
+  migrate(jobsDb, { migrationsFolder: './server/jobs/migrations' })
+  return { appDb, jobsDb, storageRoot: dir }
+}
+
+describe('uploadHomework', () => {
+  it('creates a batch + photos rows + enqueues a job', async () => {
+    const { appDb, jobsDb, storageRoot } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({
+      name: 'X', subject: 'math', color: '#000000',
+    }).returning().all()
+
+    const png = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#fff' } }).png().toBuffer()
+    const file1 = new File([new Uint8Array(png)], 'a.png', { type: 'image/png' })
+
+    const res = await uploadHomework({
+      academyId: academy.id,
+      files: [file1],
+    }, { appDb, jobsDb, storageRoot })
+
+    expect(res.ok).toBe(true)
+    const batches = appDb.select().from(appSchema.homeworkBatches).all()
+    expect(batches).toHaveLength(1)
+    expect(batches[0].status).toBe('pending')
+    const photos = appDb.select().from(appSchema.homeworkPhotos).all()
+    expect(photos).toHaveLength(1)
+    const jobs = jobsDb.select().from(jobsSchema.jobs).all()
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].payload).toEqual({ batchId: batches[0].id })
+  })
+
+  it('rejects when academyId does not exist', async () => {
+    const { appDb, jobsDb, storageRoot } = makeDbs()
+    const png = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#fff' } }).png().toBuffer()
+    const f = new File([new Uint8Array(png)], 'a.png', { type: 'image/png' })
+    const res = await uploadHomework({ academyId: 9999, files: [f] }, { appDb, jobsDb, storageRoot })
+    expect(res.ok).toBe(false)
+  })
+
+  it('rejects when files is empty', async () => {
+    const { appDb, jobsDb, storageRoot } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const res = await uploadHomework({ academyId: a.id, files: [] }, { appDb, jobsDb, storageRoot })
+    expect(res.ok).toBe(false)
+  })
+})
