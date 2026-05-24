@@ -63,11 +63,28 @@ export default async function AcademiesPage() {
               <Link href={`/academies/${r.id}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>편집</Link>
               <form action={onArchive}>
                 <input type="hidden" name="id" value={r.id} />
-                <Button type="submit" variant="ghost" size="sm" className="text-destructive hover:text-destructive">보관</Button>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  title="보관함에서 나중에 복원할 수 있어요"
+                >
+                  보관
+                </Button>
               </form>
             </div>
           ))}
         </Card>
+      )}
+      {rows.length > 0 && (
+        <p className="text-xs text-muted-foreground px-1">
+          보관한 학원은{' '}
+          <Link href="/academies/archived" className="underline underline-offset-2 hover:text-foreground">
+            보관함
+          </Link>
+          에서 언제든 복원할 수 있어요.
+        </p>
       )}
     </div>
   )
