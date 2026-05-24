@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -84,4 +84,6 @@ export const recurringTaskCompletions = sqliteTable('recurring_task_completions'
   taskId: integer('task_id').notNull().references(() => recurringTasks.id, { onDelete: 'cascade' }),
   completionDate: text('completion_date').notNull(),  // 'YYYY-MM-DD' (the local day this counts as done for)
   doneAt: integer('done_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-})
+}, (t) => [
+  uniqueIndex('rtc_task_date_unique').on(t.taskId, t.completionDate),
+])

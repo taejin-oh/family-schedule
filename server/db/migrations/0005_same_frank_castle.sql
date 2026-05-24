@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `rtc_task_date_unique` ON `recurring_task_completions` (`task_id`,`completion_date`);
