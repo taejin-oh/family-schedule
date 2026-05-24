@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { resolve, sep, relative } from 'node:path'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,9 +7,12 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const path = url.searchParams.get('path')
   if (!path) return new Response('missing path', { status: 400 })
-  const abs = resolve(path)
   const storageRoot = resolve(process.cwd(), 'storage')
-  if (!abs.startsWith(storageRoot)) return new Response('forbidden', { status: 403 })
+  const abs = resolve(path)
+  const rel = relative(storageRoot, abs)
+  if (rel.startsWith('..') || rel === '' || rel.startsWith(sep) || abs === storageRoot) {
+    return new Response('forbidden', { status: 403 })
+  }
   let bytes: Buffer
   try {
     bytes = await readFile(abs)
