@@ -1,6 +1,15 @@
 import Link from 'next/link'
 import { listAcademies, archiveAcademy } from '@/server/actions/academies'
 import { revalidatePath } from 'next/cache'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+
+const SUBJECT_KO: Record<string, string> = {
+  math: '수학', english: '영어', korean: '국어', art: '미술',
+  music: '음악', pe: '체육', science: '과학', other: '기타',
+}
+const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
 
 export default async function AcademiesPage() {
   const rows = await listAcademies()
@@ -11,30 +20,35 @@ export default async function AcademiesPage() {
     revalidatePath('/academies')
   }
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">학원 목록</h1>
-        <Link href="/academies/new" className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ 새 학원</Link>
+        <h1 className="text-2xl font-semibold tracking-tight">학원 목록</h1>
+        <Link href="/academies/new" className={cn(buttonVariants())}>+ 새 학원</Link>
       </div>
       {rows.length === 0 ? (
-        <p className="text-gray-500">등록된 학원이 없습니다.</p>
+        <Card className="p-8 text-center text-muted-foreground">
+          등록된 학원이 없습니다.
+        </Card>
       ) : (
-        <ul className="divide-y bg-white rounded border">
+        <Card className="divide-y p-0">
           {rows.map((r) => (
-            <li key={r.id} className="p-3 flex items-center gap-3">
-              <span className="w-4 h-4 rounded-full" style={{ background: r.color }} />
-              <div className="flex-1">
+            <div key={r.id} className="p-4 flex items-center gap-3">
+              <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: r.color }} />
+              <div className="flex-1 min-w-0">
                 <div className="font-medium">{r.name}</div>
-                <div className="text-xs text-gray-500">{r.subject}{r.scheduleRule ? ` · ${r.scheduleRule.days.join(',')} ${r.scheduleRule.start}-${r.scheduleRule.end}` : ''}</div>
+                <div className="text-sm text-muted-foreground">
+                  {SUBJECT_KO[r.subject] ?? r.subject}
+                  {r.scheduleRule && ` · ${r.scheduleRule.days.map((d) => DAY_KO[d] ?? d).join('·')} ${r.scheduleRule.start}–${r.scheduleRule.end}`}
+                </div>
               </div>
-              <Link href={`/academies/${r.id}/edit`} className="text-sm text-blue-600">편집</Link>
+              <Link href={`/academies/${r.id}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>편집</Link>
               <form action={onArchive}>
                 <input type="hidden" name="id" value={r.id} />
-                <button className="text-sm text-red-600">보관</button>
+                <Button type="submit" variant="ghost" size="sm" className="text-destructive hover:text-destructive">보관</Button>
               </form>
-            </li>
+            </div>
           ))}
-        </ul>
+        </Card>
       )}
     </div>
   )

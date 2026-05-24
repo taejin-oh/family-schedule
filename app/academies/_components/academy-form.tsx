@@ -2,6 +2,13 @@
 
 import { useState } from 'react'
 import type { AcademyInput } from '@/server/actions/academies'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 const DAYS: { key: Day; label: string }[] = [
@@ -9,7 +16,16 @@ const DAYS: { key: Day; label: string }[] = [
   { key: 'wed', label: '수' }, { key: 'thu', label: '목' },
   { key: 'fri', label: '금' }, { key: 'sat', label: '토' }, { key: 'sun', label: '일' },
 ]
-const SUBJECTS = ['math','english','korean','art','music','pe','science','other'] as const
+const SUBJECTS: { value: AcademyInput['subject']; label: string }[] = [
+  { value: 'math', label: '수학' },
+  { value: 'english', label: '영어' },
+  { value: 'korean', label: '국어' },
+  { value: 'art', label: '미술' },
+  { value: 'music', label: '음악' },
+  { value: 'pe', label: '체육' },
+  { value: 'science', label: '과학' },
+  { value: 'other', label: '기타' },
+]
 const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#475569']
 
 export function AcademyForm({
@@ -51,68 +67,86 @@ export function AcademyForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 bg-white p-4 rounded border">
-      <label className="block">
-        <div className="text-sm mb-1">학원 이름</div>
-        <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded px-3 py-2" required />
-      </label>
-
-      <label className="block">
-        <div className="text-sm mb-1">과목</div>
-        <select value={subject} onChange={(e) => setSubject(e.target.value as any)} className="w-full border rounded px-3 py-2">
-          {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </label>
-
-      <div>
-        <div className="text-sm mb-1">색상</div>
-        <div className="flex gap-2">
-          {COLORS.map((c) => (
-            <button type="button" key={c} onClick={() => setColor(c)}
-              className={`w-8 h-8 rounded-full ${color === c ? 'ring-2 ring-black' : ''}`}
-              style={{ background: c }} aria-label={c} />
-          ))}
+    <Card className="p-6">
+      <form onSubmit={submit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="name">학원 이름</Label>
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
-      </div>
 
-      <div>
-        <div className="text-sm mb-1">요일</div>
-        <div className="flex gap-2">
-          {DAYS.map((d) => (
-            <button type="button" key={d.key} onClick={() => toggleDay(d.key)}
-              className={`px-3 py-1 rounded border ${days.includes(d.key) ? 'bg-blue-600 text-white' : 'bg-white'}`}>
-              {d.label}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <Label htmlFor="subject">과목</Label>
+          <Select value={subject} onValueChange={(v) => setSubject(v as AcademyInput['subject'])}>
+            <SelectTrigger id="subject" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {SUBJECTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-      </div>
 
-      <div className="flex gap-3">
-        <label className="block flex-1">
-          <div className="text-sm mb-1">시작</div>
-          <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="w-full border rounded px-3 py-2" />
-        </label>
-        <label className="block flex-1">
-          <div className="text-sm mb-1">종료</div>
-          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="w-full border rounded px-3 py-2" />
-        </label>
-      </div>
+        <div className="space-y-2">
+          <Label>색상</Label>
+          <div className="flex gap-2">
+            {COLORS.map((c) => (
+              <button
+                type="button"
+                key={c}
+                onClick={() => setColor(c)}
+                className={cn(
+                  'w-9 h-9 rounded-full transition-transform',
+                  color === c ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105'
+                )}
+                style={{ background: c }}
+                aria-label={c}
+              />
+            ))}
+          </div>
+        </div>
 
-      <label className="block">
-        <div className="text-sm mb-1">위치 (선택)</div>
-        <input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full border rounded px-3 py-2" />
-      </label>
+        <div className="space-y-2">
+          <Label>요일</Label>
+          <div className="flex gap-1.5">
+            {DAYS.map((d) => (
+              <Button
+                type="button"
+                key={d.key}
+                variant={days.includes(d.key) ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => toggleDay(d.key)}
+              >
+                {d.label}
+              </Button>
+            ))}
+          </div>
+        </div>
 
-      <label className="block">
-        <div className="text-sm mb-1">메모 (선택)</div>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border rounded px-3 py-2" rows={2} />
-      </label>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="start">시작</Label>
+            <Input id="start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="end">종료</Label>
+            <Input id="end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+          </div>
+        </div>
 
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+        <div className="space-y-2">
+          <Label htmlFor="location">위치 (선택)</Label>
+          <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} />
+        </div>
 
-      <button disabled={busy} className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50">
-        {busy ? '저장 중…' : submitLabel}
-      </button>
-    </form>
+        <div className="space-y-2">
+          <Label htmlFor="notes">메모 (선택)</Label>
+          <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <Button type="submit" disabled={busy} className="w-full">
+          {busy ? '저장 중…' : submitLabel}
+        </Button>
+      </form>
+    </Card>
   )
 }
