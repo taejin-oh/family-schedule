@@ -51,6 +51,27 @@ const ACCEPTED_MIMES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
 ])
 
+/**
+ * Create an empty batch for manual entry (no photos, no AI extraction).
+ * Status starts at 'ready' so /review immediately accepts manual-add.
+ * User fills items via the existing review-form 수동 추가 section then commits.
+ */
+export async function createEmptyBatch(
+  academyId: number,
+  ctx: Ctx = {},
+): Promise<UploadResult> {
+  const appDb = ctx.appDb ?? getDb()
+  const academy = appDb.select().from(appSchema.academies).where(eq(appSchema.academies.id, academyId)).get()
+  if (!academy) return { ok: false, error: '학원을 찾을 수 없습니다.' }
+  const [batch] = appDb.insert(appSchema.homeworkBatches).values({
+    academyId,
+    status: 'ready',
+  }).returning().all()
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
+  return { ok: true, data: { batchId: batch.id } }
+}
+
 export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise<UploadResult> {
   if (!input.files || input.files.length === 0) return { ok: false, error: '파일을 한 장 이상 선택하세요.' }
   const bad = input.files.find((f) => !ACCEPTED_MIMES.has(f.type))

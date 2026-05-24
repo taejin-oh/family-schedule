@@ -3,8 +3,8 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, X } from 'lucide-react'
-import { uploadHomework, rerunBatch, deleteBatch } from '@/server/actions/homework'
+import { RefreshCw, X, Pencil } from 'lucide-react'
+import { uploadHomework, rerunBatch, deleteBatch, createEmptyBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -127,6 +127,15 @@ export function UploadForm({
     return '🖼️'
   }
 
+  async function startManual() {
+    setError(null)
+    if (!academyId) { setError('학원을 선택하세요.'); return }
+    setBusy(true)
+    const res = await createEmptyBatch(academyId)
+    if (!res.ok) { setError(res.error); setBusy(false); return }
+    router.push(`/homework/batches/${res.data.batchId}/review`)
+  }
+
   function handleDeleteBatch(b: BatchSummary, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -200,6 +209,40 @@ export function UploadForm({
             })}
           </div>
         </div>
+
+        {/* Two-mode chooser: file upload vs manual entry (not in reuse mode) */}
+        {!reuse && academyId !== null && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-3 rounded-md border bg-card text-left">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                📷 파일 업로드
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                사진/PDF를 올리면 AI가 숙제 항목으로 추출
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 mt-1">
+                ↓ 아래 폼 이용
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={startManual}
+              disabled={busy}
+              className="p-3 rounded-md border bg-card text-left hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Pencil className="h-4 w-4" aria-hidden />
+                수동 추가
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                파일 없이 항목을 직접 입력하기
+              </p>
+              <p className="text-[10px] text-foreground/70 mt-1">
+                → 바로 입력 화면으로
+              </p>
+            </button>
+          </div>
+        )}
 
         {/* Past uploads (not in reuse mode) */}
         {!reuse && academyId !== null && pastBatches.length > 0 && (

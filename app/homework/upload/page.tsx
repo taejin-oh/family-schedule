@@ -61,7 +61,7 @@ export default async function UploadPage({
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">
-        {reuse ? '재분석' : '숙제 파일 업로드'}
+        {reuse ? '재분석' : '숙제 추가'}
       </h1>
       <UploadForm
         academies={academies}
