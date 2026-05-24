@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# family-schedule (Phase 0)
 
-## Getting Started
+Daughter's 학원 schedule + AI-extracted homework todos. Single-machine,
+localhost-only MVP. Repo: github.com/taejin-oh/family-schedule (private).
 
-First, run the development server:
+## Prerequisites
+- macOS, Node v22+, pnpm 10+
+- `claude` CLI on PATH (Claude Code) with an active session — used as
+  the default vision provider (`claude -p`, model `claude-opus-4-7`)
 
+## First-time setup
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm db:generate
+pnpm db:generate:jobs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run
+```bash
+./scripts/dev.sh
+```
+Opens at http://localhost:3001. This script runs:
+- `next dev --turbopack -p 3001`  (web UI)
+- `tsx watch worker.ts`            (background job worker — picks up
+                                    extract_homework jobs from data/jobs.db)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Kill with Ctrl-C; both processes stop together.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tests
+```bash
+pnpm test          # one-shot
+pnpm test:watch    # vitest UI
+```
 
-## Learn More
+## Phase 0 scope
+- Academies CRUD (`/academies`) — per-day schedule slots, color, optional AI
+  extraction hint
+- Upload photos or PDFs → AI extracts homework → review screen → commit
+  (`/homework/upload` → `/homework/batches/<id>` → `/homework/batches/<id>/review`)
+- Re-analyze past uploads with different hints/models; per-academy history
+- Flat-todo dashboard (`/`) with due-date grouping, filter chips, and
+  "오늘 한 일" completed section
+- Provider/model selector (`/admin/settings`) — currently Claude only;
+  Codex/Gemini providers are next-phase candidates
 
-To learn more about Next.js, take a look at the following resources:
+## Out of scope (Phase 0)
+- Authentication, public/Tailscale exposure, Telegram digest, push,
+  recurring schedules, multi-child, search, soft-delete
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Where things live
+- `app/`                — Next.js App Router pages + API routes
+- `server/db/`          — Drizzle schema + better-sqlite3 client
+- `server/jobs/`        — queue + runner (separate jobs.db)
+- `server/llm/`         — Vision provider interface + ClaudeCliProvider
+- `server/storage/`     — photo/file save + sharp resize
+- `server/actions/`     — Server Actions (homework, academies, settings)
+- `worker.ts`           — background job loop
+- `data/`               — runtime SQLite + jobs queue (gitignored)
+- `storage/photos/`     — runtime files (gitignored)

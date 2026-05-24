@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache'
 
 export default async function SettingsPage() {
   const s = await getSettings()
-  const providers = listProviderOptions()
+  const providers = await listProviderOptions()
   async function save(formData: FormData) {
     'use server'
     const res = await updateSettings({

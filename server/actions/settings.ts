@@ -38,7 +38,7 @@ export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}
   return { ok: true }
 }
 
-export function listProviderOptions() {
+export async function listProviderOptions() {
   return availableProviderNames().map((n) => {
     const p = getProvider(n)
     return { name: n, models: p.availableModels.slice(), defaultModel: p.defaultModel }

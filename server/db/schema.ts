@@ -68,3 +68,20 @@ export const appSettings = sqliteTable('app_settings', {
   visionProvider: text('vision_provider').notNull().default('claude'),
   visionModel: text('vision_model').notNull().default('claude-opus-4-7'),
 })
+
+export const recurringTasks = sqliteTable('recurring_tasks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  notes: text('notes'),
+  color: text('color').notNull().default('#64748b'),  // slate
+  daysOfWeek: text('days_of_week', { mode: 'json' }).$type<Array<'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'>>().notNull(),
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+})
+
+export const recurringTaskCompletions = sqliteTable('recurring_task_completions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  taskId: integer('task_id').notNull().references(() => recurringTasks.id, { onDelete: 'cascade' }),
+  completionDate: text('completion_date').notNull(),  // 'YYYY-MM-DD' (the local day this counts as done for)
+  doneAt: integer('done_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+})
