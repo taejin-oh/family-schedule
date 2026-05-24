@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { uploadHomework } from '@/server/actions/homework'
+import Link from 'next/link'
+import { RefreshCw } from 'lucide-react'
+import { uploadHomework, rerunBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -11,30 +13,91 @@ import { cn } from '@/lib/utils'
 
 type Academy = { id: number; name: string; color: string; extractionHint: string | null }
 
-export function UploadForm({ academies }: { academies: Academy[] }) {
+type BatchSummary = {
+  id: number
+  academyId: number
+  capturedAt: Date
+  status: 'pending' | 'processing' | 'ready' | 'committed' | 'failed'
+  userHint: string | null
+  failureReason: string | null
+  photoCount: number
+  firstPhotoPath: string | null
+  isPdf: boolean
+  itemCount: number
+}
+
+type ReuseSource = {
+  batchId: number
+  academyId: number
+  capturedAt: Date
+  userHint: string | null
+  photos: { path: string; isPdf: boolean }[]
+}
+
+const STATUS_LABEL: Record<BatchSummary['status'], string> = {
+  pending: '대기',
+  processing: '분석 중',
+  ready: '리뷰 대기',
+  committed: '확정됨',
+  failed: '실패',
+}
+
+function formatDate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${mm}/${dd} ${hh}:${min}`
+}
+
+export function UploadForm({
+  academies,
+  batchesByAcademy,
+  hintsByAcademy,
+  reuse,
+}: {
+  academies: Academy[]
+  batchesByAcademy: Record<number, BatchSummary[]>
+  hintsByAcademy: Record<number, string[]>
+  reuse: ReuseSource | null
+}) {
   const router = useRouter()
-  const [academyId, setAcademyId] = useState<number | null>(
-    academies.length === 1 ? academies[0].id : null
-  )
+  const initialAcademyId =
+    reuse?.academyId ?? (academies.length === 1 ? academies[0].id : null)
+
+  const [academyId, setAcademyId] = useState<number | null>(initialAcademyId)
   const [hint, setHint] = useState<string>(
-    academies.length === 1 ? (academies[0].extractionHint ?? '') : ''
+    reuse?.userHint ??
+    (academyId !== null ? academies.find((a) => a.id === academyId)?.extractionHint ?? '' : '')
   )
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // When user picks a different academy, prefill hint from that academy's default
+  // When user changes academy (not in reuse mode), prefill hint from the
+  // academy's default extractionHint.
   useEffect(() => {
+    if (reuse) return
     if (academyId === null) return
     const academy = academies.find((a) => a.id === academyId)
     setHint(academy?.extractionHint ?? '')
-  }, [academyId, academies])
+  }, [academyId, academies, reuse])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
+
+    if (reuse) {
+      setBusy(true)
+      const res = await rerunBatch(reuse.batchId, { userHint: hint || null })
+      if (!res.ok) { setError(res.error); setBusy(false); return }
+      router.push(`/homework/batches/${res.data.batchId}`)
+      return
+    }
+
     if (!academyId) { setError('학원을 선택하세요.'); return }
     if (files.length === 0) { setError('파일을 1장 이상 추가하세요.'); return }
-    setBusy(true); setError(null)
+    setBusy(true)
     const res = await uploadHomework({ academyId, files, userHint: hint || null })
     if (!res.ok) { setError(res.error); setBusy(false); return }
     router.push(`/homework/batches/${res.data.batchId}`)
@@ -59,25 +122,48 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
     )
   }
 
-  const selectedAcademy = academies.find((a) => a.id === academyId)
+  const selectedAcademy = academyId !== null ? academies.find((a) => a.id === academyId) : null
+  const pastBatches = academyId !== null ? (batchesByAcademy[academyId] ?? []) : []
+  const pastHints = academyId !== null ? (hintsByAcademy[academyId] ?? []) : []
   const hasAcademyDefault = !!selectedAcademy?.extractionHint
 
   return (
     <Card className="p-6">
       <form onSubmit={submit} className="space-y-5">
+        {/* Reuse-mode header banner */}
+        {reuse && (
+          <div className="rounded-lg bg-accent/40 border border-foreground/10 px-3 py-2 text-sm">
+            <div className="flex items-center gap-2 font-medium">
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              이전 batch #{reuse.batchId} 파일로 재분석
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {formatDate(reuse.capturedAt)} 업로드 · {reuse.photos.length}개 파일
+              {' · '}
+              <Link href="/homework/upload" className="underline hover:text-foreground">
+                새 업로드로 전환
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Academy chooser (disabled in reuse mode) */}
         <div className="space-y-2">
           <Label>학원</Label>
           <div className="grid grid-cols-2 gap-2">
             {academies.map((a) => {
               const selected = academyId === a.id
+              const disabled = reuse !== null && reuse.academyId !== a.id
               return (
                 <button
                   type="button"
                   key={a.id}
-                  onClick={() => setAcademyId(a.id)}
+                  onClick={() => !reuse && setAcademyId(a.id)}
+                  disabled={disabled}
                   className={cn(
                     'p-3 rounded-md border bg-card text-left flex items-center gap-2 transition-colors',
-                    selected ? 'border-foreground ring-2 ring-foreground' : 'hover:bg-accent'
+                    selected ? 'border-foreground ring-2 ring-foreground' : 'hover:bg-accent',
+                    disabled && 'opacity-30 cursor-not-allowed'
                   )}
                 >
                   <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: a.color }} />
@@ -88,36 +174,100 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
-          <input
-            id="photos"
-            type="file"
-            accept="image/*,application/pdf"
-            capture="environment"
-            multiple
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-            className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-secondary file:text-secondary-foreground file:font-medium hover:file:bg-accent file:cursor-pointer"
-          />
-          {files.length > 0 && (
-            <div className="text-sm text-muted-foreground">
-              {files.length}개 선택됨
-              <ul className="mt-1 space-y-0.5 text-xs">
-                {files.slice(0, 5).map((f, i) => (
-                  <li key={i} className="truncate">
-                    {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
-                  </li>
-                ))}
-                {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
-              </ul>
+        {/* Past uploads (not in reuse mode) */}
+        {!reuse && academyId !== null && pastBatches.length > 0 && (
+          <div className="space-y-2">
+            <Label>이 학원의 이전 업로드 ({pastBatches.length})</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {pastBatches.slice(0, 6).map((b) => (
+                <Link
+                  key={b.id}
+                  href={`/homework/upload?reuse=${b.id}`}
+                  className="block p-2.5 rounded-md border bg-card hover:bg-accent transition-colors text-xs space-y-1"
+                  title="이 파일로 다시 분석"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground tabular-nums">{formatDate(b.capturedAt)}</span>
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[10px]',
+                        b.status === 'committed' && 'bg-green-100 text-green-700',
+                        b.status === 'ready' && 'bg-blue-100 text-blue-700',
+                        b.status === 'failed' && 'bg-red-100 text-red-700',
+                        (b.status === 'pending' || b.status === 'processing') && 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {STATUS_LABEL[b.status]}
+                    </span>
+                  </div>
+                  <div className="text-foreground">
+                    {b.isPdf ? '📄' : '🖼️'} {b.photoCount}개 파일
+                    {b.itemCount > 0 && ` · 항목 ${b.itemCount}`}
+                  </div>
+                  {b.userHint && (
+                    <div className="text-muted-foreground line-clamp-1 italic">
+                      “{b.userHint}”
+                    </div>
+                  )}
+                </Link>
+              ))}
             </div>
-          )}
-        </div>
+            {pastBatches.length > 6 && (
+              <p className="text-xs text-muted-foreground">
+                최근 6개 표시 · 더 보기는 향후 추가 예정
+              </p>
+            )}
+          </div>
+        )}
 
+        {/* File input (hidden in reuse mode) */}
+        {!reuse && (
+          <div className="space-y-2">
+            <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
+            <input
+              id="photos"
+              type="file"
+              accept="image/*,application/pdf"
+              capture="environment"
+              multiple
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-secondary file:text-secondary-foreground file:font-medium hover:file:bg-accent file:cursor-pointer"
+            />
+            {files.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {files.length}개 선택됨
+                <ul className="mt-1 space-y-0.5 text-xs">
+                  {files.slice(0, 5).map((f, i) => (
+                    <li key={i} className="truncate">
+                      {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
+                    </li>
+                  ))}
+                  {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Locked photo list in reuse mode */}
+        {reuse && (
+          <div className="space-y-2">
+            <Label>재사용할 파일 ({reuse.photos.length}개)</Label>
+            <ul className="bg-muted/40 rounded-md p-3 text-xs space-y-1">
+              {reuse.photos.map((p, i) => (
+                <li key={p.path} className="truncate">
+                  {p.isPdf ? '📄' : '🖼️'} 파일 {i + 1} <span className="text-muted-foreground">({p.path.split('/').pop()})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Hint textarea */}
         <div className="space-y-2">
           <Label htmlFor="hint">
             AI 추출 힌트 (선택)
-            {hasAcademyDefault && (
+            {hasAcademyDefault && !reuse && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 · 학원 기본값 적용됨 (이 업로드만 수정 가능)
               </span>
@@ -127,10 +277,36 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
             id="hint"
             value={hint}
             onChange={(e) => setHint(e.target.value)}
-            placeholder="예: 'Lesson topics' 열은 수업 토픽이라 무시. 오른쪽 'Homework' 열만 숙제. 맨 위 파란 바탕은 책 이름."
+            placeholder="예: 'Lesson topics' 열은 수업 토픽이라 무시. 오른쪽 'Homework' 열만 숙제."
             rows={3}
             className="resize-y text-sm"
           />
+
+          {/* Past hints quick-fill */}
+          {pastHints.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">이전 힌트 재사용:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {pastHints.slice(0, 5).map((h, i) => (
+                  <button
+                    type="button"
+                    key={i}
+                    onClick={() => setHint(h)}
+                    className={cn(
+                      'text-xs px-2 py-1 rounded border max-w-[260px] truncate',
+                      h === hint
+                        ? 'border-foreground bg-accent'
+                        : 'border-foreground/15 bg-card hover:bg-accent/60'
+                    )}
+                    title={h}
+                  >
+                    “{h.length > 40 ? h.slice(0, 40) + '…' : h}”
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <p className="text-xs text-muted-foreground">
             없어도 AI가 알아서 숙제와 수업 안내를 구분함. 힌트가 있으면 더 정확함.
           </p>
@@ -139,7 +315,9 @@ export function UploadForm({ academies }: { academies: Academy[] }) {
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <Button type="submit" disabled={busy} className="w-full">
-          {busy ? '업로드 중…' : '업로드 후 분석'}
+          {busy
+            ? (reuse ? '재분석 중…' : '업로드 중…')
+            : (reuse ? '이 파일로 다시 분석' : '업로드 후 분석')}
         </Button>
       </form>
     </Card>

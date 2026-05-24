@@ -1,18 +1,72 @@
+import { notFound } from 'next/navigation'
 import { listAcademies } from '@/server/actions/academies'
+import { listRecentBatches } from '@/server/actions/homework'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/server/db/client'
+import * as schema from '@/server/db/schema'
 import { UploadForm } from './upload-form'
 
-export default async function UploadPage() {
-  const rows = await listAcademies()
-  const academies = rows.map((r) => ({
+export default async function UploadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reuse?: string }>
+}) {
+  const sp = await searchParams
+  const reuseId = sp.reuse ? Number(sp.reuse) : null
+
+  const [academyRows, batches] = await Promise.all([
+    listAcademies(),
+    listRecentBatches({ limit: 30 }),
+  ])
+
+  const academies = academyRows.map((r) => ({
     id: r.id,
     name: r.name,
     color: r.color,
     extractionHint: r.extractionHint,
   }))
+
+  // Group batches per academy (newest first via listRecentBatches ordering)
+  const batchesByAcademy: Record<number, typeof batches> = {}
+  for (const b of batches) {
+    ;(batchesByAcademy[b.academyId] ??= []).push(b)
+  }
+
+  // Distinct non-null hints per academy (newest first, deduped)
+  const hintsByAcademy: Record<number, string[]> = {}
+  for (const b of batches) {
+    const h = b.userHint?.trim()
+    if (!h) continue
+    const list = (hintsByAcademy[b.academyId] ??= [])
+    if (!list.includes(h)) list.push(h)
+  }
+
+  // If reuse mode, fetch the source batch
+  let reuse: { batchId: number; academyId: number; photos: { path: string; isPdf: boolean }[]; userHint: string | null; capturedAt: Date } | null = null
+  if (reuseId !== null) {
+    const batch = getDb().select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, reuseId)).get()
+    if (!batch) notFound()
+    const photos = getDb().select().from(schema.homeworkPhotos).where(eq(schema.homeworkPhotos.batchId, reuseId)).all()
+    reuse = {
+      batchId: batch.id,
+      academyId: batch.academyId,
+      capturedAt: batch.capturedAt,
+      userHint: batch.userHint,
+      photos: photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') })),
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">숙제 파일 업로드</h1>
-      <UploadForm academies={academies} />
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {reuse ? '재분석' : '숙제 파일 업로드'}
+      </h1>
+      <UploadForm
+        academies={academies}
+        batchesByAcademy={batchesByAcademy}
+        hintsByAcademy={hintsByAcademy}
+        reuse={reuse}
+      />
     </div>
   )
 }

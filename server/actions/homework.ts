@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq } from 'drizzle-orm'
+import { eq, desc, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -194,4 +194,114 @@ export async function listDoneToday(ctx: Ctx = {}) {
   return rows
     .filter((r) => r.doneAt !== null && r.doneAt >= start && r.doneAt < end)
     .sort((x, y) => (y.doneAt!.getTime() - x.doneAt!.getTime()))
+}
+
+/**
+ * Recent batches across all academies (last `limit`, newest first).
+ * Used by the upload page to show "이전 업로드" for the selected academy.
+ * Returns the batch + photo count + first photo path (for thumbnail).
+ */
+export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const limit = opts.limit ?? 50
+
+  const batches = appDb.select({
+    id: appSchema.homeworkBatches.id,
+    academyId: appSchema.homeworkBatches.academyId,
+    capturedAt: appSchema.homeworkBatches.capturedAt,
+    status: appSchema.homeworkBatches.status,
+    userHint: appSchema.homeworkBatches.userHint,
+    failureReason: appSchema.homeworkBatches.failureReason,
+  })
+  .from(appSchema.homeworkBatches)
+  .orderBy(desc(appSchema.homeworkBatches.capturedAt))
+  .limit(limit)
+  .all()
+
+  if (batches.length === 0) return []
+
+  const ids = batches.map((b) => b.id)
+  // Fetch photo summary per batch
+  const photos = appDb.select({
+    batchId: appSchema.homeworkPhotos.batchId,
+    resizedPath: appSchema.homeworkPhotos.resizedPath,
+    originalPath: appSchema.homeworkPhotos.originalPath,
+  }).from(appSchema.homeworkPhotos).all()
+
+  const byBatch = new Map<number, { count: number; firstPath: string | null; isPdf: boolean }>()
+  for (const p of photos) {
+    const cur = byBatch.get(p.batchId)
+    if (!cur) {
+      byBatch.set(p.batchId, {
+        count: 1,
+        firstPath: p.resizedPath,
+        isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') || p.originalPath.toLowerCase().endsWith('.pdf'),
+      })
+    } else {
+      cur.count += 1
+    }
+  }
+
+  // Item counts for committed batches
+  const itemCounts = appDb.select({
+    batchId: appSchema.homeworkItems.batchId,
+    cnt: sql<number>`count(*)`.as('cnt'),
+  }).from(appSchema.homeworkItems).groupBy(appSchema.homeworkItems.batchId).all()
+  const itemMap = new Map(itemCounts.map((c) => [c.batchId, Number(c.cnt)]))
+
+  return batches
+    .filter((b) => ids.includes(b.id))
+    .map((b) => ({
+      ...b,
+      photoCount: byBatch.get(b.id)?.count ?? 0,
+      firstPhotoPath: byBatch.get(b.id)?.firstPath ?? null,
+      isPdf: byBatch.get(b.id)?.isPdf ?? false,
+      itemCount: itemMap.get(b.id) ?? 0,
+    }))
+}
+
+/**
+ * Re-analyze a previous batch by creating a NEW batch that references the
+ * same photo files. Old batch + its items stay intact for history.
+ * Effective userHint: explicit `opts.userHint` (if defined) wins; otherwise
+ * fall back to the original batch's hint.
+ */
+export async function rerunBatch(
+  originalBatchId: number,
+  opts: { userHint?: string | null } = {},
+  ctx: Ctx = {},
+): Promise<UploadResult> {
+  const appDb = ctx.appDb ?? getDb()
+  const jobsDb = ctx.jobsDb ?? defaultJobsDb()
+
+  const original = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, originalBatchId)).get()
+  if (!original) return { ok: false, error: '원본 batch를 찾을 수 없습니다.' }
+
+  const photos = appDb.select().from(appSchema.homeworkPhotos).where(eq(appSchema.homeworkPhotos.batchId, originalBatchId)).all()
+  if (photos.length === 0) return { ok: false, error: '원본 batch에 파일이 없습니다.' }
+
+  const effectiveHint =
+    opts.userHint !== undefined
+      ? (opts.userHint?.trim() || null)
+      : original.userHint
+
+  const [newBatch] = appDb.insert(appSchema.homeworkBatches).values({
+    academyId: original.academyId,
+    status: 'pending',
+    userHint: effectiveHint,
+  }).returning().all()
+
+  appDb.insert(appSchema.homeworkPhotos).values(
+    photos.map((p) => ({
+      batchId: newBatch.id,
+      originalPath: p.originalPath,
+      resizedPath: p.resizedPath,
+      width: p.width,
+      height: p.height,
+      bytes: p.bytes,
+    })),
+  ).run()
+
+  await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
+  return { ok: true, data: { batchId: newBatch.id } }
 }
