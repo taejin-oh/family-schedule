@@ -1,16 +1,13 @@
 import type { AcademyContext } from './types'
-
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
+import { localDateIso } from '@/server/util/date'
 
 export function buildPrompt(input: {
   academy: AcademyContext
   imagePaths: string[]
   userHint?: string | null
 }): string {
-  const next = input.academy.nextSessionAt ? fmtDate(input.academy.nextSessionAt) : '미정'
-  const today = fmtDate(new Date())
+  const next = input.academy.nextSessionAt ? localDateIso(input.academy.nextSessionAt) : '미정'
+  const today = localDateIso()
   const imgs = input.imagePaths.map((p) => `- ${p}`).join('\n')
   const hint = input.userHint?.trim()
 

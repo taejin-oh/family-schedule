@@ -5,6 +5,7 @@ import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/acti
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { localDateIso } from '@/server/util/date'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
 
@@ -98,7 +99,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
 
   const [active, doneToday] = await Promise.all([listCommittedItems(), listDoneToday()])
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = localDateIso()
   const now = Date.now()
   const buckets = bucketize(active, todayIso)
 
