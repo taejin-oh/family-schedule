@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -9,6 +10,13 @@ type Academy = {
   name: string
   color: string
   scheduleRule: { slots: ScheduleSlot[] } | null
+}
+type WeeklyProgress = {
+  academyId: number
+  name: string
+  color: string
+  total: number
+  done: number
 }
 
 const DAYS: Array<{ key: string; label: string }> = [
@@ -87,7 +95,24 @@ function buildCells(academies: Academy[]) {
   return cells
 }
 
-export function Timetable({ academies }: { academies: Academy[] }) {
+function formatWeekRange(monday: Date): string {
+  const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
+  const m1 = String(monday.getMonth() + 1).padStart(2, '0')
+  const d1 = String(monday.getDate()).padStart(2, '0')
+  const m2 = String(sunday.getMonth() + 1).padStart(2, '0')
+  const d2 = String(sunday.getDate()).padStart(2, '0')
+  return `${m1}/${d1} – ${m2}/${d2}`
+}
+
+export function Timetable({
+  academies,
+  weeklyProgress = [],
+  weekStart,
+}: {
+  academies: Academy[]
+  weeklyProgress?: WeeklyProgress[]
+  weekStart?: Date
+}) {
   const hasSlots = academies.some(
     (a) => a.scheduleRule?.slots && a.scheduleRule.slots.length > 0,
   )
@@ -116,8 +141,41 @@ export function Timetable({ academies }: { academies: Academy[] }) {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">주간 시간표</h1>
-        <p className="text-sm text-muted-foreground mt-1">이번 주 학원 일정</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          이번 주 학원 일정{weekStart ? ` · ${formatWeekRange(weekStart)}` : ''}
+        </p>
       </div>
+
+      {/* Weekly homework progress per academy */}
+      {weeklyProgress.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-xs text-muted-foreground px-1">이번 주 숙제 진행</div>
+          <div className="flex flex-wrap gap-2">
+            {weeklyProgress.map((p) => {
+              const done = p.done === p.total && p.total > 0
+              const pct = p.total === 0 ? 0 : Math.round((p.done / p.total) * 100)
+              return (
+                <Link
+                  key={p.academyId}
+                  href={`/academies/${p.academyId}`}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition-colors hover:bg-accent',
+                    done ? 'border-green-500/40' : 'border-foreground/10',
+                  )}
+                  title={`${p.name}: ${p.done}/${p.total}개 완료 (${pct}%)`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {p.done}/{p.total}
+                  </span>
+                  {done && <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="border-collapse text-sm" style={{ minWidth: '600px' }}>
