@@ -106,6 +106,8 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   const parsed = UpdateInput.safeParse(patch)
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid' }
   const appDb = ctx.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/homework/upload')
@@ -127,6 +129,8 @@ export async function addDraftItem(batchId: number, input: { title: string; note
 
 export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/homework/upload')
@@ -135,6 +139,8 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
 
 export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
+  const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
+  if (batch?.status === 'committed') return { ok: false, error: '이미 확정된 batch입니다' }
   appDb.transaction((tx) => {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()

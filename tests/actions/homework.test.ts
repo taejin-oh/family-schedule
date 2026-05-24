@@ -151,6 +151,40 @@ describe('reviewBatch actions', () => {
     expect(res.ok).toBe(true)
     expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(0)
   })
+
+  it('updateDraftItem refuses to edit committed items', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'committed' }).returning().all()
+    const [item] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: true, dueDate: null,
+    }).returning().all()
+    const res = await updateDraftItem(item.id, { title: 'changed' }, { appDb })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/확정/)
+  })
+
+  it('deleteDraftItem refuses to delete committed items', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'committed' }).returning().all()
+    const [item] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: true, dueDate: null,
+    }).returning().all()
+    const res = await deleteDraftItem(item.id, { appDb })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/확정/)
+    expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(1)
+  })
+
+  it('commitBatch refuses when batch already committed', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'committed' }).returning().all()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/이미 확정/)
+  })
 })
 
 describe('toggleItemDone + listCommittedItems', () => {
