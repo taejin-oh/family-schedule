@@ -41,8 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 # Family-schedule
-data/
-storage/
+/data/
+/storage/
 .env
 .env.local
 *.db
