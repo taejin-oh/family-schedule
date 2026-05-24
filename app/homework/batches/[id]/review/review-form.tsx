@@ -57,10 +57,22 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
       dueDate: newDue || null,
     })
     if (res.ok) {
+      // Append to local state immediately so the UI updates without a full
+      // server refresh (which doesn't reset useState here).
+      setItems((cur) => [
+        ...cur,
+        {
+          id: res.data.id,
+          title: newTitle.trim(),
+          notes: newNotes.trim() || null,
+          dueDate: newDue || null,
+          source: 'manual',
+          similar: null,
+        },
+      ])
       setNewTitle('')
       setNewNotes('')
       setNewDue('')
-      router.refresh()
     }
   }
 

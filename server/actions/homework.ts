@@ -114,20 +114,24 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   return { ok: true }
 }
 
-export async function addDraftItem(batchId: number, input: { title: string; notes?: string | null; dueDate: string | null }, ctx: Ctx = {}) {
+export async function addDraftItem(
+  batchId: number,
+  input: { title: string; notes?: string | null; dueDate: string | null },
+  ctx: Ctx = {},
+): Promise<{ ok: true; data: { id: number } } | { ok: false; error: string }> {
   const appDb = ctx.appDb ?? getDb()
   const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
   if (!batch) return { ok: false, error: 'batch not found' }
   if (batch.status === 'committed') {
     return { ok: false, error: '확정된 batch에는 항목을 추가할 수 없습니다' }
   }
-  appDb.insert(appSchema.homeworkItems).values({
+  const [row] = appDb.insert(appSchema.homeworkItems).values({
     batchId, academyId: batch.academyId, title: input.title, notes: input.notes ?? null, dueDate: input.dueDate,
     source: 'manual', isCommitted: false,
-  }).run()
+  }).returning({ id: appSchema.homeworkItems.id }).all()
   revalidatePath('/')
   revalidatePath('/homework/upload')
-  return { ok: true }
+  return { ok: true, data: { id: row.id } }
 }
 
 export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
