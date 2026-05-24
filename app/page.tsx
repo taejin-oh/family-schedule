@@ -1,13 +1,20 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
-import { Check, Undo2 } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
+import { listTodayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { listAcademies } from '@/server/actions/academies'
+import { getDb } from '@/server/db/client'
+import { eq } from 'drizzle-orm'
+import * as appSchema from '@/server/db/schema'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
+import { HomeworkItem } from '@/app/_components/dashboard-item'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
+type RecurringItem = Awaited<ReturnType<typeof listTodayRecurring>>[number]
 
 type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'later' | 'nodate'
 type FilterKey = 'all' | 'today' | 'tomorrow' | 'thisweek'
@@ -55,6 +62,22 @@ function formatDueLabel(due: string | null, todayIso: string): string | null {
   return due
 }
 
+function DuePill({ label, bucket }: { label: string; bucket: BucketKey }) {
+  const cls =
+    bucket === 'overdue'
+      ? 'bg-destructive/15 text-destructive border-destructive/30'
+      : bucket === 'today'
+        ? 'bg-amber-100 text-amber-800 border-amber-300'
+        : bucket === 'tomorrow'
+          ? 'bg-blue-50 text-blue-800 border-blue-200'
+          : 'bg-muted/60 text-muted-foreground border-foreground/10'
+  return (
+    <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
+      {label}
+    </span>
+  )
+}
+
 function formatRelative(doneAt: Date, now: number): string {
   const diffMs = now - doneAt.getTime()
   const diffMin = Math.floor(diffMs / 60_000)
@@ -75,7 +98,19 @@ function isFilterKey(s: string | undefined): s is FilterKey {
   return s === 'today' || s === 'tomorrow' || s === 'thisweek' || s === 'all'
 }
 
-function FilterChip({ label, count, href, active }: { label: string; count: number; href: string; active: boolean }) {
+function FilterChip({
+  label,
+  count,
+  href,
+  active,
+  dot,
+}: {
+  label: string
+  count: number
+  href: string
+  active: boolean
+  dot?: string
+}) {
   return (
     <Link
       href={href}
@@ -86,6 +121,13 @@ function FilterChip({ label, count, href, active }: { label: string; count: numb
           : 'bg-card text-muted-foreground border-foreground/10 hover:bg-accent hover:text-foreground'
       )}
     >
+      {dot && (
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: dot }}
+          aria-hidden
+        />
+      )}
       <span>{label}</span>
       <span className={cn('text-xs tabular-nums', active ? 'text-background/80' : 'text-muted-foreground/70')}>
         {count}
@@ -94,15 +136,30 @@ function FilterChip({ label, count, href, active }: { label: string; count: numb
   )
 }
 
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; academy?: string }>
+}) {
   const sp = await searchParams
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
+  const academyFilter = sp.academy ? Number(sp.academy) : null
 
-  const [active, doneToday] = await Promise.all([listCommittedItems(), listDoneToday()])
+  const [active, doneToday, todayRecurring, academies] = await Promise.all([
+    listCommittedItems(),
+    listDoneToday(),
+    listTodayRecurring(),
+    listAcademies(),
+  ])
   const todayIso = localDateIso()
   const now = Date.now()
   const buckets = bucketize(active, todayIso)
 
+  // Split recurring into active vs done-today
+  const recurringActive = todayRecurring.filter((r) => r.doneAt === null)
+  const recurringDoneToday = todayRecurring.filter((r) => r.doneAt !== null)
+
+  // Server actions for homework
   async function onComplete(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
@@ -117,34 +174,106 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     revalidatePath('/')
   }
 
-  const totalToday = active.length + doneToday.length
-  const completionPct = totalToday === 0 ? 0 : Math.round((doneToday.length / totalToday) * 100)
+  async function onSaveEdit(formData: FormData) {
+    'use server'
+    const id = Number(formData.get('id'))
+    const title = formData.get('title')?.toString().trim() ?? ''
+    const dueDate = formData.get('dueDate')?.toString().trim() || null
+    if (!title) return
+    const db = getDb()
+    db.update(appSchema.homeworkItems)
+      .set({ title, dueDate: dueDate ?? null })
+      .where(eq(appSchema.homeworkItems.id, id))
+      .run()
+    revalidatePath('/')
+  }
 
-  // Decide which buckets to render based on filter
+  // Server actions for recurring
+  async function onRecurringComplete(formData: FormData) {
+    'use server'
+    const taskId = Number(formData.get('taskId'))
+    const dateIso = formData.get('dateIso')?.toString() ?? localDateIso()
+    await markRecurringDone(taskId, dateIso)
+    revalidatePath('/')
+  }
+
+  async function onRecurringUndo(formData: FormData) {
+    'use server'
+    const taskId = Number(formData.get('taskId'))
+    const dateIso = formData.get('dateIso')?.toString() ?? localDateIso()
+    await markRecurringUndone(taskId, dateIso)
+    revalidatePath('/')
+  }
+
+  // Academy filter: build list of academies that have active committed items
+  const academiesWithItems = academies.filter((ac) =>
+    active.some((it) => it.academyId === ac.id)
+  )
+  const showAcademyRow = academiesWithItems.length > 1
+
+  // Apply academy filter to buckets
+  const filteredBuckets: Record<BucketKey, ActiveItem[]> = academyFilter
+    ? {
+        overdue:  buckets.overdue.filter((it) => it.academyId === academyFilter),
+        today:    buckets.today.filter((it) => it.academyId === academyFilter),
+        tomorrow: buckets.tomorrow.filter((it) => it.academyId === academyFilter),
+        thisweek: buckets.thisweek.filter((it) => it.academyId === academyFilter),
+        later:    buckets.later.filter((it) => it.academyId === academyFilter),
+        nodate:   buckets.nodate.filter((it) => it.academyId === academyFilter),
+      }
+    : buckets
+
+  // Helper to build href preserving the other param
+  function timeHref(f: string) {
+    const p = new URLSearchParams()
+    if (f !== 'all') p.set('filter', f)
+    if (academyFilter) p.set('academy', String(academyFilter))
+    const qs = p.toString()
+    return qs ? `/?${qs}` : '/'
+  }
+  function academyHref(id: number | null) {
+    const p = new URLSearchParams()
+    if (filter !== 'all') p.set('filter', filter)
+    if (id) p.set('academy', String(id))
+    const qs = p.toString()
+    return qs ? `/?${qs}` : '/'
+  }
+
+  const totalActive = active.length + recurringActive.length
+  const totalDone = doneToday.length + recurringDoneToday.length
+  const totalToday = totalActive + totalDone
+  const completionPct = totalToday === 0 ? 0 : Math.round((totalDone / totalToday) * 100)
+
+  // Decide which buckets to render based on time filter
   const visibleBuckets: BucketKey[] =
     filter === 'today'    ? ['overdue', 'today']
   : filter === 'tomorrow' ? ['tomorrow']
   : filter === 'thisweek' ? ['overdue', 'today', 'tomorrow', 'thisweek']
   : /* all */               ['overdue', 'today', 'tomorrow', 'thisweek', 'later', 'nodate']
 
-  const visibleCount = visibleBuckets.reduce((s, k) => s + buckets[k].length, 0)
+  // Count visible items for "empty" detection (includes recurring in today bucket)
+  const visibleCount =
+    visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
+    (visibleBuckets.includes('today') ? recurringActive.length : 0)
+
+  const hasAnything = totalActive > 0 || totalDone > 0
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">할 일</h1>
         <Link href="/homework/upload" className={cn(buttonVariants())}>
-          📷 사진/PDF 추가
+          + 숙제 추가
         </Link>
       </div>
 
       {/* Top progress recap */}
-      {(active.length > 0 || doneToday.length > 0) && (
+      {hasAnything && (
         <Card className="p-4">
           <div className="flex items-baseline justify-between text-sm">
             <div>
-              <span className="font-medium text-foreground">오늘 ✓ {doneToday.length}</span>
-              <span className="text-muted-foreground"> · 남은 {active.length}개</span>
+              <span className="font-medium text-foreground">오늘 ✓ {totalDone}</span>
+              <span className="text-muted-foreground"> · 남은 {totalActive}개</span>
             </div>
             <div className="text-xs text-muted-foreground tabular-nums">{completionPct}%</div>
           </div>
@@ -158,44 +287,69 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </Card>
       )}
 
-      {/* Filter chips */}
+      {/* Time filter chips */}
       {active.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <FilterChip
             label="전체"
             count={active.length}
-            href="/"
+            href={timeHref('all')}
             active={filter === 'all'}
           />
           <FilterChip
             label="오늘"
             count={buckets.overdue.length + buckets.today.length}
-            href="/?filter=today"
+            href={timeHref('today')}
             active={filter === 'today'}
           />
           <FilterChip
             label="내일"
             count={buckets.tomorrow.length}
-            href="/?filter=tomorrow"
+            href={timeHref('tomorrow')}
             active={filter === 'tomorrow'}
           />
           <FilterChip
             label="이번 주"
             count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length}
-            href="/?filter=thisweek"
+            href={timeHref('thisweek')}
             active={filter === 'thisweek'}
           />
         </div>
       )}
 
+      {/* Academy filter chips (only shown when 2+ academies have items) */}
+      {showAcademyRow && active.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <FilterChip
+            label="전체"
+            count={active.length}
+            href={academyHref(null)}
+            active={academyFilter === null}
+          />
+          {academiesWithItems.map((ac) => {
+            const cnt = active.filter((it) => it.academyId === ac.id).length
+            return (
+              <FilterChip
+                key={ac.id}
+                label={ac.name}
+                count={cnt}
+                href={academyHref(ac.id)}
+                active={academyFilter === ac.id}
+                dot={ac.color}
+              />
+            )
+          })}
+        </div>
+      )}
+
       {/* Empty states */}
-      {active.length === 0 && doneToday.length === 0 ? (
+      {!hasAnything ? (
         <Card className="p-10 text-center text-muted-foreground space-y-2">
           <div className="text-3xl">🎉</div>
           <div>할 일이 없습니다.</div>
           <div className="text-xs">사진이나 PDF를 업로드하면 AI가 숙제를 정리해 줍니다.</div>
         </Card>
-      ) : active.length === 0 ? (
+      ) : totalActive === 0 ? (
         <Card className="p-6 text-center text-muted-foreground">
           <div className="text-2xl mb-1">🎉</div>
           <div className="text-sm">남은 할 일이 없어요. 잘했어!</div>
@@ -204,7 +358,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <Card className="p-6 text-center text-muted-foreground space-y-2">
           <div className="text-sm">선택한 기간에 할 일이 없습니다.</div>
           <Link
-            href="/"
+            href={academyFilter ? academyHref(null) : '/'}
             className="inline-block text-xs text-foreground/70 hover:text-foreground underline underline-offset-2"
           >
             전체 보기
@@ -213,8 +367,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       ) : (
         <div className="space-y-3">
           {visibleBuckets.map((bk) => {
-            const list = buckets[bk]
-            if (list.length === 0) return null
+            const hwList = filteredBuckets[bk]
+            // Recurring tasks only appear in 'today' bucket
+            const recurList: RecurringItem[] = bk === 'today' ? recurringActive : []
+            if (hwList.length === 0 && recurList.length === 0) return null
             const meta = BUCKET_META[bk]
             return (
               <section key={bk} className="space-y-2">
@@ -229,55 +385,60 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   >
                     {meta.label}
                   </h2>
-                  <span className="text-xs text-muted-foreground tabular-nums">({list.length})</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    ({hwList.length + recurList.length})
+                  </span>
                 </div>
                 <Card className="p-0 divide-y">
-                  {list.map((it) => {
+                  {hwList.map((it) => {
                     const dueLabel = formatDueLabel(it.dueDate, todayIso)
-                    const isOverdue = bk === 'overdue'
-                    const isTodayBucket = bk === 'today'
                     return (
-                      <div key={it.id} className="p-3 flex items-start gap-3">
-                        <form action={onComplete} className="flex-shrink-0">
-                          <input type="hidden" name="id" value={it.id} />
-                          <button
-                            type="submit"
-                            className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
-                            aria-label="완료로 표시"
-                          />
-                        </form>
-                        <span
-                          className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ background: it.academyColor }}
-                          aria-hidden
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium break-words">{it.title}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {it.academyName}
-                            {dueLabel && (
-                              <>
-                                {' · '}
-                                <span
-                                  className={cn(
-                                    isOverdue && 'text-destructive font-medium',
-                                    isTodayBucket && 'text-foreground font-medium'
-                                  )}
-                                >
-                                  {dueLabel}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          {it.notes && (
-                            <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                              {it.notes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <HomeworkItem
+                        key={it.id}
+                        id={it.id}
+                        title={it.title}
+                        notes={it.notes}
+                        dueDate={it.dueDate}
+                        academyName={it.academyName}
+                        academyColor={it.academyColor}
+                        dueLabel={dueLabel}
+                        bucket={bk}
+                        onComplete={onComplete}
+                        onSave={onSaveEdit}
+                      />
                     )
                   })}
+                  {recurList.map((rt) => (
+                    <div key={`r-${rt.id}`} className="p-3 flex items-start gap-3">
+                      <form action={onRecurringComplete} className="flex-shrink-0">
+                        <input type="hidden" name="taskId" value={rt.id} />
+                        <input type="hidden" name="dateIso" value={todayIso} />
+                        <button
+                          type="submit"
+                          className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
+                          aria-label="완료로 표시"
+                        />
+                      </form>
+                      <span
+                        className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ background: rt.color }}
+                        aria-hidden
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium break-words">{rt.title}</div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                          <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-muted/60 border-foreground/10">
+                            🔁 매일
+                          </span>
+                        </div>
+                        {rt.notes && (
+                          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+                            {rt.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </Card>
               </section>
             )
@@ -286,12 +447,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       )}
 
       {/* 오늘 한 일 — collapsible */}
-      {doneToday.length > 0 && (
+      {(doneToday.length > 0 || recurringDoneToday.length > 0) && (
         <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
               <Check className="h-4 w-4 text-green-600" aria-hidden />
-              오늘 한 일 ({doneToday.length})
+              오늘 한 일 ({doneToday.length + recurringDoneToday.length})
             </span>
             <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
             <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
@@ -299,12 +460,16 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="divide-y border-t">
             {doneToday.map((it) => (
               <div key={it.id} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
-                <div
-                  className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0"
-                  aria-label="완료됨"
-                >
-                  <Check className="h-3.5 w-3.5 text-white" aria-hidden />
-                </div>
+                <form action={onUndo} className="flex-shrink-0">
+                  <input type="hidden" name="id" value={it.id} />
+                  <button
+                    type="submit"
+                    className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    aria-label="완료 취소"
+                  >
+                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                  </button>
+                </form>
                 <span
                   className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ background: it.academyColor }}
@@ -319,17 +484,37 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                     {it.doneAt && <> · {formatRelative(it.doneAt, now)} 완료</>}
                   </div>
                 </div>
-                <form action={onUndo} className="flex-shrink-0">
-                  <input type="hidden" name="id" value={it.id} />
+              </div>
+            ))}
+            {recurringDoneToday.map((rt) => (
+              <div key={`r-${rt.id}`} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
+                <form action={onRecurringUndo} className="flex-shrink-0">
+                  <input type="hidden" name="taskId" value={rt.id} />
+                  <input type="hidden" name="dateIso" value={todayIso} />
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-accent"
-                    aria-label="되돌리기"
+                    className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    aria-label="완료 취소"
                   >
-                    <Undo2 className="h-3 w-3" aria-hidden />
-                    되돌리기
+                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
                   </button>
                 </form>
+                <span
+                  className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: rt.color }}
+                  aria-hidden
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium break-words line-through decoration-muted-foreground/40">
+                    {rt.title}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                    <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-muted/60 border-foreground/10">
+                      🔁 매일
+                    </span>
+                    {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
