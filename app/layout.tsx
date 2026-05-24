@@ -35,7 +35,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="font-semibold text-base">📚 가족 스케줄</Link>
             <nav className="flex gap-4 text-sm font-medium text-muted-foreground">
               <Link href="/academies" className="hover:text-foreground transition-colors">학원</Link>
+              <Link href="/timetable" className="hover:text-foreground transition-colors">시간표</Link>
               <Link href="/homework/upload" className="hover:text-foreground transition-colors">사진 추가</Link>
+              <Link href="/recurring" className="hover:text-foreground transition-colors">매일 할 일</Link>
               <Link href="/admin/settings" className="hover:text-foreground transition-colors">설정</Link>
             </nav>
           </div>
