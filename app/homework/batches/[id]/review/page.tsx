@@ -31,6 +31,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         batchId={batchId}
         initial={items.map((it) => ({ id: it.id, title: it.title, notes: it.notes, dueDate: it.dueDate, source: it.source }))}
         photos={photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') }))}
+        currentHint={batch.userHint}
       />
     </div>
   )

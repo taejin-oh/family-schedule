@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateDraftItem, addDraftItem, deleteDraftItem, commitBatch } from '@/server/actions/homework'
+import { updateDraftItem, addDraftItem, deleteDraftItem, commitBatch, rerunBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,13 +19,15 @@ type Item = {
 }
 type Photo = { path: string; isPdf: boolean }
 
-export function ReviewForm({ batchId, initial, photos }: { batchId: number; initial: Item[]; photos: Photo[] }) {
+export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId: number; initial: Item[]; photos: Photo[]; currentHint: string | null }) {
   const router = useRouter()
   const [items, setItems] = useState<Item[]>(initial)
   const [busy, setBusy] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newNotes, setNewNotes] = useState('')
   const [newDue, setNewDue] = useState<string>('')
+  const [newHint, setNewHint] = useState(currentHint ?? '')
+  const [rerunError, setRerunError] = useState<string | null>(null)
 
   function patchLocal(id: number, p: Partial<Item>) {
     setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...p } : x)))
@@ -59,6 +61,18 @@ export function ReviewForm({ batchId, initial, photos }: { batchId: number; init
     setBusy(true)
     await commitBatch(batchId)
     router.push('/')
+  }
+
+  async function rerun() {
+    setBusy(true)
+    setRerunError(null)
+    const res = await rerunBatch(batchId, { userHint: newHint || null })
+    if (!res.ok) {
+      setRerunError(res.error)
+      setBusy(false)
+      return
+    }
+    router.push('/homework/batches/' + res.data.batchId)
   }
 
   return (
@@ -184,6 +198,35 @@ export function ReviewForm({ batchId, initial, photos }: { batchId: number; init
         <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
           {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
         </Button>
+
+        <details className="group">
+          <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+            <span className="group-open:hidden">▶</span>
+            <span className="hidden group-open:inline">▼</span>
+            추출 결과가 이상한가요?
+          </summary>
+          <Card className="mt-2 p-4 space-y-3 border-dashed">
+            <p className="text-xs text-muted-foreground">
+              힌트를 수정해서 다시 추출할 수 있어요. 이전 batch와 항목은 그대로 보존되고 새 batch가 생성됩니다.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="rerun-hint" className="text-xs text-muted-foreground">AI 추출 힌트</Label>
+              <Textarea
+                id="rerun-hint"
+                placeholder="예: 수학 숙제 알림장, 날짜와 과목명 포함"
+                value={newHint}
+                onChange={(e) => setNewHint(e.target.value)}
+                rows={3}
+                className="resize-y"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">모델 변경은 설정 페이지에서</p>
+            {rerunError && <p className="text-xs text-destructive">{rerunError}</p>}
+            <Button type="button" onClick={rerun} disabled={busy} variant="secondary" className="w-full">
+              🔁 다시 추출
+            </Button>
+          </Card>
+        </details>
       </div>
 
       <div className="space-y-2">
