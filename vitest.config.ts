@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, '.'),
       'server-only': resolve(__dirname, 'tests/__mocks__/server-only.ts'),
+      'next/cache': resolve(__dirname, 'tests/__mocks__/next-cache.ts'),
     },
   },
   test: {

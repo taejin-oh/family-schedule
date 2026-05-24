@@ -7,6 +7,7 @@ import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
+import { revalidatePath } from 'next/cache'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
 import { getDb } from '@/server/db/client'
@@ -90,6 +91,8 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
   }
 
   await enqueue(jobsDb, 'extract_homework', { batchId: batch.id })
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: batch.id } }
 }
 
@@ -104,6 +107,8 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid' }
   const appDb = ctx.appDb ?? getDb()
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true }
 }
 
@@ -115,12 +120,16 @@ export async function addDraftItem(batchId: number, input: { title: string; note
     batchId, academyId: batch.academyId, title: input.title, notes: input.notes ?? null, dueDate: input.dueDate,
     source: 'manual', isCommitted: false,
   }).run()
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true }
 }
 
 export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true }
 }
 
@@ -130,6 +139,8 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
   })
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true }
 }
 
@@ -303,6 +314,8 @@ export async function rerunBatch(
   ).run()
 
   await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: newBatch.id } }
 }
 
@@ -317,6 +330,8 @@ export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: bool
   const exists = appDb.select({ id: appSchema.homeworkBatches.id }).from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).get()
   if (!exists) return { ok: false, error: '존재하지 않는 batch' }
   appDb.delete(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).run()
+  revalidatePath('/')
+  revalidatePath('/homework/upload')
   return { ok: true }
 }
 
