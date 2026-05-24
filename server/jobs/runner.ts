@@ -54,6 +54,7 @@ export async function processExtractHomework(
           batchId: batch.id,
           academyId: batch.academyId,
           title: it.title,
+          notes: it.notes ?? null,
           dueDate: it.dueDate,
           source: 'ai' as const,
           aiOriginalTitle: it.title,

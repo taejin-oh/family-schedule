@@ -93,6 +93,7 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
 
 const UpdateInput = z.object({
   title: z.string().min(1).optional(),
+  notes: z.union([z.string(), z.null()]).optional(),
   dueDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
 })
 
@@ -104,12 +105,12 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   return { ok: true }
 }
 
-export async function addDraftItem(batchId: number, input: { title: string; dueDate: string | null }, ctx: Ctx = {}) {
+export async function addDraftItem(batchId: number, input: { title: string; notes?: string | null; dueDate: string | null }, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
   const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
   if (!batch) return { ok: false, error: 'batch not found' }
   appDb.insert(appSchema.homeworkItems).values({
-    batchId, academyId: batch.academyId, title: input.title, dueDate: input.dueDate,
+    batchId, academyId: batch.academyId, title: input.title, notes: input.notes ?? null, dueDate: input.dueDate,
     source: 'manual', isCommitted: false,
   }).run()
   return { ok: true }

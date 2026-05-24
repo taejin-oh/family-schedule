@@ -52,6 +52,7 @@ export const homeworkItems = sqliteTable('homework_items', {
   batchId: integer('batch_id').notNull().references(() => homeworkBatches.id, { onDelete: 'cascade' }),
   academyId: integer('academy_id').notNull().references(() => academies.id),
   title: text('title').notNull(),
+  notes: text('notes'),                      // 책 이름, 단원, 페이지, 분량 등 부가 정보
   dueDate: text('due_date'),                 // 'YYYY-MM-DD' or null
   source: text('source', { enum: ['ai','manual'] }).notNull(),
   aiOriginalTitle: text('ai_original_title'),
