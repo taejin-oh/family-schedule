@@ -424,3 +424,48 @@ export async function listRelatedBatches(batchId: number, ctx: Ctx = {}) {
     .map((b) => ({ ...b, itemCount: itemMap.get(b.id) ?? 0 }))
     .sort((x, y) => y.capturedAt.getTime() - x.capturedAt.getTime())
 }
+
+/**
+ * Bulk mark items done or undone.
+ * Wraps updates in a transaction for atomicity.
+ */
+export async function bulkToggleItemsDone(
+  ids: number[],
+  done: boolean,
+  ctx: Ctx = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ids.length === 0) return { ok: true }
+  const appDb = ctx.appDb ?? getDb()
+  appDb.transaction((tx) => {
+    for (const id of ids) {
+      tx.update(appSchema.homeworkItems)
+        .set({ doneAt: done ? new Date() : null })
+        .where(eq(appSchema.homeworkItems.id, id))
+        .run()
+    }
+  })
+  revalidatePath('/')
+  return { ok: true }
+}
+
+/**
+ * Bulk delete items by ID.
+ * Uses the same cascade-safe delete path as deleteDraftItem
+ * but works on any committed or draft item.
+ */
+export async function bulkDeleteItems(
+  ids: number[],
+  ctx: Ctx = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ids.length === 0) return { ok: true }
+  const appDb = ctx.appDb ?? getDb()
+  appDb.transaction((tx) => {
+    for (const id of ids) {
+      tx.delete(appSchema.homeworkItems)
+        .where(eq(appSchema.homeworkItems.id, id))
+        .run()
+    }
+  })
+  revalidatePath('/')
+  return { ok: true }
+}

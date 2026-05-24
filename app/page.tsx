@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
+import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
 type RecurringItem = Awaited<ReturnType<typeof listTodayRecurring>>[number]
@@ -258,7 +259,11 @@ export default async function HomePage({
 
   const hasAnything = totalActive > 0 || totalDone > 0
 
+  // Collect all selectable IDs for multi-select (active committed items across all visible buckets)
+  const allSelectableIds = active.map((it) => it.id)
+
   return (
+    <MultiSelectProvider selectableIds={allSelectableIds}>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">할 일</h1>
@@ -287,9 +292,9 @@ export default async function HomePage({
         </Card>
       )}
 
-      {/* Time filter chips */}
+      {/* Time filter chips + multi-select toggle */}
       {active.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <FilterChip
             label="전체"
             count={active.length}
@@ -314,6 +319,7 @@ export default async function HomePage({
             href={timeHref('thisweek')}
             active={filter === 'thisweek'}
           />
+          <MultiSelectToggle />
         </div>
       )}
 
@@ -521,5 +527,6 @@ export default async function HomePage({
         </details>
       )}
     </div>
+    </MultiSelectProvider>
   )
 }

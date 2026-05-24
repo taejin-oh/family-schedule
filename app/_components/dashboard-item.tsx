@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useMultiSelect } from './multi-select-bar'
 
 type DuePillProps = {
   label: string
@@ -52,6 +53,10 @@ export function HomeworkItem({
   onComplete,
   onSave,
 }: HomeworkItemProps) {
+  const multiSelect = useMultiSelect()
+  const isMultiActive = multiSelect?.active ?? false
+  const isChecked = multiSelect?.selected.has(id) ?? false
+
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(title)
   const [editDue, setEditDue] = useState(dueDate ?? '')
@@ -75,15 +80,37 @@ export function HomeworkItem({
   }
 
   return (
-    <div className="p-3 flex items-start gap-3">
-      <form action={onComplete} className="flex-shrink-0">
-        <input type="hidden" name="id" value={id} />
+    <div
+      className={cn('p-3 flex items-start gap-3', isMultiActive && isChecked && 'bg-accent/40')}
+      onClick={isMultiActive ? () => multiSelect?.toggle(id) : undefined}
+      role={isMultiActive ? 'checkbox' : undefined}
+      aria-checked={isMultiActive ? isChecked : undefined}
+    >
+      {/* In multi-select mode show a checkbox; otherwise show the complete button */}
+      {isMultiActive ? (
         <button
-          type="submit"
-          className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
-          aria-label="완료로 표시"
-        />
-      </form>
+          type="button"
+          onClick={(e) => { e.stopPropagation(); multiSelect?.toggle(id) }}
+          className={cn(
+            'mt-0.5 w-6 h-6 rounded flex-shrink-0 border-2 transition-colors flex items-center justify-center',
+            isChecked
+              ? 'bg-foreground border-foreground text-background'
+              : 'border-muted-foreground hover:border-foreground'
+          )}
+          aria-label={isChecked ? '선택 해제' : '선택'}
+        >
+          {isChecked && <Check className="h-3.5 w-3.5" aria-hidden />}
+        </button>
+      ) : (
+        <form action={onComplete} className="flex-shrink-0">
+          <input type="hidden" name="id" value={id} />
+          <button
+            type="submit"
+            className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
+            aria-label="완료로 표시"
+          />
+        </form>
+      )}
       <span
         className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
         style={{ background: academyColor }}

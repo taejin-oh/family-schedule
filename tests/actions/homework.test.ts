@@ -10,7 +10,7 @@ import sharp from 'sharp'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
 import { uploadHomework, commitBatch, updateDraftItem, addDraftItem, deleteDraftItem } from '@/server/actions/homework'
-import { toggleItemDone, listCommittedItems, listDoneToday } from '@/server/actions/homework'
+import { toggleItemDone, listCommittedItems, listDoneToday, bulkToggleItemsDone, bulkDeleteItems } from '@/server/actions/homework'
 
 function makeDbs() {
   const dir = mkdtempSync(join(tmpdir(), 'fs-up-'))
@@ -228,6 +228,52 @@ describe('toggleItemDone + listCommittedItems', () => {
     expect(out.map((x) => x.title)).toEqual(['soon', 'late', 'no-date'])
     expect(out[0].academyName).toBe('수학')
     expect(out[0].academyColor).toBe('#ef4444')
+  })
+
+  it('bulkToggleItemsDone marks multiple items done in one call', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    const inserted = appDb.insert(appSchema.homeworkItems).values([
+      { batchId: b.id, academyId: a.id, title: 'a', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'b', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'c', source: 'ai', isCommitted: true, dueDate: null },
+    ]).returning().all()
+    const ids = inserted.map((i) => i.id)
+    const res = await bulkToggleItemsDone([ids[0], ids[1]], true, { appDb })
+    expect(res.ok).toBe(true)
+    const rows = appDb.select().from(appSchema.homeworkItems).all()
+    expect(rows.find((r) => r.id === ids[0])?.doneAt).not.toBeNull()
+    expect(rows.find((r) => r.id === ids[1])?.doneAt).not.toBeNull()
+    expect(rows.find((r) => r.id === ids[2])?.doneAt).toBeNull()
+  })
+
+  it('bulkToggleItemsDone can undo (set done=false)', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    const [it] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: b.id, academyId: a.id, title: 'x', source: 'ai', isCommitted: true, doneAt: new Date(), dueDate: null,
+    }).returning().all()
+    const res = await bulkToggleItemsDone([it.id], false, { appDb })
+    expect(res.ok).toBe(true)
+    expect(appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, it.id)).get()?.doneAt).toBeNull()
+  })
+
+  it('bulkDeleteItems removes all specified items', async () => {
+    const { appDb } = makeDbs()
+    const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    const inserted = appDb.insert(appSchema.homeworkItems).values([
+      { batchId: b.id, academyId: a.id, title: 'del1', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'del2', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'keep', source: 'ai', isCommitted: true, dueDate: null },
+    ]).returning().all()
+    const res = await bulkDeleteItems([inserted[0].id, inserted[1].id], { appDb })
+    expect(res.ok).toBe(true)
+    const remaining = appDb.select().from(appSchema.homeworkItems).all()
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].title).toBe('keep')
   })
 
   it('listDoneToday returns only items completed in current local day, newest first', async () => {
