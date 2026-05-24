@@ -82,4 +82,37 @@ describe('processExtractHomework', () => {
     expect(updated?.status).toBe('failed')
     expect(updated?.failureReason).toContain('boom')
   })
+
+  it('skips items already committed in the same academy (by normalized title + dueDate)', async () => {
+    const db = makeAppDb()
+    const [academy] = db.insert(schema.academies).values({
+      name: 'X', subject: 'math', color: '#000',
+    }).returning().all()
+
+    // Seed an existing committed item that matches "foo" with dueDate '2026-05-27'
+    const [seedBatch] = db.insert(schema.homeworkBatches).values({
+      academyId: academy.id, status: 'committed',
+    }).returning().all()
+    db.insert(schema.homeworkItems).values({
+      batchId: seedBatch.id, academyId: academy.id,
+      title: 'FOO',                // case difference — normalization should match
+      source: 'ai', isCommitted: true,
+      dueDate: '2026-05-27',
+    }).run()
+
+    // Now run a new extraction that returns the same "foo" + a new "bar"
+    const [newBatch] = db.insert(schema.homeworkBatches).values({
+      academyId: academy.id, status: 'pending',
+    }).returning().all()
+    db.insert(schema.homeworkPhotos).values({
+      batchId: newBatch.id, originalPath: '/x/a.jpg', resizedPath: '/x/a-1600.jpg',
+      width: 1, height: 1, bytes: 1,
+    }).run()
+
+    await processExtractHomework(db, fakeProvider, { batchId: newBatch.id })
+
+    // Only "bar" should be inserted into the new batch; "foo" deduped.
+    const newItems = db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, newBatch.id)).all()
+    expect(newItems.map((it) => it.title)).toEqual(['bar'])
+  })
 })

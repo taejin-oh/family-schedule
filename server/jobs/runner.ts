@@ -1,7 +1,12 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import type { VisionProvider } from '@/server/llm/types'
+
+/** Normalize title for duplicate detection — case + whitespace insensitive. */
+function normalizeTitle(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+}
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
@@ -42,6 +47,32 @@ export async function processExtractHomework(
       model: payload.model,
     })
 
+    // Deduplicate against existing committed items in the same academy
+    // (any state — active or done). Key = normalized title + dueDate string.
+    // Prevents re-uploading the same file from re-creating items the user
+    // already has (especially already-done ones).
+    const existingCommitted = db
+      .select({
+        title: schema.homeworkItems.title,
+        dueDate: schema.homeworkItems.dueDate,
+      })
+      .from(schema.homeworkItems)
+      .where(
+        and(
+          eq(schema.homeworkItems.academyId, batch.academyId),
+          eq(schema.homeworkItems.isCommitted, true),
+        ),
+      )
+      .all()
+    const existingKeys = new Set(
+      existingCommitted.map((e) => `${normalizeTitle(e.title)}|${e.dueDate ?? ''}`),
+    )
+    const dedupedItems = result.items.filter((it) => {
+      const key = `${normalizeTitle(it.title)}|${it.dueDate ?? ''}`
+      return !existingKeys.has(key)
+    })
+    const skippedCount = result.items.length - dedupedItems.length
+
     db.transaction((tx) => {
       tx.update(schema.homeworkBatches).set({
         status: 'ready',
@@ -50,8 +81,8 @@ export async function processExtractHomework(
         providerUsed: provider.name,
       }).where(eq(schema.homeworkBatches.id, batch.id)).run()
 
-      if (result.items.length > 0) {
-        tx.insert(schema.homeworkItems).values(result.items.map((it) => ({
+      if (dedupedItems.length > 0) {
+        tx.insert(schema.homeworkItems).values(dedupedItems.map((it) => ({
           batchId: batch.id,
           academyId: batch.academyId,
           title: it.title,
@@ -63,6 +94,7 @@ export async function processExtractHomework(
         }))).run()
       }
     })
+    void skippedCount   // available for future UI surface; currently silent
   } catch (e: any) {
     db.update(schema.homeworkBatches).set({
       status: 'failed',
