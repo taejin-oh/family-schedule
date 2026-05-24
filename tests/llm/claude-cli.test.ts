@@ -34,7 +34,7 @@ describe('ClaudeCliProvider', () => {
     expect(out.items[0].title).toBe('문제집 p.20-30')
     expect(out.items[0].dueDate).toBe('2026-05-27')
     expect(out.items[1].dueDate).toBeNull()
-    expect(out.modelUsed).toBe('claude-sonnet-4-6')
+    expect(out.modelUsed).toBe('claude-opus-4-7')
   })
 
   it('throws a useful error when JSON is malformed', async () => {

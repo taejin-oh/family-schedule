@@ -25,13 +25,13 @@ function extractJson(text: string): string {
 
 export class ClaudeCliProvider implements VisionProvider {
   readonly name = 'claude' as const
-  readonly defaultModel = 'claude-sonnet-4-6'
+  readonly defaultModel = 'claude-opus-4-7'  // 교차 셀 추론 필요한 학원 syllabus 추출은 Sonnet으론 부족
   readonly availableModels = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const
 
   async extractHomework(input: ExtractInput): Promise<ExtractOutput> {
     const model = input.model ?? this.defaultModel
     const prompt = buildPrompt({ academy: input.academy, imagePaths: input.imagePaths, userHint: input.userHint })
-    const timeoutMs = input.timeoutMs ?? 180_000   // 3분 (긴 PDF + 힌트 포함된 프롬프트)
+    const timeoutMs = input.timeoutMs ?? 300_000   // 5분 (Opus + 긴 PDF + 힌트 + 표 구조 추론)
 
     const stdout = await this.runClaude(prompt, model, timeoutMs)
     const jsonText = extractJson(stdout)

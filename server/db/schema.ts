@@ -66,5 +66,5 @@ export const homeworkItems = sqliteTable('homework_items', {
 export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey().default(1),  // single-row table
   visionProvider: text('vision_provider').notNull().default('claude'),
-  visionModel: text('vision_model').notNull().default('claude-sonnet-4-6'),
+  visionModel: text('vision_model').notNull().default('claude-opus-4-7'),
 })
