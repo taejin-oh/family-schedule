@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { listAcademies, archiveAcademy } from '@/server/actions/academies'
+import { listAcademies, listArchivedAcademies, archiveAcademy } from '@/server/actions/academies'
 import { revalidatePath } from 'next/cache'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -12,18 +12,30 @@ const SUBJECT_KO: Record<string, string> = {
 const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
 
 export default async function AcademiesPage() {
-  const rows = await listAcademies()
+  const [rows, archivedRows] = await Promise.all([listAcademies(), listArchivedAcademies()])
   async function onArchive(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
     await archiveAcademy(id)
     revalidatePath('/academies')
+    revalidatePath('/academies/archived')
+    revalidatePath('/')
   }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">학원 목록</h1>
-        <Link href="/academies/new" className={cn(buttonVariants())}>+ 새 학원</Link>
+        <div className="flex items-center gap-2">
+          {archivedRows.length > 0 && (
+            <Link
+              href="/academies/archived"
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+            >
+              📦 보관함 ({archivedRows.length})
+            </Link>
+          )}
+          <Link href="/academies/new" className={cn(buttonVariants())}>+ 새 학원</Link>
+        </div>
       </div>
       {rows.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
