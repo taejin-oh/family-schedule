@@ -67,17 +67,21 @@ export function UploadForm({
   hintsByAcademy,
   reuse,
   related,
+  initialAcademyId: initialAcademyIdProp,
 }: {
   academies: Academy[]
   batchesByAcademy: Record<number, BatchSummary[]>
   hintsByAcademy: Record<number, string[]>
   reuse: ReuseSource | null
   related: RelatedBatch[]
+  initialAcademyId?: number | null
 }) {
   const router = useRouter()
   const [, startDelete] = useTransition()
   const initialAcademyId =
-    reuse?.academyId ?? (academies.length === 1 ? academies[0].id : null)
+    reuse?.academyId ??
+    initialAcademyIdProp ??
+    (academies.length === 1 ? academies[0].id : null)
 
   const [academyId, setAcademyId] = useState<number | null>(initialAcademyId)
   const [hint, setHint] = useState<string>(
