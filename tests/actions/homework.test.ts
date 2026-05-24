@@ -5,10 +5,11 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
-import { uploadHomework } from '@/server/actions/homework'
+import { uploadHomework, commitBatch, updateDraftItem, addDraftItem, deleteDraftItem } from '@/server/actions/homework'
 
 function makeDbs() {
   const dir = mkdtempSync(join(tmpdir(), 'fs-up-'))
@@ -93,5 +94,60 @@ describe('uploadHomework', () => {
     const res = await uploadHomework({ academyId: a.id, files: [txt] }, { appDb, jobsDb, storageRoot })
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.error).toMatch(/지원하지 않는|unsupported/i)
+  })
+})
+
+describe('reviewBatch actions', () => {
+  it('commitBatch flips items to is_committed=true and batch to committed', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    appDb.insert(appSchema.homeworkItems).values([
+      { batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: null },
+      { batchId: batch.id, academyId: academy.id, title: 'b', source: 'ai', isCommitted: false, dueDate: '2026-05-27' },
+    ]).run()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(true)
+    const items = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.batchId, batch.id)).all()
+    expect(items.every((it) => it.isCommitted)).toBe(true)
+    const upd = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batch.id)).get()
+    expect(upd?.status).toBe('committed')
+  })
+
+  it('updateDraftItem mutates title/dueDate', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    const [item] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: null,
+    }).returning().all()
+    const res = await updateDraftItem(item.id, { title: 'A2', dueDate: '2026-06-01' }, { appDb })
+    expect(res.ok).toBe(true)
+    const got = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, item.id)).get()
+    expect(got?.title).toBe('A2')
+    expect(got?.dueDate).toBe('2026-06-01')
+  })
+
+  it('addDraftItem inserts a manual draft', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    const res = await addDraftItem(batch.id, { title: 'new', dueDate: null }, { appDb })
+    expect(res.ok).toBe(true)
+    const all = appDb.select().from(appSchema.homeworkItems).all()
+    expect(all).toHaveLength(1)
+    expect(all[0].source).toBe('manual')
+  })
+
+  it('deleteDraftItem removes a non-committed item', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    const [item] = appDb.insert(appSchema.homeworkItems).values({
+      batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: null,
+    }).returning().all()
+    const res = await deleteDraftItem(item.id, { appDb })
+    expect(res.ok).toBe(true)
+    expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(0)
   })
 })

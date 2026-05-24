@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import * as appSchema from '@/server/db/schema'
@@ -88,4 +89,43 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
 
   await enqueue(jobsDb, 'extract_homework', { batchId: batch.id })
   return { ok: true, data: { batchId: batch.id } }
+}
+
+const UpdateInput = z.object({
+  title: z.string().min(1).optional(),
+  dueDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
+})
+
+export async function updateDraftItem(itemId: number, patch: z.infer<typeof UpdateInput>, ctx: Ctx = {}): Promise<{ ok: boolean; error?: string }> {
+  const parsed = UpdateInput.safeParse(patch)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid' }
+  const appDb = ctx.appDb ?? getDb()
+  appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  return { ok: true }
+}
+
+export async function addDraftItem(batchId: number, input: { title: string; dueDate: string | null }, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
+  if (!batch) return { ok: false, error: 'batch not found' }
+  appDb.insert(appSchema.homeworkItems).values({
+    batchId, academyId: batch.academyId, title: input.title, dueDate: input.dueDate,
+    source: 'manual', isCommitted: false,
+  }).run()
+  return { ok: true }
+}
+
+export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  return { ok: true }
+}
+
+export async function commitBatch(batchId: number, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  appDb.transaction((tx) => {
+    tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
+    tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
+  })
+  return { ok: true }
 }
