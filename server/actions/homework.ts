@@ -118,6 +118,9 @@ export async function addDraftItem(batchId: number, input: { title: string; note
   const appDb = ctx.appDb ?? getDb()
   const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
   if (!batch) return { ok: false, error: 'batch not found' }
+  if (batch.status === 'committed') {
+    return { ok: false, error: '확정된 batch에는 항목을 추가할 수 없습니다' }
+  }
   appDb.insert(appSchema.homeworkItems).values({
     batchId, academyId: batch.academyId, title: input.title, notes: input.notes ?? null, dueDate: input.dueDate,
     source: 'manual', isCommitted: false,

@@ -185,6 +185,17 @@ describe('reviewBatch actions', () => {
     expect(res.ok).toBe(false)
     expect(res.error).toMatch(/이미 확정/)
   })
+
+  it('addDraftItem refuses to insert into a committed batch', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'committed' }).returning().all()
+    const res = await addDraftItem(batch.id, { title: 'late', dueDate: null }, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/확정|committed/i)
+    // confirm no row inserted
+    expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(0)
+  })
 })
 
 describe('toggleItemDone + listCommittedItems', () => {
