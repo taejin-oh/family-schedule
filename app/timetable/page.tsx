@@ -29,6 +29,7 @@ export default async function TimetablePage() {
   const weekItems = getDb()
     .select({
       academyId: schema.homeworkItems.academyId,
+      dueDate: schema.homeworkItems.dueDate,
       doneAt: schema.homeworkItems.doneAt,
     })
     .from(schema.homeworkItems)
@@ -41,12 +42,23 @@ export default async function TimetablePage() {
     )
     .all()
 
+  // Per-academy whole-week totals
   const progressMap = new Map<number, { total: number; done: number }>()
+  // Per-(academy, date) — used for the per-slot count badge on the grid
+  const slotProgressMap = new Map<string, { total: number; done: number }>()
   for (const it of weekItems) {
     const cur = progressMap.get(it.academyId) ?? { total: 0, done: 0 }
     cur.total += 1
     if (it.doneAt !== null) cur.done += 1
     progressMap.set(it.academyId, cur)
+
+    if (it.dueDate) {
+      const key = `${it.academyId}|${it.dueDate}`
+      const c = slotProgressMap.get(key) ?? { total: 0, done: 0 }
+      c.total += 1
+      if (it.doneAt !== null) c.done += 1
+      slotProgressMap.set(key, c)
+    }
   }
 
   const weeklyProgress = academies
@@ -63,5 +75,16 @@ export default async function TimetablePage() {
     })
     .filter((x): x is { academyId: number; name: string; color: string; total: number; done: number } => x !== null)
 
-  return <Timetable academies={academies} weeklyProgress={weeklyProgress} weekStart={monday} />
+  // Convert per-(academy, dueDate) map into a plain object for the client
+  const slotProgress: Record<string, { total: number; done: number }> = {}
+  for (const [k, v] of slotProgressMap) slotProgress[k] = v
+
+  return (
+    <Timetable
+      academies={academies}
+      weeklyProgress={weeklyProgress}
+      weekStart={monday}
+      slotProgress={slotProgress}
+    />
+  )
 }

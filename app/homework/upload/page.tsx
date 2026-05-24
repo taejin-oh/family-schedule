@@ -9,11 +9,12 @@ import { UploadForm } from './upload-form'
 export default async function UploadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reuse?: string; academy?: string }>
+  searchParams: Promise<{ reuse?: string; academy?: string; mode?: string }>
 }) {
   const sp = await searchParams
   const reuseId = sp.reuse ? Number(sp.reuse) : null
   const preselectedAcademyId = sp.academy ? Number(sp.academy) : null
+  const mode = sp.mode === 'file' ? 'file' : null
 
   const [academyRows, batches] = await Promise.all([
     listAcademies(),
@@ -71,6 +72,7 @@ export default async function UploadPage({
         reuse={reuse}
         related={related}
         initialAcademyId={preselectedAcademyId}
+        mode={mode}
       />
     </div>
   )

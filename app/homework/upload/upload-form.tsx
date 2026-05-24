@@ -68,6 +68,7 @@ export function UploadForm({
   reuse,
   related,
   initialAcademyId: initialAcademyIdProp,
+  mode = null,
 }: {
   academies: Academy[]
   batchesByAcademy: Record<number, BatchSummary[]>
@@ -75,7 +76,10 @@ export function UploadForm({
   reuse: ReuseSource | null
   related: RelatedBatch[]
   initialAcademyId?: number | null
+  mode?: 'file' | null
 }) {
+  const showFileForm = mode === 'file' || reuse !== null
+  const showChooser = !showFileForm
   const router = useRouter()
   const [, startDelete] = useTransition()
   const initialAcademyId =
@@ -214,20 +218,23 @@ export function UploadForm({
           </div>
         </div>
 
-        {/* Two-mode chooser: file upload vs manual entry (not in reuse mode) */}
-        {!reuse && academyId !== null && (
+        {/* Two-mode chooser (landing). Hidden once a mode is selected. */}
+        {showChooser && academyId !== null && (
           <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 rounded-md border bg-card text-left">
+            <Link
+              href={`/homework/upload?mode=file&academy=${academyId}`}
+              className="p-3 rounded-md border bg-card text-left hover:bg-accent transition-colors"
+            >
               <div className="flex items-center gap-2 text-sm font-medium">
                 📷 파일 업로드
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 사진/PDF를 올리면 AI가 숙제 항목으로 추출
               </p>
-              <p className="text-[10px] text-muted-foreground/70 mt-1">
-                ↓ 아래 폼 이용
+              <p className="text-[10px] text-foreground/70 mt-1">
+                → 업로드 화면으로
               </p>
-            </div>
+            </Link>
             <button
               type="button"
               onClick={startManual}
@@ -248,8 +255,18 @@ export function UploadForm({
           </div>
         )}
 
+        {/* Back to chooser button when in file mode (not reuse) */}
+        {mode === 'file' && !reuse && (
+          <Link
+            href="/homework/upload"
+            className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← 다른 방식 선택
+          </Link>
+        )}
+
         {/* Past uploads (not in reuse mode) */}
-        {!reuse && academyId !== null && pastBatches.length > 0 && (
+        {showFileForm && !reuse && academyId !== null && pastBatches.length > 0 && (
           <div className="space-y-2">
             <Label>이 학원의 이전 업로드 ({pastBatches.length})</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -374,8 +391,8 @@ export function UploadForm({
           </div>
         )}
 
-        {/* File input (hidden in reuse mode) */}
-        {!reuse && (
+        {/* File input (hidden in reuse mode, and only shown in file mode) */}
+        {showFileForm && !reuse && (
           <div className="space-y-2">
             <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
             <input
@@ -417,7 +434,8 @@ export function UploadForm({
           </div>
         )}
 
-        {/* Hint textarea */}
+        {/* Hint textarea — only when actually doing extraction */}
+        {showFileForm && (
         <div className="space-y-2">
           <Label htmlFor="hint">
             AI 추출 힌트 (선택)
@@ -465,14 +483,17 @@ export function UploadForm({
             없어도 AI가 알아서 숙제와 수업 안내를 구분함. 힌트가 있으면 더 정확함.
           </p>
         </div>
+        )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy
-            ? (reuse ? '재분석 중…' : '업로드 중…')
-            : (reuse ? '이 파일로 다시 분석' : '업로드 후 분석')}
-        </Button>
+        {showFileForm && (
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy
+              ? (reuse ? '재분석 중…' : '업로드 중…')
+              : (reuse ? '이 파일로 다시 분석' : '업로드 후 분석')}
+          </Button>
+        )}
       </form>
     </Card>
   )

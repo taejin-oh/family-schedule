@@ -13,14 +13,25 @@ const SUBJECT_KO: Record<string, string> = {
 }
 const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
 
-export default async function AcademyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AcademyDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ date?: string }>
+}) {
   const { id } = await params
+  const { date: dateFilter } = await searchParams
   const numId = Number(id)
   const data = await getAcademyDetail(numId)
   if (!data) notFound()
 
-  const { academy, active, done } = data
+  const { academy, active: allActive, done: allDone } = data
   const todayIso = localDateIso()
+
+  // Optional date filter (from timetable slot drill-down)
+  const active = dateFilter ? allActive.filter((it) => it.dueDate === dateFilter) : allActive
+  const done = dateFilter ? allDone.filter((it) => it.dueDate === dateFilter) : allDone
 
   const scheduleSlots = academy.scheduleRule?.slots ?? []
 
@@ -28,13 +39,31 @@ export default async function AcademyDetailPage({ params }: { params: Promise<{ 
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Link href="/academies" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          ← 학원 목록
+        <Link
+          href={dateFilter ? '/timetable' : '/academies'}
+          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+        >
+          ← {dateFilter ? '시간표' : '학원 목록'}
         </Link>
         <Link href={`/academies/${numId}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           편집
         </Link>
       </div>
+
+      {/* Date-filter banner */}
+      {dateFilter && (
+        <div className="rounded-md bg-accent/40 border border-foreground/10 px-3 py-2 text-sm flex items-center justify-between">
+          <span>
+            <span className="font-medium">{dateFilter}</span> 마감 항목만 보는 중
+          </span>
+          <Link
+            href={`/academies/${numId}`}
+            className="text-xs underline underline-offset-2 hover:text-foreground"
+          >
+            전체 보기
+          </Link>
+        </div>
+      )}
 
       {/* Academy info card */}
       <Card className="p-4 space-y-3">

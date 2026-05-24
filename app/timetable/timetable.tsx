@@ -18,6 +18,7 @@ type WeeklyProgress = {
   total: number
   done: number
 }
+type SlotProgress = Record<string, { total: number; done: number }>  // key = `${academyId}|YYYY-MM-DD`
 
 const DAYS: Array<{ key: string; label: string }> = [
   { key: 'mon', label: '월' },
@@ -50,16 +51,33 @@ function rowIndexToLabel(row: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+function localDateIso(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Compute the YYYY-MM-DD this week for a given day key (mon..sun). */
+function dateForDay(weekStart: Date | undefined, dayKey: string): string | null {
+  if (!weekStart) return null
+  const idx = DAYS.findIndex((d) => d.key === dayKey)
+  if (idx === -1) return null
+  const d = new Date(weekStart)
+  d.setDate(d.getDate() + idx)
+  return localDateIso(d)
+}
+
 type SlotBlock = {
+  academyId: number
   academyName: string
   color: string
   spanRows: number
+  dayKey: string
 }
 
 // Build a 2D structure: cells[rowIdx][dayIdx] = { block | 'skip' | null }
-// 'skip' = this cell is covered by a rowSpan block that started above
 function buildCells(academies: Academy[]) {
-  // cells[row][dayIdx]: null = empty, SlotBlock = block starts here, 'skip' = covered
   const cells: Array<Array<SlotBlock | 'skip' | null>> = Array.from(
     { length: TOTAL_ROWS },
     () => Array(DAYS.length).fill(null),
@@ -75,14 +93,14 @@ function buildCells(academies: Academy[]) {
       const spanRows = Math.max(1, Math.min(endRow - startRow, TOTAL_ROWS - startRow))
       if (startRow < 0 || startRow >= TOTAL_ROWS) continue
 
-      // Place block (if cell not already occupied)
       if (cells[startRow][dayIdx] === null) {
         cells[startRow][dayIdx] = {
+          academyId: academy.id,
           academyName: academy.name,
           color: academy.color,
           spanRows,
+          dayKey: slot.day,
         }
-        // Mark covered rows as 'skip'
         for (let r = startRow + 1; r < startRow + spanRows && r < TOTAL_ROWS; r++) {
           if (cells[r][dayIdx] === null) {
             cells[r][dayIdx] = 'skip'
@@ -108,10 +126,12 @@ export function Timetable({
   academies,
   weeklyProgress = [],
   weekStart,
+  slotProgress = {},
 }: {
   academies: Academy[]
   weeklyProgress?: WeeklyProgress[]
   weekStart?: Date
+  slotProgress?: SlotProgress
 }) {
   const hasSlots = academies.some(
     (a) => a.scheduleRule?.slots && a.scheduleRule.slots.length > 0,
@@ -198,7 +218,6 @@ export function Timetable({
           <tbody>
             {cells.map((row, rowIdx) => (
               <tr key={rowIdx} className="h-7">
-                {/* Time label — only on even rows (whole hours) */}
                 <td className="text-right pr-2 text-xs text-muted-foreground align-top pt-0.5 whitespace-nowrap">
                   {rowIdx % 2 === 0 ? rowIndexToLabel(rowIdx) : ''}
                 </td>
@@ -206,10 +225,7 @@ export function Timetable({
                   const dayKey = DAYS[dayIdx].key
                   const todayBg = dayKey === todayKey ? 'bg-primary/5' : ''
 
-                  if (cell === 'skip') {
-                    // This cell is covered by a rowSpan above — omit the <td>
-                    return null
-                  }
+                  if (cell === 'skip') return null
 
                   if (cell === null) {
                     return (
@@ -220,23 +236,54 @@ export function Timetable({
                     )
                   }
 
-                  // SlotBlock
                   const rowSpan = Math.min(cell.spanRows, TOTAL_ROWS - rowIdx)
+                  const slotDate = dateForDay(weekStart, cell.dayKey)
+                  const progress = slotDate ? slotProgress[`${cell.academyId}|${slotDate}`] : undefined
+                  const allDone = !!progress && progress.total > 0 && progress.done === progress.total
+                  const inner = (
+                    <div
+                      className="w-full h-full px-1.5 py-1 text-white text-xs font-medium overflow-hidden leading-tight flex flex-col gap-0.5"
+                      style={{
+                        backgroundColor: cell.color,
+                        minHeight: `${rowSpan * 28}px`,
+                      }}
+                    >
+                      <div className="truncate">{cell.academyName}</div>
+                      {progress && progress.total > 0 && (
+                        <div
+                          className={cn(
+                            'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-semibold',
+                            allDone
+                              ? 'bg-white/95 text-green-700'
+                              : progress.done === 0
+                                ? 'bg-white/25 text-white'
+                                : 'bg-white/80 text-foreground',
+                          )}
+                        >
+                          {allDone && <Check className="h-2.5 w-2.5" aria-hidden />}
+                          {progress.done}/{progress.total}
+                        </div>
+                      )}
+                    </div>
+                  )
+
                   return (
                     <td
                       key={dayKey}
                       rowSpan={rowSpan}
                       className={cn('border border-border align-top p-0', todayBg)}
                     >
-                      <div
-                        className="w-full px-1 py-0.5 text-white text-xs font-medium overflow-hidden leading-tight"
-                        style={{
-                          backgroundColor: cell.color,
-                          minHeight: `${rowSpan * 28}px`,
-                        }}
-                      >
-                        {cell.academyName}
-                      </div>
+                      {slotDate ? (
+                        <Link
+                          href={`/academies/${cell.academyId}?date=${slotDate}`}
+                          className="block h-full hover:opacity-90 transition-opacity"
+                          title={`${cell.academyName} · ${slotDate}`}
+                        >
+                          {inner}
+                        </Link>
+                      ) : (
+                        inner
+                      )}
                     </td>
                   )
                 })}
