@@ -31,7 +31,7 @@ export class ClaudeCliProvider implements VisionProvider {
   async extractHomework(input: ExtractInput): Promise<ExtractOutput> {
     const model = input.model ?? this.defaultModel
     const prompt = buildPrompt({ academy: input.academy, imagePaths: input.imagePaths, userHint: input.userHint })
-    const timeoutMs = input.timeoutMs ?? 60_000
+    const timeoutMs = input.timeoutMs ?? 180_000   // 3분 (긴 PDF + 힌트 포함된 프롬프트)
 
     const stdout = await this.runClaude(prompt, model, timeoutMs)
     const jsonText = extractJson(stdout)
