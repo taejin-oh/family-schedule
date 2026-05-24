@@ -10,12 +10,19 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
+type SimilarMatch = {
+  title: string
+  dueDate: string | null
+  doneAt: Date | null
+  score: number
+}
 type Item = {
   id: number
   title: string
   notes: string | null
   dueDate: string | null
   source: 'ai' | 'manual'
+  similar?: SimilarMatch | null
 }
 type Photo = { path: string; isPdf: boolean }
 
@@ -84,16 +91,23 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
           </Card>
         ) : (
           items.map((it) => (
-            <Card key={it.id} className="p-4 space-y-3">
+            <Card key={it.id} className={cn('p-4 space-y-3', it.similar && 'ring-2 ring-amber-300/60')}>
               <div className="flex items-center justify-between">
-                <span
-                  className={cn(
-                    'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                    it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                      it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
+                  </span>
+                  {it.similar && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                      ⚠️ 유사 항목 있음 ({Math.round(it.similar.score * 100)}%)
+                    </span>
                   )}
-                >
-                  {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
-                </span>
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
@@ -104,6 +118,18 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
                   삭제
                 </Button>
               </div>
+
+              {it.similar && (
+                <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2 space-y-0.5">
+                  <div className="font-medium">이미 등록된 비슷한 항목:</div>
+                  <div className="break-words">
+                    “{it.similar.title}”
+                    {it.similar.dueDate && <span className="text-muted-foreground"> · ~{it.similar.dueDate}</span>}
+                    {it.similar.doneAt && <span className="text-green-700"> · ✓ 완료됨</span>}
+                  </div>
+                  <div className="text-muted-foreground/80">중복이면 삭제, 다른 거면 그대로 두세요.</div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor={`title-${it.id}`} className="text-xs text-muted-foreground">
