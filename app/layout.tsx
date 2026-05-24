@@ -1,22 +1,34 @@
 import './globals.css'
 import Link from 'next/link'
-import { Geist, Geist_Mono } from 'next/font/google'
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-})
+import { Geist_Mono } from 'next/font/google'
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 })
 
-export const metadata = { title: 'Family Schedule' }
+export const metadata = {
+  title: 'Family Schedule',
+  manifest: '/manifest.webmanifest',
+}
+
+export const viewport = {
+  themeColor: '#0f172a',
+  width: 'device-width',
+  initialScale: 1,
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="ko" className={geistMono.variable}>
+      <head>
+        <link
+          rel="stylesheet"
+          as="style"
+          crossOrigin=""
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+      </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
         <header className="border-b bg-card">
           <div className="mx-auto max-w-3xl flex items-center gap-6 p-4">
