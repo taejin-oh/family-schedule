@@ -1,10 +1,16 @@
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
-type ScheduleRule = {
-  days: Array<'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'>
+export type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
+
+export type ScheduleSlot = {
+  day: Day
   start: string  // 'HH:MM'
   end: string    // 'HH:MM'
+}
+
+type ScheduleRule = {
+  slots: ScheduleSlot[]
 } | null
 
 export const academies = sqliteTable('academies', {

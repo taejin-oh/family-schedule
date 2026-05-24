@@ -15,9 +15,11 @@ const InputSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '색상은 #RRGGBB 형식'),
   scheduleRule: z.union([
     z.object({
-      days: z.array(z.enum(['mon','tue','wed','thu','fri','sat','sun'])).min(1),
-      start: z.string().regex(/^\d{2}:\d{2}$/),
-      end: z.string().regex(/^\d{2}:\d{2}$/),
+      slots: z.array(z.object({
+        day: z.enum(['mon','tue','wed','thu','fri','sat','sun']),
+        start: z.string().regex(/^\d{2}:\d{2}$/, '시간 형식은 HH:MM'),
+        end: z.string().regex(/^\d{2}:\d{2}$/, '시간 형식은 HH:MM'),
+      })).min(1, '요일을 하나 이상 선택해주세요'),
     }),
     z.null(),
   ]),

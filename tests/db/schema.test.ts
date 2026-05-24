@@ -23,19 +23,26 @@ function makeDb() {
 describe('schema', () => {
   afterAll(() => { rmSync(tmp, { recursive: true, force: true }) })
 
-  it('inserts and reads an academy', () => {
+  it('inserts and reads an academy with per-day schedule slots', () => {
     const { db } = makeDb()
     const [row] = db.insert(schema.academies).values({
       name: '수학학원',
       subject: 'math',
       color: '#ef4444',
-      scheduleRule: { days: ['mon', 'wed', 'fri'], start: '19:00', end: '21:00' },
+      scheduleRule: {
+        slots: [
+          { day: 'mon', start: '16:00', end: '18:00' },
+          { day: 'wed', start: '19:00', end: '21:00' },
+          { day: 'fri', start: '17:00', end: '19:00' },
+        ],
+      },
     }).returning().all()
     expect(row.id).toBeGreaterThan(0)
     expect(row.name).toBe('수학학원')
 
     const fetched = db.select().from(schema.academies).where(eq(schema.academies.id, row.id)).get()
-    expect(fetched?.scheduleRule?.days).toEqual(['mon', 'wed', 'fri'])
+    expect(fetched?.scheduleRule?.slots).toHaveLength(3)
+    expect(fetched?.scheduleRule?.slots[1]).toEqual({ day: 'wed', start: '19:00', end: '21:00' })
   })
 
   it('homework_items requires batch_id and academy_id FKs', () => {

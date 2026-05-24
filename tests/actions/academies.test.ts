@@ -18,15 +18,31 @@ function makeDb() {
 }
 
 describe('academy actions', () => {
-  it('createAcademy accepts valid input', async () => {
+  it('createAcademy accepts valid input with per-day slots', async () => {
     const db = makeDb()
     const res = await createAcademy({
       name: '수학학원', subject: 'math', color: '#ef4444',
-      scheduleRule: { days: ['mon','wed','fri'], start: '19:00', end: '21:00' },
+      scheduleRule: {
+        slots: [
+          { day: 'mon', start: '16:00', end: '18:00' },
+          { day: 'wed', start: '19:00', end: '21:00' },
+          { day: 'fri', start: '17:00', end: '19:00' },
+        ],
+      },
       location: null, notes: null,
     }, { db })
     expect(res.ok).toBe(true)
     expect(res.data?.id).toBeGreaterThan(0)
+  })
+
+  it('createAcademy rejects scheduleRule with empty slots array', async () => {
+    const db = makeDb()
+    const res = await createAcademy({
+      name: '수학학원', subject: 'math', color: '#ef4444',
+      scheduleRule: { slots: [] },
+      location: null, notes: null,
+    }, { db })
+    expect(res.ok).toBe(false)
   })
 
   it('createAcademy rejects empty name', async () => {

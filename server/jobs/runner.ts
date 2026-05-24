@@ -6,9 +6,9 @@ import type { VisionProvider } from '@/server/llm/types'
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
 function computeNextSession(rule: any, from: Date): Date | null {
-  if (!rule || !rule.days || !Array.isArray(rule.days)) return null
+  if (!rule || !rule.slots || !Array.isArray(rule.slots)) return null
   const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-  const wanted = new Set(rule.days.map((d: string) => dayMap[d]).filter((n: number | undefined): n is number => typeof n === 'number'))
+  const wanted = new Set(rule.slots.map((s: any) => dayMap[s?.day]).filter((n: number | undefined): n is number => typeof n === 'number'))
   if (wanted.size === 0) return null
   for (let i = 1; i <= 14; i++) {
     const d = new Date(from); d.setDate(d.getDate() + i)

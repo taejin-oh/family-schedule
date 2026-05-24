@@ -38,7 +38,9 @@ export default async function AcademiesPage() {
                 <div className="font-medium">{r.name}</div>
                 <div className="text-sm text-muted-foreground">
                   {SUBJECT_KO[r.subject] ?? r.subject}
-                  {r.scheduleRule && ` · ${r.scheduleRule.days.map((d) => DAY_KO[d] ?? d).join('·')} ${r.scheduleRule.start}–${r.scheduleRule.end}`}
+                  {r.scheduleRule?.slots && r.scheduleRule.slots.length > 0 && (
+                    ' · ' + r.scheduleRule.slots.map((s) => `${DAY_KO[s.day] ?? s.day} ${s.start}–${s.end}`).join(' · ')
+                  )}
                 </div>
               </div>
               <Link href={`/academies/${r.id}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>편집</Link>

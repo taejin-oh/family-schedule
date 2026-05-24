@@ -11,11 +11,15 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
+type Slot = { day: Day; start: string; end: string }
+
 const DAYS: { key: Day; label: string }[] = [
   { key: 'mon', label: '월' }, { key: 'tue', label: '화' },
   { key: 'wed', label: '수' }, { key: 'thu', label: '목' },
   { key: 'fri', label: '금' }, { key: 'sat', label: '토' }, { key: 'sun', label: '일' },
 ]
+const DAY_ORDER: Record<Day, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 }
+
 const SUBJECTS: { value: AcademyInput['subject']; label: string }[] = [
   { value: 'math', label: '수학' },
   { value: 'english', label: '영어' },
@@ -40,16 +44,30 @@ export function AcademyForm({
   const [name, setName] = useState(initial?.name ?? '')
   const [subject, setSubject] = useState<AcademyInput['subject']>(initial?.subject ?? 'math')
   const [color, setColor] = useState(initial?.color ?? COLORS[3])
-  const [days, setDays] = useState<Day[]>(initial?.scheduleRule?.days ?? [])
-  const [start, setStart] = useState(initial?.scheduleRule?.start ?? '19:00')
-  const [end, setEnd] = useState(initial?.scheduleRule?.end ?? '21:00')
+  const [slots, setSlots] = useState<Slot[]>(initial?.scheduleRule?.slots ?? [])
   const [location, setLocation] = useState(initial?.location ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const toggleDay = (d: Day) =>
-    setDays((cur) => cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d])
+  function toggleDay(d: Day) {
+    setSlots((cur) => {
+      if (cur.some((s) => s.day === d)) {
+        return cur.filter((s) => s.day !== d)
+      }
+      // Use the most recently added slot's times as default for the new day.
+      const last = cur[cur.length - 1]
+      const defaultStart = last?.start ?? '19:00'
+      const defaultEnd = last?.end ?? '21:00'
+      const next = [...cur, { day: d, start: defaultStart, end: defaultEnd }]
+      next.sort((a, b) => DAY_ORDER[a.day] - DAY_ORDER[b.day])
+      return next
+    })
+  }
+
+  function updateSlot(d: Day, patch: Partial<Slot>) {
+    setSlots((cur) => cur.map((s) => (s.day === d ? { ...s, ...patch } : s)))
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -58,7 +76,7 @@ export function AcademyForm({
       name: name.trim(),
       subject,
       color,
-      scheduleRule: days.length > 0 ? { days, start, end } : null,
+      scheduleRule: slots.length > 0 ? { slots } : null,
       location: location.trim() || null,
       notes: notes.trim() || null,
     }
@@ -104,30 +122,44 @@ export function AcademyForm({
         </div>
 
         <div className="space-y-2">
-          <Label>요일</Label>
-          <div className="flex gap-1.5">
-            {DAYS.map((d) => (
-              <Button
-                type="button"
-                key={d.key}
-                variant={days.includes(d.key) ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => toggleDay(d.key)}
-              >
-                {d.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
+          <Label>요일 · 시간</Label>
           <div className="space-y-2">
-            <Label htmlFor="start">시작</Label>
-            <Input id="start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="end">종료</Label>
-            <Input id="end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            {DAYS.map((d) => {
+              const slot = slots.find((s) => s.day === d.key)
+              const active = !!slot
+              return (
+                <div key={d.key} className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={active ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => toggleDay(d.key)}
+                    className="w-12 shrink-0"
+                  >
+                    {d.label}
+                  </Button>
+                  {active && slot && (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        type="time"
+                        value={slot.start}
+                        onChange={(e) => updateSlot(d.key, { start: e.target.value })}
+                        className="flex-1"
+                        aria-label={`${d.label}요일 시작`}
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <Input
+                        type="time"
+                        value={slot.end}
+                        onChange={(e) => updateSlot(d.key, { end: e.target.value })}
+                        className="flex-1"
+                        aria-label={`${d.label}요일 종료`}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
