@@ -99,7 +99,9 @@ export function ItemActionsMenu(props: Props) {
                 'flex items-center justify-center',
                 'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
                 'opacity-0 group-hover/row:opacity-100 focus:opacity-100 data-[popup-open]:opacity-100',
-                '[@media(pointer:coarse)]:hidden',
+                // Mobile: keep button in layout (so base-ui anchor stays valid)
+                // but invisible + not clickable
+                '[@media(pointer:coarse)]:invisible [@media(pointer:coarse)]:pointer-events-none',
               )}
               aria-label="액션 메뉴"
             >
