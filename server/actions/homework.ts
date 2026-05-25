@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq, desc, sql, inArray } from 'drizzle-orm'
+import { eq, desc, sql, inArray, and, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -180,6 +180,22 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   if (!batch) return { ok: false, error: '존재하지 않는 batch입니다' }
   if (batch.status === 'committed') return { ok: false, error: '이미 확정된 batch입니다' }
   if (batch.status !== 'ready') return { ok: false, error: `${batch.status} 상태의 batch는 확정할 수 없습니다` }
+
+  // Block commit when any item has null dueDate AND the academy has no
+  // schedule rule (runner can't auto-fill in that case).
+  const academy = appDb.select().from(appSchema.academies).where(eq(appSchema.academies.id, batch.academyId)).get()
+  const hasSchedule = !!academy?.scheduleRule?.slots?.length
+  if (!hasSchedule) {
+    const itemsMissingDate = appDb.select({ id: appSchema.homeworkItems.id, title: appSchema.homeworkItems.title })
+      .from(appSchema.homeworkItems)
+      .where(and(eq(appSchema.homeworkItems.batchId, batchId), isNull(appSchema.homeworkItems.dueDate)))
+      .all()
+    if (itemsMissingDate.length > 0) {
+      const titles = itemsMissingDate.map((it) => it.title).join(', ')
+      return { ok: false, error: `학원 시간표가 없어서 마감일을 자동 채울 수 없습니다. 직접 입력 필요: ${titles}` }
+    }
+  }
+
   appDb.transaction((tx) => {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()

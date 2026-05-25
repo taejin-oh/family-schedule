@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import type { ScheduleSlot } from '@/server/db/schema'
 import type { VisionProvider } from '@/server/llm/types'
+import { localDateIso } from '@/server/util/date'
 
 /** Normalize title for duplicate detection — case + whitespace insensitive. */
 function normalizeTitle(s: string): string {
@@ -84,6 +85,15 @@ export async function processExtractHomework(
     })
     const skippedCount = result.items.length - dedupedItems.length
 
+    // Auto-fill missing dueDate with next academy session date (Phase 0 spec).
+    // AI가 dueDate를 못 찾으면 학원 schedule rule을 보고 다음 세션 일자로 채움.
+    // schedule rule이 없는 학원은 dueDate null 유지 — review에서 수동 입력.
+    const nextSession = computeNextSession(academy.scheduleRule, new Date())
+    const filledItems = dedupedItems.map((it) => {
+      if (it.dueDate || !nextSession) return it
+      return { ...it, dueDate: localDateIso(nextSession) }
+    })
+
     db.transaction((tx) => {
       tx.update(schema.homeworkBatches).set({
         status: 'ready',
@@ -92,8 +102,8 @@ export async function processExtractHomework(
         providerUsed: provider.name,
       }).where(eq(schema.homeworkBatches.id, batch.id)).run()
 
-      if (dedupedItems.length > 0) {
-        tx.insert(schema.homeworkItems).values(dedupedItems.map((it) => {
+      if (filledItems.length > 0) {
+        tx.insert(schema.homeworkItems).values(filledItems.map((it) => {
           const photoId = (it.sourcePhotoIndex != null && it.sourcePhotoIndex >= 0 && it.sourcePhotoIndex < photos.length)
             ? photos[it.sourcePhotoIndex].id
             : null

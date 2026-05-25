@@ -127,7 +127,7 @@ describe('reviewBatch actions', () => {
     const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
     const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
     appDb.insert(appSchema.homeworkItems).values([
-      { batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: null },
+      { batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: '2026-05-28' },
       { batchId: batch.id, academyId: academy.id, title: 'b', source: 'ai', isCommitted: false, dueDate: '2026-05-27' },
     ]).run()
     const res = await commitBatch(batch.id, { appDb })
@@ -136,6 +136,33 @@ describe('reviewBatch actions', () => {
     expect(items.every((it) => it.isCommitted)).toBe(true)
     const upd = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batch.id)).get()
     expect(upd?.status).toBe('committed')
+  })
+
+  it('commitBatch rejects null dueDate when academy has no schedule rule', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    appDb.insert(appSchema.homeworkItems).values([
+      { batchId: batch.id, academyId: academy.id, title: '미정', source: 'ai', isCommitted: false, dueDate: null },
+    ]).run()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected failure')
+    expect(res.error).toMatch(/시간표|마감일/)
+  })
+
+  it('commitBatch allows null dueDate when academy has schedule rule (runner auto-fill responsibility)', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({
+      name: 'X', subject: 'math', color: '#000000',
+      scheduleRule: { slots: [{ day: 'mon', start: '17:00', end: '18:00' }] },
+    }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    appDb.insert(appSchema.homeworkItems).values([
+      { batchId: batch.id, academyId: academy.id, title: 'a', source: 'ai', isCommitted: false, dueDate: null },
+    ]).run()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(true)
   })
 
   it('updateDraftItem mutates title/dueDate', async () => {
@@ -338,20 +365,22 @@ describe('toggleItemDone + listCommittedItems', () => {
     const [a] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
     const [b] = appDb.insert(appSchema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
 
+    // Use fixed local hours (08:00, 12:00) instead of "now - N hours" to
+    // avoid midnight-boundary flakes (e.g. 1h-ago at 00:30 becomes yesterday).
     const now = Date.now()
-    const oneHourAgo = new Date(now - 60 * 60 * 1000)
-    const tenMinAgo = new Date(now - 10 * 60 * 1000)
+    const noonToday = new Date(); noonToday.setHours(12, 0, 0, 0)
+    const eightToday = new Date(); eightToday.setHours(8, 0, 0, 0)
     const yesterday = new Date(now - 24 * 60 * 60 * 1000); yesterday.setHours(12, 0, 0, 0)
 
     appDb.insert(appSchema.homeworkItems).values([
       { batchId: b.id, academyId: a.id, title: 'old (yesterday)', source: 'ai', isCommitted: true, doneAt: yesterday, dueDate: null },
-      { batchId: b.id, academyId: a.id, title: 'older (1h ago)',  source: 'ai', isCommitted: true, doneAt: oneHourAgo,  dueDate: null },
-      { batchId: b.id, academyId: a.id, title: 'newer (10m ago)', source: 'ai', isCommitted: true, doneAt: tenMinAgo,   dueDate: null },
-      { batchId: b.id, academyId: a.id, title: 'still active',    source: 'ai', isCommitted: true, doneAt: null,        dueDate: null },
-      { batchId: b.id, academyId: a.id, title: 'draft (skip)',    source: 'ai', isCommitted: false, doneAt: tenMinAgo,   dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'older (08:00)',   source: 'ai', isCommitted: true, doneAt: eightToday, dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'newer (12:00)',   source: 'ai', isCommitted: true, doneAt: noonToday,  dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'still active',    source: 'ai', isCommitted: true, doneAt: null,       dueDate: null },
+      { batchId: b.id, academyId: a.id, title: 'draft (skip)',    source: 'ai', isCommitted: false, doneAt: noonToday, dueDate: null },
     ]).run()
 
     const out = await listDoneToday({ appDb })
-    expect(out.map((x) => x.title)).toEqual(['newer (10m ago)', 'older (1h ago)'])
+    expect(out.map((x) => x.title)).toEqual(['newer (12:00)', 'older (08:00)'])
   })
 })
