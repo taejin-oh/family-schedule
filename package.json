@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:generate:jobs": "drizzle-kit generate --config drizzle.jobs.config.ts",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "cleanup:orphan-photos": "tsx scripts/cleanup-orphan-photos.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

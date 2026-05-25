@@ -68,8 +68,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
 
   const items = getDb().select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batchId)).all()
   const photos = getDb().select().from(schema.homeworkPhotos).where(eq(schema.homeworkPhotos.batchId, batchId)).all()
-  // Build a map from photo id → resizedPath for source photo thumbnails
-  const photoById = new Map(photos.map((p) => [p.id, p.resizedPath]))
+  // Build a set of photo ids for fast lookup
+  const photoIds = new Set(photos.map((p) => p.id))
   const academy = getDb().select().from(schema.academies).where(eq(schema.academies.id, batch.academyId)).get()
 
   // Existing committed items for this academy (any state). Used to flag fuzzy duplicates
@@ -114,10 +114,10 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
           dueDate: it.dueDate,
           source: it.source,
           confidence: it.confidence ?? null,
-          sourcePhotoPath: it.sourcePhotoId != null ? (photoById.get(it.sourcePhotoId) ?? null) : null,
+          sourcePhotoId: (it.sourcePhotoId != null && photoIds.has(it.sourcePhotoId)) ? it.sourcePhotoId : null,
           similar: findSimilar(it.title, it.dueDate, existingCommitted),
         }))}
-        photos={photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') }))}
+        photos={photos.map((p) => ({ id: p.id, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') }))}
         currentHint={batch.userHint}
         isReadOnly={isReadOnly}
       />

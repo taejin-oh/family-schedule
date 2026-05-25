@@ -23,10 +23,10 @@ type Item = {
   dueDate: string | null
   source: 'ai' | 'manual'
   confidence?: number | null
-  sourcePhotoPath?: string | null
+  sourcePhotoId?: number | null
   similar?: SimilarMatch | null
 }
-type Photo = { path: string; isPdf: boolean }
+type Photo = { id: number; isPdf: boolean }
 
 export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, isReadOnly = false }: { batchId: number; todayIso: string; initial: Item[]; photos: Photo[]; currentHint: string | null; isReadOnly?: boolean }) {
   const router = useRouter()
@@ -136,9 +136,9 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
                       ⚠️ 유사 항목 있음 ({Math.round(it.similar.score * 100)}%)
                     </span>
                   )}
-                  {it.sourcePhotoPath && (
+                  {it.sourcePhotoId != null && (
                     <a
-                      href={`/api/photo?path=${encodeURIComponent(it.sourcePhotoPath)}`}
+                      href={`/api/photo?id=${it.sourcePhotoId}`}
                       target="_blank"
                       rel="noreferrer"
                       className="shrink-0"
@@ -146,7 +146,7 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={`/api/photo?path=${encodeURIComponent(it.sourcePhotoPath)}`}
+                        src={`/api/photo?id=${it.sourcePhotoId}`}
                         alt="출처 사진"
                         className="w-12 h-12 object-cover rounded border"
                       />
@@ -311,10 +311,10 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
       <div className="space-y-2">
         <div className="text-sm font-medium">원본 파일</div>
         {photos.map((p, i) => {
-          const href = `/api/photo?path=${encodeURIComponent(p.path)}`
+          const href = `/api/photo?id=${p.id}`
           if (p.isPdf) {
             return (
-              <Card key={p.path} className="p-3 space-y-2">
+              <Card key={p.id} className="p-3 space-y-2">
                 <div className="text-xs text-muted-foreground">📄 PDF {i + 1}</div>
                 <a href={href} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
                   새 창에서 열기
@@ -323,7 +323,7 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
             )
           }
           return (
-            <a key={p.path} href={href} target="_blank" rel="noreferrer">
+            <a key={p.id} href={href} target="_blank" rel="noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={href} alt={`photo ${i + 1}`} className="w-full rounded-md border" />
             </a>
