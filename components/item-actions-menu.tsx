@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { MoreVertical } from 'lucide-react'
+import { Menu } from '@base-ui/react/menu'
 import { useLongPress } from '@/lib/use-long-press'
 import { cn } from '@/lib/utils'
 
@@ -47,16 +48,24 @@ type CommonProps = {
 }
 type Props = CommonProps & (HomeworkProps | RecurringProps)
 
-type MenuState = 'closed' | 'main' | 'defer'
+const POPUP_CLASS = cn(
+  'z-50 min-w-[11rem] rounded-md border bg-popover shadow-md py-1 text-sm text-popover-foreground outline-none',
+  'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity duration-100',
+)
+const ITEM_CLASS = cn(
+  'relative flex cursor-default select-none items-center gap-2 px-3 py-2 outline-none w-full text-left',
+  'focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground',
+  'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+)
 
 export function ItemActionsMenu(props: Props) {
   const { children, onEdit } = props
-  const [menuState, setMenuState] = useState<MenuState>('closed')
-  const [deferCustom, setDeferCustom] = useState('')
+  const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [customDate, setCustomDate] = useState('')
   const [, startTransition] = useTransition()
 
-  const longPress = useLongPress(() => setMenuState('main'))
+  const longPress = useLongPress(() => setOpen(true))
   const today = localDateIsoClient()
   const deferOptions = [
     { label: '내일', date: addDays(today, 1) },
@@ -65,36 +74,11 @@ export function ItemActionsMenu(props: Props) {
     { label: '다음 주 월요일', date: nextMonday(today) },
   ]
 
-  function closeMenu() {
-    setMenuState('closed')
-    setDeferCustom('')
-    setError(null)
-  }
-
-  function handleDefer(date: string) {
-    if (props.itemKind !== 'homework') return
-    closeMenu()
+  function runAction(p: () => Promise<void>, failMsg: string) {
+    setOpen(false)
     startTransition(async () => {
-      try { await props.onDefer(date) }
-      catch { setError('미루기 실패') }
-    })
-  }
-
-  function handleDelete() {
-    if (props.itemKind !== 'homework') return
-    closeMenu()
-    startTransition(async () => {
-      try { await props.onDelete() }
-      catch { setError('삭제 실패') }
-    })
-  }
-
-  function handleArchive() {
-    if (props.itemKind !== 'recurring') return
-    closeMenu()
-    startTransition(async () => {
-      try { await props.onArchive() }
-      catch { setError('보관 실패') }
+      try { await p() }
+      catch { setError(failMsg) }
     })
   }
 
@@ -102,134 +86,109 @@ export function ItemActionsMenu(props: Props) {
     <div className="relative group/row" {...longPress}>
       {children}
 
-      {/* ⋮ button — only shown on hover-capable (desktop) environments */}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setMenuState((s) => s === 'closed' ? 'main' : 'closed') }}
-        className={cn(
-          'absolute right-2 top-1/2 -translate-y-1/2',
-          'h-7 w-7 rounded',
-          'flex items-center justify-center',
-          'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
-          'opacity-0 group-hover/row:opacity-100 focus:opacity-100',
-          // Hidden on touch/coarse pointer devices; shown only on hover-capable (desktop)
-          '[@media(pointer:coarse)]:hidden',
-        )}
-        aria-label="액션 메뉴"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-
-      {/* Backdrop */}
-      {menuState !== 'closed' && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={closeMenu}
-          aria-hidden
-        />
-      )}
-
-      {/* Main menu */}
-      {menuState === 'main' && (
-        <div
-          className="absolute right-2 bottom-1 z-50 min-w-[10rem] rounded-md border bg-popover py-1 text-sm text-popover-foreground shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={() => { closeMenu(); onEdit() }}
-            className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            수정
-          </button>
-          {props.itemKind === 'homework' && (
+      <Menu.Root open={open} onOpenChange={setOpen} modal={false}>
+        <Menu.Trigger
+          render={(triggerProps) => (
             <button
               type="button"
-              onClick={() => setMenuState('defer')}
-              className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              미루기
-            </button>
-          )}
-          <div className="my-1 h-px bg-border" />
-          {props.itemKind === 'homework' && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="w-full text-left px-3 py-2 text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              삭제
-            </button>
-          )}
-          {props.itemKind === 'recurring' && (
-            <button
-              type="button"
-              onClick={handleArchive}
-              className="w-full text-left px-3 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              보관
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Defer sub-menu */}
-      {menuState === 'defer' && props.itemKind === 'homework' && (
-        <div
-          className="absolute right-2 bottom-1 z-50 min-w-[12rem] rounded-md border bg-popover py-1 text-sm text-popover-foreground shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1">
-            <button
-              type="button"
-              onClick={() => setMenuState('main')}
-              className="mr-1 hover:text-foreground"
-              aria-label="뒤로"
-            >
-              ‹
-            </button>
-            미루기
-          </div>
-          {deferOptions.map((opt) => (
-            <button
-              key={opt.label}
-              type="button"
-              disabled={opt.date === props.currentDueDate}
-              onClick={() => handleDefer(opt.date)}
+              {...triggerProps}
+              onClick={(e) => { e.stopPropagation(); triggerProps.onClick?.(e); setOpen((s) => !s) }}
               className={cn(
-                'w-full text-left px-3 py-1.5 hover:bg-accent transition-colors flex justify-between gap-3',
-                opt.date === props.currentDueDate && 'opacity-40 cursor-not-allowed',
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'h-7 w-7 rounded',
+                'flex items-center justify-center',
+                'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
+                'opacity-0 group-hover/row:opacity-100 focus:opacity-100 data-[popup-open]:opacity-100',
+                '[@media(pointer:coarse)]:hidden',
               )}
+              aria-label="액션 메뉴"
             >
-              <span>{opt.label}</span>
-              <span className="text-xs text-muted-foreground tabular-nums">{opt.date.slice(5)}</span>
+              <MoreVertical className="h-4 w-4" />
             </button>
-          ))}
-          <div className="border-t mt-1 px-2 pt-2 pb-1.5 space-y-1">
-            <div className="text-xs text-muted-foreground">직접 선택</div>
-            <div className="flex items-center gap-1">
-              <input
-                type="date"
-                value={deferCustom}
-                min={addDays(today, 1)}
-                onChange={(e) => setDeferCustom(e.target.value)}
-                className="w-full text-xs bg-background border border-input rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <button
-                type="button"
-                disabled={!deferCustom}
-                onClick={() => deferCustom && handleDefer(deferCustom)}
-                className="text-xs px-2 py-1 rounded bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        />
+
+        <Menu.Portal>
+          <Menu.Positioner align="end" sideOffset={4} side="bottom">
+            <Menu.Popup className={POPUP_CLASS}>
+              <Menu.Item className={ITEM_CLASS} onClick={() => { setOpen(false); onEdit() }}>
+                수정
+              </Menu.Item>
+
+              {props.itemKind === 'homework' && (
+                <Menu.Root>
+                  <Menu.SubmenuTrigger className={cn(ITEM_CLASS, 'justify-between')}>
+                    <span>미루기</span>
+                    <span className="text-muted-foreground">›</span>
+                  </Menu.SubmenuTrigger>
+                  <Menu.Portal>
+                    <Menu.Positioner align="start" sideOffset={4} side="right">
+                      <Menu.Popup className={POPUP_CLASS}>
+                        {deferOptions.map((opt) => (
+                          <Menu.Item
+                            key={opt.label}
+                            disabled={opt.date === props.currentDueDate}
+                            className={cn(ITEM_CLASS, 'justify-between gap-3')}
+                            onClick={() => runAction(() => props.onDefer(opt.date), '미루기 실패')}
+                          >
+                            <span>{opt.label}</span>
+                            <span className="text-xs text-muted-foreground tabular-nums">{opt.date.slice(5)}</span>
+                          </Menu.Item>
+                        ))}
+                        <div className="border-t my-1" />
+                        <div className="px-2 py-1.5 space-y-1">
+                          <div className="text-xs text-muted-foreground">직접 선택</div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={customDate}
+                              min={addDays(today, 1)}
+                              onChange={(e) => setCustomDate(e.target.value)}
+                              className="w-full text-xs bg-background border border-input rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button
+                              type="button"
+                              disabled={!customDate}
+                              onClick={() => customDate && runAction(() => props.onDefer(customDate), '미루기 실패')}
+                              className="text-xs px-2 py-1 rounded bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                              확인
+                            </button>
+                          </div>
+                        </div>
+                      </Menu.Popup>
+                    </Menu.Positioner>
+                  </Menu.Portal>
+                </Menu.Root>
+              )}
+
+              <div className="my-1 h-px bg-border" />
+
+              {props.itemKind === 'homework' && (
+                <Menu.Item
+                  className={cn(ITEM_CLASS, 'text-destructive hover:bg-destructive/10 focus:bg-destructive/10')}
+                  onClick={() => runAction(() => props.onDelete(), '삭제 실패')}
+                >
+                  삭제
+                </Menu.Item>
+              )}
+
+              {props.itemKind === 'recurring' && (
+                <Menu.Item
+                  className={cn(ITEM_CLASS, 'text-muted-foreground')}
+                  onClick={() => runAction(() => props.onArchive(), '보관 실패')}
+                >
+                  보관
+                </Menu.Item>
+              )}
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
 
       {error && (
-        <div className="absolute right-2 bottom-0 z-50 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow whitespace-nowrap">
+        <div className="absolute right-2 -bottom-1 z-50 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow whitespace-nowrap">
           {error}
         </div>
       )}
