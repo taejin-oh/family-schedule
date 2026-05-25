@@ -94,7 +94,7 @@ export function ItemActionsMenu(props: Props) {
               {...triggerProps}
               onClick={(e) => { e.stopPropagation(); triggerProps.onClick?.(e) }}
               className={cn(
-                'absolute right-2 top-1/2 -translate-y-1/2',
+                'absolute right-2 top-2',
                 'h-7 w-7 rounded',
                 'flex items-center justify-center',
                 'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
