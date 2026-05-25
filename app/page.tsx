@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
-import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
 import { getDb } from '@/server/db/client'
 import { eq } from 'drizzle-orm'
@@ -22,6 +22,7 @@ type RecurringItem = {
   color: string
   cadence: 'daily' | 'weekly'
   doneAt: Date | null
+  dateIso: string  // value to send to markRecurringDone (today/tomorrow for daily, anything-in-week for weekly)
 }
 
 type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'later' | 'nodate'
@@ -153,22 +154,31 @@ export default async function HomePage({
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
   const academyFilter = sp.academy ? Number(sp.academy) : null
 
-  const [active, doneToday, todayRecurring, weekRecurring, academies] = await Promise.all([
+  const [active, doneToday, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
     listTodayRecurring(),
+    listDayRecurring(1),
     listThisWeekRecurring(),
     listAcademies(),
   ])
   const todayIso = localDateIso()
+  const tomorrowIso = tomorrowRecurring[0]?.targetDateIso ?? (() => {
+    const t = new Date(); t.setDate(t.getDate() + 1); return localDateIso(t)
+  })()
   // eslint-disable-next-line react-hooks/purity -- server component, Date.now() is evaluated per-request
   const now = Date.now()
   const buckets = bucketize(active, todayIso)
 
-  // Merge daily + weekly recurring; split into active vs done-today
-  const allRecurring: RecurringItem[] = [...todayRecurring, ...weekRecurring]
-  const recurringActive = allRecurring.filter((r) => r.doneAt === null)
-  const recurringDoneToday = allRecurring.filter((r) => r.doneAt !== null)
+  // Annotate each recurring item with the date to send to markRecurringDone
+  const todayRecur: RecurringItem[] = todayRecurring.map((r) => ({ ...r, dateIso: todayIso }))
+  const tomorrowRecur: RecurringItem[] = tomorrowRecurring.map((r) => ({ ...r, dateIso: tomorrowIso }))
+  const weekRecur: RecurringItem[] = weekRecurring.map((r) => ({ ...r, dateIso: todayIso }))
+  // today bucket = today daily + this-week weekly (combined)
+  const recurringActive = [...todayRecur, ...weekRecur].filter((r) => r.doneAt === null)
+  const recurringDoneToday = [...todayRecur, ...weekRecur].filter((r) => r.doneAt !== null)
+  // tomorrow bucket = tomorrow daily only (weekly already shown under today bucket)
+  const tomorrowRecurringActive = tomorrowRecur.filter((r) => r.doneAt === null)
 
   // Server actions for homework
   async function onComplete(formData: FormData) {
@@ -265,7 +275,8 @@ export default async function HomePage({
   // Count visible items for "empty" detection (includes recurring in today bucket)
   const visibleCount =
     visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
-    (visibleBuckets.includes('today') ? recurringActive.length : 0)
+    (visibleBuckets.includes('today') ? recurringActive.length : 0) +
+    (visibleBuckets.includes('tomorrow') ? tomorrowRecurringActive.length : 0)
 
   const hasAnything = totalActive > 0 || totalDone > 0
 
@@ -313,19 +324,19 @@ export default async function HomePage({
           />
           <FilterChip
             label="오늘"
-            count={buckets.overdue.length + buckets.today.length}
+            count={buckets.overdue.length + buckets.today.length + recurringActive.length}
             href={timeHref('today')}
             active={filter === 'today'}
           />
           <FilterChip
             label="내일"
-            count={buckets.tomorrow.length}
+            count={buckets.tomorrow.length + tomorrowRecurringActive.length}
             href={timeHref('tomorrow')}
             active={filter === 'tomorrow'}
           />
           <FilterChip
             label="이번 주"
-            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length}
+            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + recurringActive.length + tomorrowRecurringActive.length}
             href={timeHref('thisweek')}
             active={filter === 'thisweek'}
           />
@@ -384,8 +395,10 @@ export default async function HomePage({
         <div className="space-y-3">
           {visibleBuckets.map((bk) => {
             const hwList = filteredBuckets[bk]
-            // Recurring tasks only appear in 'today' bucket
-            const recurList: RecurringItem[] = bk === 'today' ? recurringActive : []
+            const recurList: RecurringItem[] =
+              bk === 'today' ? recurringActive :
+              bk === 'tomorrow' ? tomorrowRecurringActive :
+              []
             if (hwList.length === 0 && recurList.length === 0) return null
             const meta = BUCKET_META[bk]
             return (
@@ -428,7 +441,7 @@ export default async function HomePage({
                     <div key={`r-${rt.id}`} className="p-3 flex items-start gap-3">
                       <form action={onRecurringComplete} className="flex-shrink-0">
                         <input type="hidden" name="taskId" value={rt.id} />
-                        <input type="hidden" name="dateIso" value={todayIso} />
+                        <input type="hidden" name="dateIso" value={rt.dateIso} />
                         <button
                           type="submit"
                           className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"

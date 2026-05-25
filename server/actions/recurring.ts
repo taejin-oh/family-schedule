@@ -120,30 +120,32 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
 const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
-export async function listTodayRecurring(ctx: Ctx = {}) {
+export async function listDayRecurring(daysFromToday: number, ctx: Ctx = {}) {
   const db = ctx.db ?? getDb()
-  const todayKey: DayKey = DAY_KEYS[new Date().getDay()]
-  const todayIso = localDateIso()
+  const target = new Date()
+  target.setDate(target.getDate() + daysFromToday)
+  const targetKey: DayKey = DAY_KEYS[target.getDay()]
+  const targetIso = localDateIso(target)
 
   const tasks = db.select().from(schema.recurringTasks)
     .where(and(isNull(schema.recurringTasks.archivedAt), eq(schema.recurringTasks.cadence, 'daily')))
     .orderBy(asc(schema.recurringTasks.id)).all()
 
-  const todayTasks = tasks.filter((t) => {
+  const dayTasks = tasks.filter((t) => {
     const days = t.daysOfWeek as DayKey[]
-    return Array.isArray(days) && days.includes(todayKey)
+    return Array.isArray(days) && days.includes(targetKey)
   })
 
-  const completions = todayTasks.length === 0 ? [] : db.select()
+  const completions = dayTasks.length === 0 ? [] : db.select()
     .from(schema.recurringTaskCompletions)
     .where(and(
-      eq(schema.recurringTaskCompletions.completionDate, todayIso),
-      inArray(schema.recurringTaskCompletions.taskId, todayTasks.map((t) => t.id)),
+      eq(schema.recurringTaskCompletions.completionDate, targetIso),
+      inArray(schema.recurringTaskCompletions.taskId, dayTasks.map((t) => t.id)),
     ))
     .all()
   const doneMap = new Map(completions.map((c) => [c.taskId, c.doneAt]))
 
-  return todayTasks.map((t) => ({
+  return dayTasks.map((t) => ({
     id: t.id,
     title: t.title,
     notes: t.notes,
@@ -151,7 +153,12 @@ export async function listTodayRecurring(ctx: Ctx = {}) {
     cadence: t.cadence,
     daysOfWeek: t.daysOfWeek as DayKey[],
     doneAt: doneMap.get(t.id) ?? null,
+    targetDateIso: targetIso,
   }))
+}
+
+export async function listTodayRecurring(ctx: Ctx = {}) {
+  return listDayRecurring(0, ctx)
 }
 
 export async function listThisWeekRecurring(ctx: Ctx = {}) {
