@@ -426,6 +426,53 @@ export async function listRelatedBatches(batchId: number, ctx: Ctx = {}) {
 }
 
 /**
+ * Permanently delete a committed homework item.
+ */
+export async function deleteHomeworkItem(
+  itemId: number,
+  opts?: { appDb?: AppDb },
+): Promise<{ ok: boolean; error?: string }> {
+  const appDb = opts?.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (!item.isCommitted) return { ok: false, error: '확정된 항목만 삭제 가능합니다' }
+  appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/academies', 'layout')
+  return { ok: true }
+}
+
+/**
+ * Update a committed homework item's title, notes, and/or dueDate.
+ */
+export async function updateHomeworkItem(
+  itemId: number,
+  patch: { title?: string; notes?: string | null; dueDate?: string | null },
+  opts?: { appDb?: AppDb },
+): Promise<{ ok: boolean; error?: string }> {
+  const appDb = opts?.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (!item.isCommitted) return { ok: false, error: '확정된 항목만 수정 가능합니다' }
+  const update: Record<string, unknown> = {}
+  if (patch.title !== undefined) {
+    if (!patch.title.trim()) return { ok: false, error: '제목은 비울 수 없습니다' }
+    update.title = patch.title.trim()
+  }
+  if (patch.notes !== undefined) update.notes = patch.notes
+  if (patch.dueDate !== undefined) {
+    if (patch.dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(patch.dueDate)) {
+      return { ok: false, error: '잘못된 날짜' }
+    }
+    update.dueDate = patch.dueDate
+  }
+  appDb.update(appSchema.homeworkItems).set(update).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/academies', 'layout')
+  return { ok: true }
+}
+
+/**
  * Defer a committed homework item to a new due date.
  */
 export async function deferHomework(

@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useTransition } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
-import { DeferMenu } from '@/components/defer-menu'
+import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { ItemActionsMenu } from '@/components/item-actions-menu'
+import { EditHomeworkDialog } from '@/components/edit-homework-dialog'
 
 type DuePillProps = {
   label: string
@@ -36,10 +38,7 @@ export type HomeworkItemProps = {
   academyColor: string
   dueLabel: string | null
   bucket: string
-  /** bound server action: complete */
   onComplete: (formData: FormData) => Promise<void>
-  /** bound server action: save inline edit */
-  onSave: (formData: FormData) => Promise<void>
 }
 
 export function HomeworkItem({
@@ -52,42 +51,30 @@ export function HomeworkItem({
   dueLabel,
   bucket,
   onComplete,
-  onSave,
 }: HomeworkItemProps) {
   const multiSelect = useMultiSelect()
   const isMultiActive = multiSelect?.active ?? false
   const isChecked = multiSelect?.selected.has(id) ?? false
+  const [editOpen, setEditOpen] = useState(false)
+  const [, startTransition] = useTransition()
 
-  const [editing, setEditing] = useState(false)
-  const [editTitle, setEditTitle] = useState(title)
-  const [editDue, setEditDue] = useState(dueDate ?? '')
-  const formRef = useRef<HTMLFormElement>(null)
-
-  function startEdit() {
-    setEditTitle(title)
-    setEditDue(dueDate ?? '')
-    setEditing(true)
+  async function handleDefer(newDate: string) {
+    await deferHomework(id, newDate)
   }
 
-  function cancelEdit() {
-    setEditing(false)
+  async function handleDelete() {
+    startTransition(async () => {
+      await deleteHomeworkItem(id)
+    })
   }
 
-  async function handleSave() {
-    if (!formRef.current) return
-    const fd = new FormData(formRef.current)
-    await onSave(fd)
-    setEditing(false)
-  }
-
-  return (
+  const rowContent = (
     <div
       className={cn('p-3 flex items-start gap-3', isMultiActive && isChecked && 'bg-accent/40')}
       onClick={isMultiActive ? () => multiSelect?.toggle(id) : undefined}
       role={isMultiActive ? 'checkbox' : undefined}
       aria-checked={isMultiActive ? isChecked : undefined}
     >
-      {/* In multi-select mode show a checkbox; otherwise show the complete button */}
       {isMultiActive ? (
         <button
           type="button"
@@ -120,82 +107,48 @@ export function HomeworkItem({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        {editing ? (
-          <form ref={formRef} className="space-y-1.5">
-            <input type="hidden" name="id" value={id} />
-            <input
-              name="title"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full text-sm font-medium bg-background border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
-              autoFocus
-            />
-            <input
-              name="dueDate"
-              type="date"
-              value={editDue}
-              onChange={(e) => setEditDue(e.target.value)}
-              className="w-full text-xs bg-background border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <div className="flex gap-2 pt-0.5">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="text-xs px-2 py-0.5 rounded bg-foreground text-background hover:bg-foreground/90"
-              >
-                저장
-              </button>
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="text-xs px-2 py-0.5 rounded text-muted-foreground hover:text-foreground"
-              >
-                취소
-              </button>
-            </div>
-          </form>
-        ) : (
-          <>
-            <div className="flex items-start justify-between gap-1">
-              <div
-                className="font-medium break-words cursor-pointer hover:underline underline-offset-2 decoration-muted-foreground/40"
-                onClick={startEdit}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && startEdit()}
-                aria-label={`${title} 편집`}
-              >
-                {title}
-              </div>
-              {!isMultiActive && (
-                <DeferMenu itemId={id} currentDueDate={dueDate} />
-              )}
-            </div>
-            <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">
-              <span>{academyName}</span>
-              {dueLabel && (
-                <>
-                  <span>·</span>
-                  <span
-                    onClick={startEdit}
-                    role="button"
-                    tabIndex={0}
-                    className="cursor-pointer"
-                    onKeyDown={(e) => e.key === 'Enter' && startEdit()}
-                  >
-                    <DuePill label={dueLabel} bucket={bucket} />
-                  </span>
-                </>
-              )}
-            </div>
-            {notes && (
-              <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                {notes}
-              </div>
-            )}
-          </>
+        <div className="font-medium break-words">{title}</div>
+        <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">
+          <span>{academyName}</span>
+          {dueLabel && (
+            <>
+              <span>·</span>
+              <DuePill label={dueLabel} bucket={bucket} />
+            </>
+          )}
+        </div>
+        {notes && (
+          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+            {notes}
+          </div>
         )}
       </div>
     </div>
+  )
+
+  if (isMultiActive) {
+    return rowContent
+  }
+
+  return (
+    <>
+      <ItemActionsMenu
+        itemKind="homework"
+        currentDueDate={dueDate}
+        onEdit={() => setEditOpen(true)}
+        onDefer={handleDefer}
+        onDelete={handleDelete}
+      >
+        {rowContent}
+      </ItemActionsMenu>
+      <EditHomeworkDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        itemId={id}
+        initialTitle={title}
+        initialNotes={notes}
+        initialDueDate={dueDate}
+      />
+    </>
   )
 }

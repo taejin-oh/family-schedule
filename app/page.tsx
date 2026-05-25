@@ -4,23 +4,23 @@ import { Check } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
-import { getDb } from '@/server/db/client'
-import { eq } from 'drizzle-orm'
-import * as appSchema from '@/server/db/schema'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
+import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
+type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 type RecurringItem = {
   id: number
   title: string
   notes: string | null
   color: string
   cadence: 'daily' | 'weekly'
+  daysOfWeek?: DayKey[]
   doneAt: Date | null
   dateIso: string  // value to send to markRecurringDone (today/tomorrow for daily, anything-in-week for weekly)
 }
@@ -202,20 +202,6 @@ export default async function HomePage({
     revalidatePath('/')
   }
 
-  async function onSaveEdit(formData: FormData) {
-    'use server'
-    const id = Number(formData.get('id'))
-    const title = formData.get('title')?.toString().trim() ?? ''
-    const dueDate = formData.get('dueDate')?.toString().trim() || null
-    if (!title) return
-    const db = getDb()
-    db.update(appSchema.homeworkItems)
-      .set({ title, dueDate: dueDate ?? null })
-      .where(eq(appSchema.homeworkItems.id, id))
-      .run()
-    revalidatePath('/')
-  }
-
   // Server actions for recurring
   async function onRecurringComplete(formData: FormData) {
     'use server'
@@ -334,37 +320,17 @@ export default async function HomePage({
       </div>
       <Card className="p-0 divide-y">
         {weeklyActive.map((rt) => (
-          <div key={`w-${rt.id}`} className="p-3 flex items-start gap-3">
-            <form action={onRecurringComplete} className="flex-shrink-0">
-              <input type="hidden" name="taskId" value={rt.id} />
-              <input type="hidden" name="dateIso" value={rt.dateIso} />
-              <button
-                type="submit"
-                className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
-                aria-label="완료로 표시"
-              >
-                <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
-              </button>
-            </form>
-            <span
-              className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ background: rt.color }}
-              aria-hidden
-            />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium break-words">{rt.title}</div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
-                  🔁 매주
-                </span>
-              </div>
-              {rt.notes && (
-                <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                  {rt.notes}
-                </div>
-              )}
-            </div>
-          </div>
+          <RecurringItemRow
+            key={`w-${rt.id}`}
+            id={rt.id}
+            title={rt.title}
+            notes={rt.notes}
+            color={rt.color}
+            cadence={rt.cadence}
+            daysOfWeek={[]}
+            dateIso={rt.dateIso}
+            onComplete={onRecurringComplete}
+          />
         ))}
       </Card>
     </section>
@@ -524,7 +490,6 @@ export default async function HomePage({
                         dueLabel={dueLabel}
                         bucket={itBucket}
                         onComplete={onComplete}
-                        onSave={onSaveEdit}
                       />
                     )
                   })}
@@ -576,47 +541,21 @@ export default async function HomePage({
                         dueLabel={dueLabel}
                         bucket={bk}
                         onComplete={onComplete}
-                        onSave={onSaveEdit}
                       />
                     )
                   })}
                   {recurList.map((rt) => (
-                    <div key={`r-${rt.id}`} className="p-3 flex items-start gap-3">
-                      <form action={onRecurringComplete} className="flex-shrink-0">
-                        <input type="hidden" name="taskId" value={rt.id} />
-                        <input type="hidden" name="dateIso" value={rt.dateIso} />
-                        <button
-                          type="submit"
-                          className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
-                          aria-label="완료로 표시"
-                        >
-                          <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
-                        </button>
-                      </form>
-                      <span
-                        className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ background: rt.color }}
-                        aria-hidden
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium break-words">{rt.title}</div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                          <span className={cn(
-                            'inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium',
-                            rt.cadence === 'weekly'
-                              ? 'bg-violet-50 text-violet-700 border-violet-200'
-                              : 'bg-muted/60 text-muted-foreground border-foreground/10',
-                          )}>
-                            {rt.cadence === 'weekly' ? '🔁 매주' : '🔁 매일'}
-                          </span>
-                        </div>
-                        {rt.notes && (
-                          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                            {rt.notes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <RecurringItemRow
+                      key={`r-${rt.id}`}
+                      id={rt.id}
+                      title={rt.title}
+                      notes={rt.notes}
+                      color={rt.color}
+                      cadence={rt.cadence}
+                      daysOfWeek={rt.daysOfWeek ?? []}
+                      dateIso={rt.dateIso}
+                      onComplete={onRecurringComplete}
+                    />
                   ))}
                 </Card>
               </section>
