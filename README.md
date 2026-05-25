@@ -49,6 +49,25 @@ pnpm test:watch    # vitest UI
 - Tailscale Serve at `https://selene-mac.tail033535.ts.net:8443`
   (tailnet-only, no public exposure)
 
+## Telegram 다이제스트
+
+하루 3회(아침·점심·저녁) 숙제 현황을 Telegram 그룹으로 발송합니다.
+
+**봇 생성**
+1. Telegram에서 `@BotFather` → `/newbot` → 이름 입력 → Token 복사
+
+**가족 그룹에 봇 추가**
+1. 그룹을 만들고 봇을 초대 (관리자 권한 불필요, 메시지 전송 권한만 있으면 됨)
+2. 그룹에서 아무 메시지나 한 번 보냄
+3. 브라우저에서 `https://api.telegram.org/bot<TOKEN>/getUpdates` 열면 `chat.id` 확인 가능 (그룹은 음수)
+
+**설정**
+```env
+TELEGRAM_BOT_TOKEN=123456:ABCdef...
+TELEGRAM_CHAT_ID=-1001234567890
+```
+`.env`에 두 값을 채운 뒤 worker 재시작. 이후 `/admin/settings` → 텔레그램 다이제스트 섹션에서 활성화.
+
 ## Out of scope (Phase 1.5+ candidates)
 - Authentication
 - Public exposure (Cloudflare Tunnel + Access)

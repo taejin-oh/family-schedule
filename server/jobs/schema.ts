@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export const jobs = sqliteTable('jobs', {
@@ -12,3 +12,12 @@ export const jobs = sqliteTable('jobs', {
   claimedAt: integer('claimed_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
 })
+
+export const digestLog = sqliteTable('digest_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind', { enum: ['morning', 'evening', 'midday'] }).notNull(),
+  sentAt: integer('sent_at').notNull(),  // unix ms
+  dateIso: text('date_iso').notNull(),   // 'YYYY-MM-DD' local (Asia/Seoul)
+}, (t) => [
+  uniqueIndex('digest_log_kind_date').on(t.kind, t.dateIso),
+])

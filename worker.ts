@@ -8,7 +8,9 @@ import * as jobsSchema from '@/server/jobs/schema'
 import { claimNext, markDone, markFailed, reapStaleRunningJobs } from '@/server/jobs/queue'
 import { processExtractHomework } from '@/server/jobs/runner'
 import { getProvider } from '@/server/llm/registry'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { sendTelegram } from '@/server/notifications/telegram'
+import { buildMorningDigest, buildEveningDigest, buildMiddayDigest } from '@/server/notifications/digests'
 
 // Note: we let drizzle's return type infer naturally (it includes the $client
 // property in addition to BetterSQLite3Database<S> — needed by helpers like
@@ -21,6 +23,86 @@ function openDb<S extends Record<string, unknown>>(file: string, migrations: str
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: migrations })
   return db
+}
+
+/** Asia/Seoul 현재 시각의 HH:MM 과 YYYY-MM-DD 반환 */
+function seoulNow(): { hhmm: string; dateIso: string } {
+  const now = new Date()
+  // en-CA locale gives 'YYYY-MM-DD' format for date parts
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const y = dateParts.find((p) => p.type === 'year')!.value
+  const m = dateParts.find((p) => p.type === 'month')!.value
+  const d = dateParts.find((p) => p.type === 'day')!.value
+  const dateIso = `${y}-${m}-${d}`
+
+  const timeParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now)
+  const h = timeParts.find((p) => p.type === 'hour')!.value.padStart(2, '0')
+  const min = timeParts.find((p) => p.type === 'minute')!.value.padStart(2, '0')
+  const hhmm = `${h}:${min}`
+
+  return { hhmm, dateIso }
+}
+
+type DigestKind = 'morning' | 'evening' | 'midday'
+
+type JobsDb = ReturnType<typeof drizzle<typeof jobsSchema>>
+type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
+
+async function maybeFireDigest(
+  appDb: AppDb,
+  jobsDb: JobsDb,
+  kind: DigestKind,
+  enabled: boolean,
+  scheduledTime: string,
+  currentHhmm: string,
+  dateIso: string,
+): Promise<void> {
+  if (!enabled || scheduledTime !== currentHhmm) return
+
+  // Already sent today? (unique index on kind+date_iso)
+  const existing = jobsDb.select({ id: jobsSchema.digestLog.id })
+    .from(jobsSchema.digestLog)
+    .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
+    .get()
+
+  if (existing) return
+
+  let text: string
+  try {
+    if (kind === 'morning') text = buildMorningDigest(appDb, dateIso)
+    else if (kind === 'evening') text = buildEveningDigest(appDb, dateIso)
+    else text = buildMiddayDigest(appDb, dateIso)
+  } catch (e) {
+    console.error(`[digest] ${kind} build failed:`, e)
+    return
+  }
+
+  const result = await sendTelegram(text)
+  if (!result.ok) {
+    console.log(`[digest] ${kind} send failed: ${result.reason}`)
+    return
+  }
+
+  // Only log if send succeeded
+  try {
+    jobsDb.insert(jobsSchema.digestLog)
+      .values({ kind, sentAt: Date.now(), dateIso })
+      .onConflictDoNothing()
+      .run()
+    console.log(`[digest] ${kind} sent for ${dateIso}`)
+  } catch (e) {
+    console.error(`[digest] log insert failed:`, e)
+  }
 }
 
 async function main() {
@@ -36,12 +118,31 @@ async function main() {
   console.log('[worker] started, polling every 1s')
 
   let pollCount = 0
+  let lastCheckedMinute = ''
+
   while (true) {
     pollCount++
     // Periodically reap stale jobs (~every 60 polls = ~60s)
     if (pollCount % 60 === 0) {
       await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
     }
+
+    // Digest scheduling — check once per minute
+    const { hhmm, dateIso } = seoulNow()
+    if (hhmm !== lastCheckedMinute) {
+      lastCheckedMinute = hhmm
+      try {
+        const settings = appDb.select().from(appSchema.appSettings).where(eq(appSchema.appSettings.id, 1)).get()
+        if (settings?.telegramEnabled) {
+          await maybeFireDigest(appDb, jobsDb, 'morning', settings.telegramMorningEnabled, settings.telegramMorningTime, hhmm, dateIso)
+          await maybeFireDigest(appDb, jobsDb, 'evening', settings.telegramEveningEnabled, settings.telegramEveningTime, hhmm, dateIso)
+          await maybeFireDigest(appDb, jobsDb, 'midday', settings.telegramMiddayEnabled, settings.telegramMiddayTime, hhmm, dateIso)
+        }
+      } catch (e) {
+        console.error('[digest] scheduler error:', e)
+      }
+    }
+
     const job = await claimNext(jobsDb)
     if (!job) {
       await new Promise((r) => setTimeout(r, 1000))

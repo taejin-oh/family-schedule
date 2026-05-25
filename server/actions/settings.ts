@@ -7,6 +7,7 @@ import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { availableProviderNames, getProvider } from '@/server/llm/registry'
 import { revalidatePath } from 'next/cache'
+import { sendTelegram } from '@/server/notifications/telegram'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { appDb?: AppDb }
@@ -14,12 +15,32 @@ type Ctx = { appDb?: AppDb }
 export async function getSettings(ctx: Ctx = {}) {
   const db = ctx.appDb ?? getDb()
   const row = db.select().from(schema.appSettings).where(eq(schema.appSettings.id, 1)).get()
-  return row ?? { id: 1, visionProvider: 'claude', visionModel: 'claude-opus-4-7' }
+  return row ?? {
+    id: 1,
+    visionProvider: 'claude',
+    visionModel: 'claude-opus-4-7',
+    telegramEnabled: false,
+    telegramMorningEnabled: true,
+    telegramMorningTime: '07:00',
+    telegramEveningEnabled: true,
+    telegramEveningTime: '21:00',
+    telegramMiddayEnabled: true,
+    telegramMiddayTime: '12:00',
+  }
 }
+
+const timeHHMM = z.string().regex(/^\d{2}:\d{2}$/, 'HH:MM 형식이어야 합니다')
 
 const Input = z.object({
   visionProvider: z.string(),
   visionModel: z.string(),
+  telegramEnabled: z.boolean().optional(),
+  telegramMorningEnabled: z.boolean().optional(),
+  telegramMorningTime: timeHHMM.optional(),
+  telegramEveningEnabled: z.boolean().optional(),
+  telegramEveningTime: timeHHMM.optional(),
+  telegramMiddayEnabled: z.boolean().optional(),
+  telegramMiddayTime: timeHHMM.optional(),
 })
 
 export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}): Promise<{ ok: boolean; error?: string }> {
@@ -43,4 +64,8 @@ export async function listProviderOptions() {
     const p = getProvider(n)
     return { name: n, models: p.availableModels.slice(), defaultModel: p.defaultModel }
   })
+}
+
+export async function sendTestTelegram(): Promise<{ ok: boolean; reason?: string }> {
+  return sendTelegram('🔧 family-schedule 테스트 메시지')
 }
