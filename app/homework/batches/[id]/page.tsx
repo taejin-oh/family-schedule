@@ -31,13 +31,12 @@ function ActiveDots() {
   return <span aria-hidden>{'.'.repeat(n)}</span>
 }
 
-function ElapsedTime({ startedAt }: { startedAt: number }) {
-  const [now, setNow] = useState(Date.now())
+function ElapsedTime() {
+  const [secs, setSecs] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
+    const t = setInterval(() => setSecs((s) => s + 1), 1000)
     return () => clearInterval(t)
   }, [])
-  const secs = Math.floor((now - startedAt) / 1000)
   if (secs < 5) return null
   if (secs < 60) return <span>{secs}초 경과</span>
   return <span>{Math.floor(secs / 60)}분 {secs % 60}초 경과</span>
@@ -50,7 +49,6 @@ export default function ProcessingPage() {
   const [status, setStatus] = useState<string>('pending')
   const [reason, setReason] = useState<string | null>(null)
   const [connError, setConnError] = useState<boolean>(false)
-  const [startedAt] = useState<number>(Date.now())
 
   useEffect(() => {
     const es = new EventSource(`/api/homework/batches/${id}/stream`)
@@ -103,7 +101,7 @@ export default function ProcessingPage() {
 
       {isActive && (
         <div className="text-xs text-muted-foreground tabular-nums">
-          <ElapsedTime startedAt={startedAt} />
+          <ElapsedTime />
         </div>
       )}
 

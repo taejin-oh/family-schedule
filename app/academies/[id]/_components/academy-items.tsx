@@ -132,12 +132,13 @@ export function ActiveAcademyItems({
 
 export function DoneAcademyItems({
   items,
+  now,
 }: {
   items: Item[]
+  now: number
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const now = Date.now()
 
   function markUndone(id: number) {
     startTransition(async () => {

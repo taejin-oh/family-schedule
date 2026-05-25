@@ -125,7 +125,7 @@ export default async function AcademyDetailPage({
       </section>
 
       {/* Completed homework — collapsible, with undo */}
-      <DoneAcademyItems items={done} />
+      <DoneAcademyItems items={done} now={Date.now()} />
     </div>
   )
 }

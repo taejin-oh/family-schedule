@@ -153,6 +153,7 @@ export default async function HomePage({
     listAcademies(),
   ])
   const todayIso = localDateIso()
+  // eslint-disable-next-line react-hooks/purity -- server component, Date.now() is evaluated per-request
   const now = Date.now()
   const buckets = bucketize(active, todayIso)
 

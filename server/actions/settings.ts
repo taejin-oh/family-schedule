@@ -29,7 +29,7 @@ export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}
     return { ok: false, error: `알 수 없는 provider: ${parsed.data.visionProvider}` }
   }
   const provider = getProvider(parsed.data.visionProvider)
-  if (!provider.availableModels.includes(parsed.data.visionModel as any)) {
+  if (!(provider.availableModels as readonly string[]).includes(parsed.data.visionModel)) {
     return { ok: false, error: `${parsed.data.visionProvider}에서 사용할 수 없는 모델: ${parsed.data.visionModel}` }
   }
   const db = ctx.appDb ?? getDb()
