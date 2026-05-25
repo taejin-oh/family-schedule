@@ -186,6 +186,8 @@ export default async function HomePage({
   const tomorrowRecurringActive = tomorrowRecur.filter((r) => r.doneAt === null)
   // Weekly recurring — shown in its own section (이번 주 할일), active only.
   const weeklyActive = weekRecur.filter((r) => r.doneAt === null)
+  // Weekly done — shown in its own '완료한 이번 주 할일' section.
+  const weeklyDone = weekRecur.filter((r) => r.doneAt !== null)
 
   // Server actions for homework
   async function onComplete(formData: FormData) {
@@ -631,6 +633,52 @@ export default async function HomePage({
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                     <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-muted/60 border-foreground/10">
                       🔁 매일
+                    </span>
+                    {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* 완료한 이번 주 할일 — weekly recurring done (collapsible, not shown in nextweek view) */}
+      {filter !== 'nextweek' && weeklyDone.length > 0 && (
+        <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
+          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
+            <span className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-violet-600" aria-hidden />
+              완료한 이번 주 할일 ({weeklyDone.length})
+            </span>
+            <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">▾</span>
+          </summary>
+          <div className="divide-y border-t">
+            {weeklyDone.map((rt) => (
+              <div key={`wd-${rt.id}`} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
+                <form action={onRecurringUndo} className="flex-shrink-0">
+                  <input type="hidden" name="taskId" value={rt.id} />
+                  <input type="hidden" name="dateIso" value={rt.dateIso} />
+                  <button
+                    type="submit"
+                    className="mt-0.5 w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    aria-label="완료 취소"
+                  >
+                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                  </button>
+                </form>
+                <span
+                  className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: rt.color }}
+                  aria-hidden
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium break-words line-through decoration-muted-foreground/40">
+                    {rt.title}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                    <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
+                      🔁 매주
                     </span>
                     {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
                   </div>
