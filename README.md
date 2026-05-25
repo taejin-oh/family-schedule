@@ -71,7 +71,7 @@ TELEGRAM_CHAT_ID=-1001234567890
 ## Out of scope (Phase 1.5+ candidates)
 - Authentication
 - Public exposure (Cloudflare Tunnel + Access)
-- Notifications (Telegram digest, 10분 전 알림)
+- Push notifications (학원 1시간 전 native push 등 — Telegram digest는 이미 위에 구현됨)
 - Multi-child support
 - Search
 

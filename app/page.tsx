@@ -77,22 +77,6 @@ function formatDueLabel(due: string | null, todayIso: string): string | null {
   return due
 }
 
-function DuePill({ label, bucket }: { label: string; bucket: BucketKey }) {
-  const cls =
-    bucket === 'overdue'
-      ? 'bg-destructive/15 text-destructive border-destructive/30'
-      : bucket === 'today'
-        ? 'bg-amber-100 text-amber-800 border-amber-300'
-        : bucket === 'tomorrow'
-          ? 'bg-blue-50 text-blue-800 border-blue-200'
-          : 'bg-muted/60 text-muted-foreground border-foreground/10'
-  return (
-    <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
-      {label}
-    </span>
-  )
-}
-
 function formatRelative(doneAt: Date, now: number): string {
   const diffMs = now - doneAt.getTime()
   const diffMin = Math.floor(diffMs / 60_000)
