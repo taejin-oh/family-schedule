@@ -174,11 +174,12 @@ export default async function HomePage({
   const todayRecur: RecurringItem[] = todayRecurring.map((r) => ({ ...r, dateIso: todayIso }))
   const tomorrowRecur: RecurringItem[] = tomorrowRecurring.map((r) => ({ ...r, dateIso: tomorrowIso }))
   const weekRecur: RecurringItem[] = weekRecurring.map((r) => ({ ...r, dateIso: todayIso }))
-  // today bucket = today daily + this-week weekly (combined)
-  const recurringActive = [...todayRecur, ...weekRecur].filter((r) => r.doneAt === null)
-  const recurringDoneToday = [...todayRecur, ...weekRecur].filter((r) => r.doneAt !== null)
-  // tomorrow bucket = tomorrow daily only (weekly already shown under today bucket)
+  // Daily inline in bucket sections (today/tomorrow buckets). Weekly NOT inlined here.
+  const recurringActive = todayRecur.filter((r) => r.doneAt === null)
+  const recurringDoneToday = todayRecur.filter((r) => r.doneAt !== null)
   const tomorrowRecurringActive = tomorrowRecur.filter((r) => r.doneAt === null)
+  // Weekly recurring — shown in its own section (이번 주 할일), active only.
+  const weeklyActive = weekRecur.filter((r) => r.doneAt === null)
 
   // Server actions for homework
   async function onComplete(formData: FormData) {
@@ -272,11 +273,62 @@ export default async function HomePage({
   : filter === 'thisweek' ? ['overdue', 'today', 'tomorrow', 'thisweek']
   : /* all */               ['overdue', 'today', 'tomorrow', 'thisweek', 'later', 'nodate']
 
+  // Weekly section label varies by current filter
+  const weeklyLabel =
+    filter === 'today'    ? '이번 주 해야할일'
+  : filter === 'tomorrow' ? '남은 이번 주 할일'
+  : /* thisweek / all */    '이번 주 할일'
+
+  const weeklySection = weeklyActive.length === 0 ? null : (
+    <section className="space-y-2">
+      <div className="flex items-baseline gap-2 px-1">
+        <h2 className="text-sm font-semibold text-foreground">{weeklyLabel}</h2>
+        <span className="text-xs text-muted-foreground tabular-nums">({weeklyActive.length})</span>
+      </div>
+      <Card className="p-0 divide-y">
+        {weeklyActive.map((rt) => (
+          <div key={`w-${rt.id}`} className="p-3 flex items-start gap-3">
+            <form action={onRecurringComplete} className="flex-shrink-0">
+              <input type="hidden" name="taskId" value={rt.id} />
+              <input type="hidden" name="dateIso" value={rt.dateIso} />
+              <button
+                type="submit"
+                className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
+                aria-label="완료로 표시"
+              >
+                <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
+              </button>
+            </form>
+            <span
+              className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ background: rt.color }}
+              aria-hidden
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium break-words">{rt.title}</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
+                  🔁 매주
+                </span>
+              </div>
+              {rt.notes && (
+                <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+                  {rt.notes}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </Card>
+    </section>
+  )
+
   // Count visible items for "empty" detection (includes recurring in today bucket)
   const visibleCount =
     visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
     (visibleBuckets.includes('today') ? recurringActive.length : 0) +
-    (visibleBuckets.includes('tomorrow') ? tomorrowRecurringActive.length : 0)
+    (visibleBuckets.includes('tomorrow') ? tomorrowRecurringActive.length : 0) +
+    weeklyActive.length  // weekly section is visible across all filters
 
   const hasAnything = totalActive > 0 || totalDone > 0
 
@@ -324,19 +376,19 @@ export default async function HomePage({
           />
           <FilterChip
             label="오늘"
-            count={buckets.overdue.length + buckets.today.length + recurringActive.length}
+            count={buckets.overdue.length + buckets.today.length + recurringActive.length + weeklyActive.length}
             href={timeHref('today')}
             active={filter === 'today'}
           />
           <FilterChip
             label="내일"
-            count={buckets.tomorrow.length + tomorrowRecurringActive.length}
+            count={buckets.tomorrow.length + tomorrowRecurringActive.length + weeklyActive.length}
             href={timeHref('tomorrow')}
             active={filter === 'tomorrow'}
           />
           <FilterChip
             label="이번 주"
-            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + recurringActive.length + tomorrowRecurringActive.length}
+            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + weeklyActive.length}
             href={timeHref('thisweek')}
             active={filter === 'thisweek'}
           />
@@ -391,8 +443,46 @@ export default async function HomePage({
             전체 보기
           </Link>
         </Card>
+      ) : filter === 'thisweek' ? (
+        <div className="space-y-3">
+          {weeklySection}
+          {(() => {
+            const allWeekHw = visibleBuckets.flatMap((bk) => filteredBuckets[bk])
+            if (allWeekHw.length === 0) return null
+            return (
+              <section className="space-y-2">
+                <div className="flex items-baseline gap-2 px-1">
+                  <h2 className="text-sm font-semibold text-foreground">이번 주 숙제</h2>
+                  <span className="text-xs text-muted-foreground tabular-nums">({allWeekHw.length})</span>
+                </div>
+                <Card className="p-0 divide-y">
+                  {allWeekHw.map((it) => {
+                    const dueLabel = formatDueLabel(it.dueDate, todayIso)
+                    const itBucket = bucketOf(it, todayIso)
+                    return (
+                      <HomeworkItem
+                        key={it.id}
+                        id={it.id}
+                        title={it.title}
+                        notes={it.notes}
+                        dueDate={it.dueDate}
+                        academyName={it.academyName}
+                        academyColor={it.academyColor}
+                        dueLabel={dueLabel}
+                        bucket={itBucket}
+                        onComplete={onComplete}
+                        onSave={onSaveEdit}
+                      />
+                    )
+                  })}
+                </Card>
+              </section>
+            )
+          })()}
+        </div>
       ) : (
         <div className="space-y-3">
+          {filter === 'all' && weeklySection}
           {visibleBuckets.map((bk) => {
             const hwList = filteredBuckets[bk]
             const recurList: RecurringItem[] =
@@ -479,6 +569,7 @@ export default async function HomePage({
               </section>
             )
           })}
+          {(filter === 'today' || filter === 'tomorrow') && weeklySection}
         </div>
       )}
 
