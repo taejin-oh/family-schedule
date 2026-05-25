@@ -64,7 +64,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const batch = getDb().select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, batchId)).get()
   if (!batch) notFound()
   if (batch.status === 'pending' || batch.status === 'processing') redirect(`/homework/batches/${batchId}`)
-  if (batch.status === 'committed') redirect('/')
+  const isReadOnly = batch.status === 'committed'
 
   const items = getDb().select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batchId)).all()
   const photos = getDb().select().from(schema.homeworkPhotos).where(eq(schema.homeworkPhotos.batchId, batchId)).all()
@@ -114,6 +114,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         }))}
         photos={photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') }))}
         currentHint={batch.userHint}
+        isReadOnly={isReadOnly}
       />
     </div>
   )

@@ -26,7 +26,7 @@ type Item = {
 }
 type Photo = { path: string; isPdf: boolean }
 
-export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId: number; initial: Item[]; photos: Photo[]; currentHint: string | null }) {
+export function ReviewForm({ batchId, initial, photos, currentHint, isReadOnly = false }: { batchId: number; initial: Item[]; photos: Photo[]; currentHint: string | null; isReadOnly?: boolean }) {
   const router = useRouter()
   const [items, setItems] = useState<Item[]>(initial)
   const [busy, setBusy] = useState(false)
@@ -97,6 +97,11 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
   return (
     <div className="grid md:grid-cols-3 gap-4">
       <div className="md:col-span-2 space-y-3">
+        {isReadOnly && (
+          <div className="rounded-md bg-muted/40 border border-foreground/10 px-3 py-2 text-sm text-muted-foreground">
+            이미 확정된 batch입니다. 항목은 읽기 전용. 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
+          </div>
+        )}
         {items.length === 0 ? (
           <Card className="p-6 text-center text-muted-foreground">
             추출된 항목이 없습니다. 아래에서 수동으로 추가하세요.
@@ -120,15 +125,17 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
                     </span>
                   )}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => remove(it.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  삭제
-                </Button>
+                {!isReadOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => remove(it.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    삭제
+                  </Button>
+                )}
               </div>
 
               {it.similar && (
@@ -150,10 +157,11 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
                 <Textarea
                   id={`title-${it.id}`}
                   value={it.title}
-                  onChange={(e) => patchLocal(it.id, { title: e.target.value })}
-                  onBlur={(e) => persist(it.id, { title: e.target.value })}
+                  onChange={(e) => !isReadOnly && patchLocal(it.id, { title: e.target.value })}
+                  onBlur={(e) => !isReadOnly && persist(it.id, { title: e.target.value })}
                   rows={2}
                   className="resize-y"
+                  disabled={isReadOnly}
                 />
               </div>
 
@@ -165,10 +173,11 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
                   id={`notes-${it.id}`}
                   value={it.notes ?? ''}
                   placeholder="예: 수학익힘책 7단원, p.45-52, 30문제, 오답노트 정리"
-                  onChange={(e) => patchLocal(it.id, { notes: e.target.value })}
-                  onBlur={(e) => persist(it.id, { notes: e.target.value || null })}
+                  onChange={(e) => !isReadOnly && patchLocal(it.id, { notes: e.target.value })}
+                  onBlur={(e) => !isReadOnly && persist(it.id, { notes: e.target.value || null })}
                   rows={3}
                   className="resize-y"
+                  disabled={isReadOnly}
                 />
               </div>
 
@@ -181,18 +190,20 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
                   type="date"
                   value={it.dueDate ?? ''}
                   onChange={(e) => {
+                    if (isReadOnly) return
                     const v = e.target.value || null
                     patchLocal(it.id, { dueDate: v })
                     persist(it.id, { dueDate: v })
                   }}
                   className="w-44"
+                  disabled={isReadOnly}
                 />
               </div>
             </Card>
           ))
         )}
 
-        <Card className="p-4 space-y-3 border-dashed">
+        {!isReadOnly && <Card className="p-4 space-y-3 border-dashed">
           <div className="text-xs font-medium text-muted-foreground">+ 수동 추가</div>
           <div className="space-y-1.5">
             <Label htmlFor="new-title" className="text-xs text-muted-foreground">숙제 내용</Label>
@@ -231,11 +242,13 @@ export function ReviewForm({ batchId, initial, photos, currentHint }: { batchId:
               추가
             </Button>
           </div>
-        </Card>
+        </Card>}
 
-        <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
-          {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
-        </Button>
+        {!isReadOnly && (
+          <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
+            {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
+          </Button>
+        )}
 
         <details className="group">
           <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">

@@ -1,7 +1,7 @@
-# family-schedule (Phase 0)
+# family-schedule
 
-Daughter's 학원 schedule + AI-extracted homework todos. Single-machine,
-localhost-only MVP. Repo: github.com/taejin-oh/family-schedule (private).
+Daughter's 학원 schedule + AI-extracted homework todos. Single-family app,
+tailnet-accessible. Repo: github.com/taejin-oh/family-schedule (private).
 
 ## Prerequisites
 - macOS, Node v22+, pnpm 10+
@@ -32,20 +32,29 @@ pnpm test          # one-shot
 pnpm test:watch    # vitest UI
 ```
 
-## Phase 0 scope
-- Academies CRUD (`/academies`) — per-day schedule slots, color, optional AI
-  extraction hint
-- Upload photos or PDFs → AI extracts homework → review screen → commit
-  (`/homework/upload` → `/homework/batches/<id>` → `/homework/batches/<id>/review`)
-- Re-analyze past uploads with different hints/models; per-academy history
-- Flat-todo dashboard (`/`) with due-date grouping, filter chips, and
-  "오늘 한 일" completed section
-- Provider/model selector (`/admin/settings`) — currently Claude only;
-  Codex/Gemini providers are next-phase candidates
+## Current scope
+- Academies CRUD (`/academies`) + 보관함: soft-delete with restore + 영구 삭제
+- Weekly timetable (`/timetable`) with per-academy weekly progress chips +
+  per-slot daily completion badges; click slot → `/academies/[id]?date=…`
+- Per-academy detail (`/academies/[id]`): item completion toggle, due-date
+  pills, "+ 이 학원 숙제 추가" CTA, date filter from timetable drill-down
+- Daily recurring tasks (`/recurring`) for non-academy todos
+  (학교숙제 / 구몬 / 책읽기) — integrated into dashboard's "오늘" bucket
+- Two-mode 숙제 추가 (`/homework/upload`): file upload (AI extraction) OR
+  manual entry; per-academy hint, fuzzy duplicate warnings, inline re-extract
+- Flat-todo dashboard (`/`) with due-date grouping, filter chips, multi-select
+  bulk done / bulk delete, inline edit (title + due-date), re-click to undo
+- Provider/model selector (`/admin/settings`)
+- Pretendard variable font + PWA manifest
+- Tailscale Serve at `https://selene-mac.tail033535.ts.net:8443`
+  (tailnet-only, no public exposure)
 
-## Out of scope (Phase 0)
-- Authentication, public/Tailscale exposure, Telegram digest, push,
-  recurring schedules, multi-child, search, soft-delete
+## Out of scope (Phase 1.5+ candidates)
+- Authentication
+- Public exposure (Cloudflare Tunnel + Access)
+- Notifications (Telegram digest, 10분 전 알림)
+- Multi-child support
+- Search
 
 ## Where things live
 - `app/`                — Next.js App Router pages + API routes
