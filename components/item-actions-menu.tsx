@@ -109,7 +109,7 @@ export function ItemActionsMenu(props: Props) {
         />
 
         <Menu.Portal>
-          <Menu.Positioner align="end" sideOffset={4} side="bottom">
+          <Menu.Positioner align="start" sideOffset={4} side="left">
             <Menu.Popup className={POPUP_CLASS}>
               <Menu.Item className={ITEM_CLASS} onClick={() => { setOpen(false); onEdit() }}>
                 수정
