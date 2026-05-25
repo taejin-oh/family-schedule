@@ -6,6 +6,12 @@ type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
+/** Escape user-controlled strings for Telegram HTML parse_mode.
+ *  Telegram requires &, <, > escaped; quotes are safe outside attribute context. */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function dayKo(dateIso: string): string {
   const [y, m, d] = dateIso.split('-').map(Number)
   const day = new Date(y, m - 1, d).getDay()
@@ -107,7 +113,7 @@ export function buildMorningDigest(db: AppDb, dateIso: string): string {
     lines.push('• 오늘 학원 없음')
   } else {
     for (const s of slots) {
-      lines.push(`• ${s.name} ${s.start}–${s.end}`)
+      lines.push(`• ${esc(s.name)} ${s.start}–${s.end}`)
     }
   }
   lines.push('')
@@ -118,7 +124,7 @@ export function buildMorningDigest(db: AppDb, dateIso: string): string {
   } else {
     for (const h of hw) {
       const acName = academyNames.get(h.academyId) ?? '?'
-      lines.push(`• [${acName}] ${h.title}`)
+      lines.push(`• [${esc(acName)}] ${esc(h.title)}`)
     }
   }
 
@@ -140,7 +146,7 @@ export function buildEveningDigest(db: AppDb, dateIso: string): string {
   } else {
     for (const h of hw) {
       const acName = academyNames.get(h.academyId) ?? '?'
-      lines.push(`• [${acName}] ${h.title}`)
+      lines.push(`• [${esc(acName)}] ${esc(h.title)}`)
     }
   }
 
@@ -167,7 +173,7 @@ export function buildMiddayDigest(db: AppDb, dateIso: string): string {
   } else {
     for (const h of todayHw) {
       const acName = academyNames.get(h.academyId) ?? '?'
-      lines.push(`• [${acName}] ${h.title}`)
+      lines.push(`• [${esc(acName)}] ${esc(h.title)}`)
     }
   }
   lines.push('')
@@ -179,7 +185,7 @@ export function buildMiddayDigest(db: AppDb, dateIso: string): string {
     for (const h of overdueHw) {
       const acName = academyNames.get(h.academyId) ?? '?'
       const days = h.dueDate ? diffDays(h.dueDate, dateIso) : 0
-      lines.push(`• [${acName}] (${days}일 지남) ${h.title}`)
+      lines.push(`• [${esc(acName)}] (${days}일 지남) ${esc(h.title)}`)
     }
   }
 
