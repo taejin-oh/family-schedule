@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
@@ -157,6 +160,23 @@ export function Timetable({
   const cells = buildCells(academies)
   const todayKey = JS_DAY_TO_KEY[new Date().getDay()]
 
+  // Earliest schedule start row across all academies — used for auto-scroll
+  let earliestRowIdx = -1
+  for (const a of academies) {
+    for (const s of a.scheduleRule?.slots ?? []) {
+      const ri = timeToRowIndex(s.start)
+      if (ri < 0) continue
+      if (earliestRowIdx === -1 || ri < earliestRowIdx) earliestRowIdx = ri
+    }
+  }
+
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  useEffect(() => {
+    if (earliestRowIdx < 1) return  // already at top
+    const row = tbodyRef.current?.querySelectorAll('tr')[earliestRowIdx]
+    row?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  }, [earliestRowIdx])
+
   return (
     <div className="space-y-4">
       <div>
@@ -166,9 +186,9 @@ export function Timetable({
         </p>
       </div>
 
-      {/* Weekly homework progress per academy */}
+      {/* Weekly homework progress per academy — sticky so it stays visible while scrolling */}
       {weeklyProgress.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 sticky top-0 z-10 bg-background py-2 -my-2">
           <div className="text-xs text-muted-foreground px-1">이번 주 숙제 진행</div>
           <div className="flex flex-wrap gap-2">
             {weeklyProgress.map((p) => {
@@ -215,7 +235,7 @@ export function Timetable({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {cells.map((row, rowIdx) => (
               <tr key={rowIdx} className="h-7">
                 <td className="text-right pr-2 text-xs text-muted-foreground align-top pt-0.5 whitespace-nowrap">
