@@ -125,6 +125,7 @@ export default async function AcademyDetailPage({
       </section>
 
       {/* Completed homework — collapsible, with undo */}
+      {/* eslint-disable-next-line react-hooks/purity -- server component renders per-request; Date.now() is intentional */}
       <DoneAcademyItems items={done} now={Date.now()} />
     </div>
   )

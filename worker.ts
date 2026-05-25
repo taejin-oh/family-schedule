@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
@@ -10,7 +10,10 @@ import { processExtractHomework } from '@/server/jobs/runner'
 import { getProvider } from '@/server/llm/registry'
 import { eq } from 'drizzle-orm'
 
-function openDb<S extends Record<string, unknown>>(file: string, migrations: string, schema: S): BetterSQLite3Database<S> {
+// Note: we let drizzle's return type infer naturally (it includes the $client
+// property in addition to BetterSQLite3Database<S> — needed by helpers like
+// reapStaleRunningJobs that consume the full drizzle DB shape).
+function openDb<S extends Record<string, unknown>>(file: string, migrations: string, schema: S) {
   mkdirSync(dirname(file), { recursive: true })
   const sqlite = new Database(file)
   sqlite.pragma('journal_mode = WAL')
