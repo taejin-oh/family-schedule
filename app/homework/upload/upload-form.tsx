@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { RefreshCw, X, Pencil } from 'lucide-react'
@@ -95,15 +95,6 @@ export function UploadForm({
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // When user changes academy (not in reuse mode), prefill hint from the
-  // academy's default extractionHint.
-  useEffect(() => {
-    if (reuse) return
-    if (academyId === null) return
-    const academy = academies.find((a) => a.id === academyId)
-    setHint(academy?.extractionHint ?? '')
-  }, [academyId, academies, reuse])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -202,7 +193,11 @@ export function UploadForm({
                 <button
                   type="button"
                   key={a.id}
-                  onClick={() => !reuse && setAcademyId(a.id)}
+                  onClick={() => {
+                    if (reuse) return
+                    setAcademyId(a.id)
+                    setHint(a.extractionHint ?? '')
+                  }}
                   disabled={disabled}
                   className={cn(
                     'p-3 rounded-md border bg-card text-left flex items-center gap-2 transition-colors',
@@ -376,7 +371,7 @@ export function UploadForm({
                             href={`/homework/batches/${r.id}/review`}
                             className="text-foreground/80 hover:text-foreground underline underline-offset-2"
                           >
-                            리뷰 열기
+                            {r.status === 'committed' ? '결과 보기' : '리뷰 열기'}
                           </Link>
                         )}
                       </div>
