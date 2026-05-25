@@ -24,7 +24,9 @@ const TaskInput = z.object({
   }
 })
 
-export type RecurringTaskInput = z.infer<typeof TaskInput>
+// Pre-parse input type — cadence/notes/color/daysOfWeek can be omitted; zod
+// fills defaults at runtime. Tests pass partial shapes.
+export type RecurringTaskInput = z.input<typeof TaskInput>
 
 function completionKey(cadence: 'daily'|'weekly', dateIso: string): string {
   return cadence === 'weekly' ? mondayOfWeekIso(dateIso) : dateIso

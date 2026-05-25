@@ -32,6 +32,7 @@ describe('academy actions', () => {
       location: null, notes: null,
     }, { db })
     expect(res.ok).toBe(true)
+    if (!res.ok) throw new Error(res.error)
     expect(res.data?.id).toBeGreaterThan(0)
   })
 
@@ -51,13 +52,16 @@ describe('academy actions', () => {
       name: '', subject: 'math', color: '#ef4444', scheduleRule: null, location: null, notes: null,
     }, { db })
     expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected failure')
     expect(res.error).toMatch(/이름|name/i)
   })
 
   it('listAcademies omits archived by default', async () => {
     const db = makeDb()
     const a = await createAcademy({ name: 'A', subject: 'math', color: '#000000', scheduleRule: null, location: null, notes: null }, { db })
+    if (!a.ok) throw new Error(a.error)
     const b = await createAcademy({ name: 'B', subject: 'english', color: '#111111', scheduleRule: null, location: null, notes: null }, { db })
+    if (!b.ok) throw new Error(b.error)
     await archiveAcademy(b.data!.id, { db })
     const list = await listAcademies({ db })
     expect(list.map((x) => x.id)).toEqual([a.data!.id])
@@ -66,6 +70,7 @@ describe('academy actions', () => {
   it('updateAcademy updates name and color', async () => {
     const db = makeDb()
     const created = await createAcademy({ name: 'A', subject: 'math', color: '#000000', scheduleRule: null, location: null, notes: null }, { db })
+    if (!created.ok) throw new Error(created.error)
     const res = await updateAcademy(created.data!.id, { name: 'A2', subject: 'math', color: '#ffffff', scheduleRule: null, location: null, notes: null }, { db })
     expect(res.ok).toBe(true)
     const list = await listAcademies({ db })
