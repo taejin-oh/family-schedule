@@ -21,7 +21,7 @@ export function BottomNav() {
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t pb-[env(safe-area-inset-bottom)]"
       aria-label="하단 내비게이션"
     >
-      <div className="flex items-stretch">
+      <div className="grid grid-cols-5 h-14">
         {TABS.map(({ href, icon: Icon, label }) => {
           const isActive =
             href === '/' ? pathname === '/' : pathname.startsWith(href)
@@ -30,13 +30,13 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                'flex flex-1 flex-col items-center justify-center gap-1 min-h-[56px] text-xs transition-colors',
+                'flex h-full w-full flex-col items-center justify-center gap-1 text-xs transition-colors touch-manipulation',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden />
-              <span>{label}</span>
+              <Icon className="h-5 w-5 shrink-0 pointer-events-none" aria-hidden />
+              <span className="pointer-events-none">{label}</span>
             </Link>
           )
         })}
