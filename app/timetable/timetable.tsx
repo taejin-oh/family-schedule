@@ -198,15 +198,15 @@ export function Timetable({
       )}
 
       <div className="overflow-x-auto">
-        <table className="border-collapse text-sm" style={{ minWidth: '600px' }}>
+        <table className="w-full border-collapse text-sm table-fixed">
           <thead>
             <tr>
-              <th className="w-14 text-right pr-2 font-normal text-muted-foreground text-xs" />
+              <th className="w-10 sm:w-14 text-right pr-1 sm:pr-2 font-normal text-muted-foreground text-xs" />
               {DAYS.map((d) => (
                 <th
                   key={d.key}
                   className={cn(
-                    'w-24 text-center py-2 font-semibold border border-border',
+                    'text-center py-2 font-semibold border border-border',
                     d.key === todayKey && 'bg-primary/10',
                   )}
                 >
