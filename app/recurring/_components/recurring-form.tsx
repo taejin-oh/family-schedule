@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { RecurringTaskInput } from '@/server/actions/recurring'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -82,20 +82,28 @@ export function RecurringForm({
         <div className="space-y-2">
           <Label>반복 주기</Label>
           <div className="grid grid-cols-2 gap-2">
-            <Button
+            <button
               type="button"
-              variant={cadence === 'daily' ? 'default' : 'outline'}
               onClick={() => setCadence('daily')}
+              className={cn(
+                buttonVariants({ variant: cadence === 'daily' ? 'default' : 'outline' }),
+                'h-10 w-full',
+              )}
+              aria-pressed={cadence === 'daily'}
             >
               매일
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
-              variant={cadence === 'weekly' ? 'default' : 'outline'}
               onClick={() => setCadence('weekly')}
+              className={cn(
+                buttonVariants({ variant: cadence === 'weekly' ? 'default' : 'outline' }),
+                'h-10 w-full',
+              )}
+              aria-pressed={cadence === 'weekly'}
             >
               매주
-            </Button>
+            </button>
           </div>
           <p className="text-xs text-muted-foreground">
             {cadence === 'weekly'
