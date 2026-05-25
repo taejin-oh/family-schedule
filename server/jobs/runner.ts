@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { and, eq } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
+import type { ScheduleSlot } from '@/server/db/schema'
 import type { VisionProvider } from '@/server/llm/types'
 
 /** Normalize title for duplicate detection — case + whitespace insensitive. */
@@ -10,10 +11,12 @@ function normalizeTitle(s: string): string {
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
-function computeNextSession(rule: any, from: Date): Date | null {
+type ScheduleRule = { slots: ScheduleSlot[] } | null
+
+function computeNextSession(rule: ScheduleRule, from: Date): Date | null {
   if (!rule || !rule.slots || !Array.isArray(rule.slots)) return null
   const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-  const wanted = new Set(rule.slots.map((s: any) => dayMap[s?.day]).filter((n: number | undefined): n is number => typeof n === 'number'))
+  const wanted = new Set(rule.slots.map((s: ScheduleSlot) => dayMap[s?.day]).filter((n: number | undefined): n is number => typeof n === 'number'))
   if (wanted.size === 0) return null
   for (let i = 1; i <= 14; i++) {
     const d = new Date(from); d.setDate(d.getDate() + i)
@@ -95,10 +98,10 @@ export async function processExtractHomework(
       }
     })
     void skippedCount   // available for future UI surface; currently silent
-  } catch (e: any) {
+  } catch (e: unknown) {
     db.update(schema.homeworkBatches).set({
       status: 'failed',
-      failureReason: e?.message ?? String(e),
+      failureReason: e instanceof Error ? e.message : String(e),
     }).where(eq(schema.homeworkBatches.id, batch.id)).run()
     throw e
   }

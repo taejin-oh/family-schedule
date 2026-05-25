@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
@@ -10,14 +10,14 @@ import { processExtractHomework } from '@/server/jobs/runner'
 import { getProvider } from '@/server/llm/registry'
 import { eq } from 'drizzle-orm'
 
-function openDb(file: string, migrations: string, schema: any) {
+function openDb<S extends Record<string, unknown>>(file: string, migrations: string, schema: S): BetterSQLite3Database<S> {
   mkdirSync(dirname(file), { recursive: true })
   const sqlite = new Database(file)
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: migrations })
-  return db as any
+  return db
 }
 
 async function main() {
@@ -49,15 +49,16 @@ async function main() {
       if (job.type === 'extract_homework') {
         const settings = appDb.select().from(appSchema.appSettings).where(eq(appSchema.appSettings.id, 1)).get()
         const provider = getProvider(settings?.visionProvider ?? 'claude')
-        await processExtractHomework(appDb, provider, { batchId: (job.payload as any).batchId, model: settings?.visionModel })
+        await processExtractHomework(appDb, provider, { batchId: (job.payload as { batchId: number }).batchId, model: settings?.visionModel })
       } else {
         throw new Error(`Unknown job type: ${job.type}`)
       }
       await markDone(jobsDb, job.id)
       console.log(`[worker] job#${job.id} done`)
-    } catch (e: any) {
-      console.error(`[worker] job#${job.id} failed:`, e?.message ?? e)
-      await markFailed(jobsDb, job.id, e?.message ?? String(e))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[worker] job#${job.id} failed:`, msg)
+      await markFailed(jobsDb, job.id, msg)
     }
   }
 }
