@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
-import { listTodayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
 import { getDb } from '@/server/db/client'
 import { eq } from 'drizzle-orm'
@@ -15,7 +15,14 @@ import { HomeworkItem } from '@/app/_components/dashboard-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
-type RecurringItem = Awaited<ReturnType<typeof listTodayRecurring>>[number]
+type RecurringItem = {
+  id: number
+  title: string
+  notes: string | null
+  color: string
+  cadence: 'daily' | 'weekly'
+  doneAt: Date | null
+}
 
 type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'later' | 'nodate'
 type FilterKey = 'all' | 'today' | 'tomorrow' | 'thisweek'
@@ -146,10 +153,11 @@ export default async function HomePage({
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
   const academyFilter = sp.academy ? Number(sp.academy) : null
 
-  const [active, doneToday, todayRecurring, academies] = await Promise.all([
+  const [active, doneToday, todayRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
     listTodayRecurring(),
+    listThisWeekRecurring(),
     listAcademies(),
   ])
   const todayIso = localDateIso()
@@ -157,9 +165,10 @@ export default async function HomePage({
   const now = Date.now()
   const buckets = bucketize(active, todayIso)
 
-  // Split recurring into active vs done-today
-  const recurringActive = todayRecurring.filter((r) => r.doneAt === null)
-  const recurringDoneToday = todayRecurring.filter((r) => r.doneAt !== null)
+  // Merge daily + weekly recurring; split into active vs done-today
+  const allRecurring: RecurringItem[] = [...todayRecurring, ...weekRecurring]
+  const recurringActive = allRecurring.filter((r) => r.doneAt === null)
+  const recurringDoneToday = allRecurring.filter((r) => r.doneAt !== null)
 
   // Server actions for homework
   async function onComplete(formData: FormData) {
@@ -436,8 +445,13 @@ export default async function HomePage({
                       <div className="flex-1 min-w-0">
                         <div className="font-medium break-words">{rt.title}</div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                          <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-muted/60 border-foreground/10">
-                            🔁 매일
+                          <span className={cn(
+                            'inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium',
+                            rt.cadence === 'weekly'
+                              ? 'bg-violet-50 text-violet-700 border-violet-200'
+                              : 'bg-muted/60 text-muted-foreground border-foreground/10',
+                          )}>
+                            {rt.cadence === 'weekly' ? '🔁 매주' : '🔁 매일'}
                           </span>
                         </div>
                         {rt.notes && (
