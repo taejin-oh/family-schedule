@@ -422,9 +422,11 @@ export default async function HomePage({
                         <input type="hidden" name="dateIso" value={todayIso} />
                         <button
                           type="submit"
-                          className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
+                          className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
                           aria-label="완료로 표시"
-                        />
+                        >
+                          <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
+                        </button>
                       </form>
                       <span
                         className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"

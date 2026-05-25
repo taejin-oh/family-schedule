@@ -483,7 +483,7 @@ export function UploadForm({
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {showFileForm && (
-          <Button type="submit" disabled={busy} className="w-full">
+          <Button type="submit" disabled={busy} className="w-full h-11">
             {busy
               ? (reuse ? '재분석 중…' : '업로드 중…')
               : (reuse ? '이 파일로 다시 분석' : '업로드 후 분석')}
