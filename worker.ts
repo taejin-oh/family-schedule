@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as appSchema from '@/server/db/schema'
 import * as jobsSchema from '@/server/jobs/schema'
-import { claimNext, markDone, markFailed } from '@/server/jobs/queue'
+import { claimNext, markDone, markFailed, reapStaleRunningJobs } from '@/server/jobs/queue'
 import { processExtractHomework } from '@/server/jobs/runner'
 import { getProvider } from '@/server/llm/registry'
 import { eq } from 'drizzle-orm'
@@ -25,9 +25,20 @@ async function main() {
   const jobsDb = openDb(resolve('data/jobs.db'), resolve('server/jobs/migrations'), jobsSchema)
   // ensure settings row
   appDb.insert(appSchema.appSettings).values({ id: 1 }).onConflictDoNothing().run()
+
+  // Recover any stale running jobs from a previous crashed worker
+  const reaped = await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
+  if (reaped > 0) console.log(`[worker] reaped ${reaped} stale running job(s) on startup`)
+
   console.log('[worker] started, polling every 1s')
 
+  let pollCount = 0
   while (true) {
+    pollCount++
+    // Periodically reap stale jobs (~every 60 polls = ~60s)
+    if (pollCount % 60 === 0) {
+      await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
+    }
     const job = await claimNext(jobsDb)
     if (!job) {
       await new Promise((r) => setTimeout(r, 1000))

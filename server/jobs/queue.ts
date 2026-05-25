@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, lt, sql } from 'drizzle-orm'
 import * as schema from './schema'
 import type { JobType } from './types'
 
@@ -46,4 +46,32 @@ export async function markFailed(db: DB, id: number, message: string) {
     })
     .where(eq(schema.jobs.id, id))
     .run()
+}
+
+/**
+ * Find jobs stuck in 'running' for longer than timeoutMs and reset them to 'failed'.
+ * Called on worker startup and periodically (every few loops) to recover from
+ * crashed workers.
+ */
+export async function reapStaleRunningJobs(db: DB, timeoutMs: number): Promise<number> {
+  const cutoff = new Date(Date.now() - timeoutMs)
+  const stale = db.select().from(schema.jobs)
+    .where(and(
+      eq(schema.jobs.status, 'running'),
+      lt(schema.jobs.claimedAt, cutoff),
+    ))
+    .all()
+  if (stale.length === 0) return 0
+  for (const job of stale) {
+    db.update(schema.jobs)
+      .set({
+        status: 'failed',
+        errorMessage: `stale: still running ${Math.round((Date.now() - (job.claimedAt?.getTime() ?? 0)) / 60000)}m after claim — worker likely crashed`,
+        finishedAt: new Date(),
+        attempts: sql`${schema.jobs.attempts} + 1`,
+      })
+      .where(eq(schema.jobs.id, job.id))
+      .run()
+  }
+  return stale.length
 }
