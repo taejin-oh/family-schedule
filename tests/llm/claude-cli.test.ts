@@ -4,15 +4,24 @@ import * as childProcess from 'node:child_process'
 
 vi.mock('node:child_process')
 
-function mockSpawnOnce(stdout: string, exitCode = 0) {
-  const handlers: Record<string, Function> = {}
-  const proc: any = {
-    stdout: { on: (ev: string, cb: Function) => { if (ev === 'data') cb(Buffer.from(stdout)) } },
-    stderr: { on: (_: string, __: Function) => {} },
-    on: (ev: string, cb: Function) => { handlers[ev] = cb },
+type Listener = (...args: unknown[]) => void
+type MockProc = {
+  stdout: { on: (ev: string, cb: Listener) => void }
+  stderr: { on: (ev: string, cb: Listener) => void }
+  on: (ev: string, cb: Listener) => void
+  kill: () => void
+}
+
+function mockSpawnOnce(stdout: string, exitCode = 0): MockProc {
+  const handlers: Record<string, Listener> = {}
+  const proc: MockProc = {
+    stdout: { on: (ev, cb) => { if (ev === 'data') cb(Buffer.from(stdout)) } },
+    stderr: { on: () => {} },
+    on: (ev, cb) => { handlers[ev] = cb },
     kill: () => {},
   }
-  vi.mocked(childProcess.spawn).mockReturnValueOnce(proc)
+  // ChildProcess type is broader than what we mock; coercion is intentional.
+  vi.mocked(childProcess.spawn).mockReturnValueOnce(proc as unknown as ReturnType<typeof childProcess.spawn>)
   setTimeout(() => handlers['close']?.(exitCode), 0)
   return proc
 }

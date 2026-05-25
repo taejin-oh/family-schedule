@@ -22,7 +22,7 @@ export default async function EditAcademyPage({ params }: { params: Promise<{ id
       <h1 className="text-xl font-semibold">{row.name} 편집</h1>
       <AcademyForm
         initial={{
-          name: row.name, subject: row.subject as any, color: row.color,
+          name: row.name, subject: row.subject as AcademyInput['subject'], color: row.color,
           scheduleRule: row.scheduleRule, location: row.location, notes: row.notes,
           extractionHint: row.extractionHint,
         }}

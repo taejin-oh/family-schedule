@@ -47,9 +47,10 @@ describe('schema', () => {
 
   it('homework_items requires batch_id and academy_id FKs', () => {
     const { db } = makeDb()
+    // Intentionally insert orphan FK row to assert the FK constraint fires.
     expect(() => db.insert(schema.homeworkItems).values({
       batchId: 9999, academyId: 9999, title: 'orphan',
       source: 'manual', isCommitted: false,
-    } as any).run()).toThrow()
+    }).run()).toThrow()
   })
 })

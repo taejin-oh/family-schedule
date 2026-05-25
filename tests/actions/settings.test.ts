@@ -35,7 +35,7 @@ describe('settings', () => {
 
   it('updateSettings rejects unknown provider', async () => {
     const db = makeDb()
-    const res = await updateSettings({ visionProvider: 'xyz' as any, visionModel: 'claude-opus-4-7' }, { appDb: db })
+    const res = await updateSettings({ visionProvider: 'xyz', visionModel: 'claude-opus-4-7' }, { appDb: db })
     expect(res.ok).toBe(false)
   })
 })

@@ -38,8 +38,9 @@ export class ClaudeCliProvider implements VisionProvider {
     let parsed: unknown
     try {
       parsed = JSON.parse(jsonText)
-    } catch (e: any) {
-      throw new Error(`Claude response JSON parse failed: ${e.message}; raw=${stdout.slice(0, 200)}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      throw new Error(`Claude response JSON parse failed: ${msg}; raw=${stdout.slice(0, 200)}`)
     }
     const validated = ResponseSchema.parse(parsed)
     const items: DraftItem[] = validated.items
