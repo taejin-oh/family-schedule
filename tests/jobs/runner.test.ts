@@ -160,6 +160,58 @@ describe('processExtractHomework', () => {
     expect(items[0].confidence).toBe(0.8)
   })
 
+  it('skips processing when batch status is committed (state guard)', async () => {
+    const db = makeAppDb()
+    const [academy] = db.insert(schema.academies).values({
+      name: 'X', subject: 'math', color: '#000',
+    }).returning().all()
+    const [batch] = db.insert(schema.homeworkBatches).values({
+      academyId: academy.id, status: 'committed',
+    }).returning().all()
+    db.insert(schema.homeworkPhotos).values({
+      batchId: batch.id, originalPath: '/x/a.jpg', resizedPath: '/x/a-1600.jpg',
+      width: 1, height: 1, bytes: 1,
+    }).run()
+
+    // Should return without calling provider (provider would throw if called)
+    const neverProvider: VisionProvider = {
+      ...fakeProvider,
+      extractHomework: async () => { throw new Error('should not be called') },
+    }
+    await processExtractHomework(db, neverProvider, { batchId: batch.id })
+
+    // Status must remain committed; no items inserted
+    const updated = db.select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, batch.id)).get()
+    expect(updated?.status).toBe('committed')
+    const items = db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batch.id)).all()
+    expect(items).toHaveLength(0)
+  })
+
+  it('skips processing when batch status is ready (state guard)', async () => {
+    const db = makeAppDb()
+    const [academy] = db.insert(schema.academies).values({
+      name: 'X', subject: 'math', color: '#000',
+    }).returning().all()
+    const [batch] = db.insert(schema.homeworkBatches).values({
+      academyId: academy.id, status: 'ready',
+    }).returning().all()
+    db.insert(schema.homeworkPhotos).values({
+      batchId: batch.id, originalPath: '/x/a.jpg', resizedPath: '/x/a-1600.jpg',
+      width: 1, height: 1, bytes: 1,
+    }).run()
+
+    const neverProvider: VisionProvider = {
+      ...fakeProvider,
+      extractHomework: async () => { throw new Error('should not be called') },
+    }
+    await processExtractHomework(db, neverProvider, { batchId: batch.id })
+
+    const updated = db.select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, batch.id)).get()
+    expect(updated?.status).toBe('ready')
+    const items = db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batch.id)).all()
+    expect(items).toHaveLength(0)
+  })
+
   it('skips items already committed in the same academy (by normalized title + dueDate)', async () => {
     const db = makeAppDb()
     const [academy] = db.insert(schema.academies).values({

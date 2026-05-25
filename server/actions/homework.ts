@@ -90,28 +90,37 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
     userHint: input.userHint?.trim() || null,
   }).returning().all()
 
-  for (let i = 0; i < input.files.length; i++) {
-    const f = input.files[i]
-    const bytes = Buffer.from(await f.arrayBuffer())
-    const ext = extFromMime(f.type)
-    const orig = await saveOriginal({ root: storageRoot, batchId: batch.id, index: i, ext, bytes })
+  try {
+    for (let i = 0; i < input.files.length; i++) {
+      const f = input.files[i]
+      const bytes = Buffer.from(await f.arrayBuffer())
+      const ext = extFromMime(f.type)
+      const orig = await saveOriginal({ root: storageRoot, batchId: batch.id, index: i, ext, bytes })
 
-    // Resize images; for PDFs (and HEIC) pass through original as the "resized" path.
-    const resized = isResizableImage(f.type)
-      ? await makeResized({ root: storageRoot, batchId: batch.id, index: i, originalPath: orig.path })
-      : { path: orig.path, width: 0, height: 0, bytes: orig.bytes }
+      // Resize images; for PDFs (and HEIC) pass through original as the "resized" path.
+      const resized = isResizableImage(f.type)
+        ? await makeResized({ root: storageRoot, batchId: batch.id, index: i, originalPath: orig.path })
+        : { path: orig.path, width: 0, height: 0, bytes: orig.bytes }
 
-    appDb.insert(appSchema.homeworkPhotos).values({
-      batchId: batch.id,
-      originalPath: orig.path,
-      resizedPath: resized.path,
-      width: resized.width,
-      height: resized.height,
-      bytes: orig.bytes,
-    }).run()
+      appDb.insert(appSchema.homeworkPhotos).values({
+        batchId: batch.id,
+        originalPath: orig.path,
+        resizedPath: resized.path,
+        width: resized.width,
+        height: resized.height,
+        bytes: orig.bytes,
+      }).run()
+    }
+
+    await enqueue(jobsDb, 'extract_homework', { batchId: batch.id })
+  } catch (e: unknown) {
+    appDb.update(appSchema.homeworkBatches).set({
+      status: 'failed',
+      failureReason: e instanceof Error ? e.message : String(e),
+    }).where(eq(appSchema.homeworkBatches.id, batch.id)).run()
+    throw e
   }
 
-  await enqueue(jobsDb, 'extract_homework', { batchId: batch.id })
   revalidatePath('/')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: batch.id } }
@@ -168,7 +177,9 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
 export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
   const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
-  if (batch?.status === 'committed') return { ok: false, error: '이미 확정된 batch입니다' }
+  if (!batch) return { ok: false, error: '존재하지 않는 batch입니다' }
+  if (batch.status === 'committed') return { ok: false, error: '이미 확정된 batch입니다' }
+  if (batch.status !== 'ready') return { ok: false, error: `${batch.status} 상태의 batch는 확정할 수 없습니다` }
   appDb.transaction((tx) => {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -95,6 +95,29 @@ describe('uploadHomework', () => {
     const res = await uploadHomework({ academyId: a.id, files: [txt] }, { appDb, jobsDb, storageRoot })
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.error).toMatch(/지원하지 않는|unsupported/i)
+  })
+
+  it('marks batch failed when file write fails (atomic cleanup)', async () => {
+    const { appDb, jobsDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+
+    // Use a storageRoot that is a file (not a dir) so mkdirSync inside saveOriginal throws
+    const tmpDir = mkdtempSync(join(tmpdir(), 'fs-up-fail-'))
+    const blockedRoot = join(tmpDir, 'not-a-dir')
+    writeFileSync(blockedRoot, 'block')  // exists as a file — mkdirSync will fail
+
+    const png = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#fff' } }).png().toBuffer()
+    const file1 = new File([new Uint8Array(png)], 'a.png', { type: 'image/png' })
+
+    await expect(
+      uploadHomework({ academyId: academy.id, files: [file1] }, { appDb, jobsDb, storageRoot: blockedRoot }),
+    ).rejects.toThrow()
+
+    // Batch row must exist with status=failed
+    const batches = appDb.select().from(appSchema.homeworkBatches).all()
+    expect(batches).toHaveLength(1)
+    expect(batches[0].status).toBe('failed')
+    expect(batches[0].failureReason).toBeTruthy()
   })
 })
 
@@ -195,6 +218,40 @@ describe('reviewBatch actions', () => {
     if (!res.ok) expect(res.error).toMatch(/확정|committed/i)
     // confirm no row inserted
     expect(appDb.select().from(appSchema.homeworkItems).all()).toHaveLength(0)
+  })
+
+  it('commitBatch refuses when batch does not exist', async () => {
+    const { appDb } = makeDbs()
+    const res = await commitBatch(9999, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/존재하지 않는/)
+  })
+
+  it('commitBatch refuses when batch status is pending', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'pending' }).returning().all()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/pending/)
+  })
+
+  it('commitBatch refuses when batch status is processing', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'processing' }).returning().all()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/processing/)
+  })
+
+  it('commitBatch refuses when batch status is failed', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'failed' }).returning().all()
+    const res = await commitBatch(batch.id, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/failed/)
   })
 })
 

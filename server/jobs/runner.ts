@@ -32,6 +32,14 @@ export async function processExtractHomework(
 ) {
   const batch = db.select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, payload.batchId)).get()
   if (!batch) throw new Error(`Batch ${payload.batchId} not found`)
+
+  // State guard: only process batches in pending or processing state.
+  // Silently skip committed/ready/failed to prevent double-processing.
+  if (batch.status !== 'pending' && batch.status !== 'processing') {
+    console.log(`[runner] skip batch ${batch.id} — status=${batch.status}`)
+    return
+  }
+
   const academy = db.select().from(schema.academies).where(eq(schema.academies.id, batch.academyId)).get()
   if (!academy) throw new Error(`Academy ${batch.academyId} not found`)
   const photos = db.select().from(schema.homeworkPhotos).where(eq(schema.homeworkPhotos.batchId, batch.id)).all()
