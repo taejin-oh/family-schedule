@@ -92,7 +92,7 @@ export function ItemActionsMenu(props: Props) {
             <button
               type="button"
               {...triggerProps}
-              onClick={(e) => { e.stopPropagation(); triggerProps.onClick?.(e); setOpen((s) => !s) }}
+              onClick={(e) => { e.stopPropagation(); triggerProps.onClick?.(e) }}
               className={cn(
                 'absolute right-2 top-1/2 -translate-y-1/2',
                 'h-7 w-7 rounded',
@@ -116,7 +116,7 @@ export function ItemActionsMenu(props: Props) {
               </Menu.Item>
 
               {props.itemKind === 'homework' && (
-                <Menu.Root>
+                <Menu.SubmenuRoot>
                   <Menu.SubmenuTrigger className={cn(ITEM_CLASS, 'justify-between')}>
                     <span>미루기</span>
                     <span className="text-muted-foreground">›</span>
@@ -160,7 +160,7 @@ export function ItemActionsMenu(props: Props) {
                       </Menu.Popup>
                     </Menu.Positioner>
                   </Menu.Portal>
-                </Menu.Root>
+                </Menu.SubmenuRoot>
               )}
 
               <div className="my-1 h-px bg-border" />
