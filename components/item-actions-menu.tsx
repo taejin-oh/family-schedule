@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useId, useState, useTransition } from 'react'
 import { MoreVertical } from 'lucide-react'
 import { Menu } from '@base-ui/react/menu'
 import { useLongPress } from '@/lib/use-long-press'
@@ -65,7 +65,23 @@ export function ItemActionsMenu(props: Props) {
   const [customDate, setCustomDate] = useState('')
   const [, startTransition] = useTransition()
 
-  const longPress = useLongPress(() => setOpen(true))
+  const instanceId = useId()
+
+  // Close any other open ItemActionsMenu when this one opens (mobile long-press
+  // doesn't reliably trigger base-ui's outside-press dismiss).
+  useEffect(() => {
+    function handler(e: Event) {
+      const ce = e as CustomEvent<string>
+      if (ce.detail !== instanceId) setOpen(false)
+    }
+    window.addEventListener('iam:close-others', handler)
+    return () => window.removeEventListener('iam:close-others', handler)
+  }, [instanceId])
+
+  const longPress = useLongPress(() => {
+    window.dispatchEvent(new CustomEvent('iam:close-others', { detail: instanceId }))
+    setOpen(true)
+  })
   const today = localDateIsoClient()
   const deferOptions = [
     { label: '내일', date: addDays(today, 1) },
