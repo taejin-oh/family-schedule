@@ -15,6 +15,7 @@ import {
   listTodayRecurring,
   listRecurringTasks,
 } from '@/server/actions/recurring'
+import { localDateIso } from '@/server/util/date'
 
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
@@ -115,7 +116,7 @@ describe('listTodayRecurring', () => {
     await archiveRecurringTask(r3.data!.id, { db })
 
     // Mark taskA done for today
-    const todayIso = new Date().toISOString().slice(0, 10)
+    const todayIso = localDateIso()
     await markRecurringDone(taskA.id, todayIso, { db })
 
     const result = await listTodayRecurring({ db })
