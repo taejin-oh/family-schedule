@@ -33,7 +33,7 @@ const BUCKET_META: Record<BucketKey, { label: string; tone?: 'destructive' | 'to
   today:    { label: '오늘',   tone: 'today' },
   tomorrow: { label: '내일' },
   thisweek: { label: '이번 주' },
-  nextweek: { label: '다음 주' },
+  nextweek: { label: '다음 주 숙제' },
   later:    { label: '이후' },
   nodate:   { label: '기한 없음' },
 }
@@ -285,8 +285,46 @@ export default async function HomePage({
   const weeklyLabel =
     filter === 'today'    ? '남은 이번 주 할일'
   : filter === 'tomorrow' ? '남은 이번 주 할일'
-  : filter === 'nextweek' ? '남은 이번 주 할일'
   : /* thisweek / all */    '이번 주 할일'
+  // nextweek filter is excluded — it uses nextWeekPreviewSection instead.
+
+  // Preview of weekly tasks that will reset next Monday (used only on filter='nextweek').
+  // Read-only — no toggle since 'doneAt' here reflects current week's completion, not next week's.
+  const nextWeekPreviewSection = filter !== 'nextweek' || weekRecur.length === 0 ? null : (
+    <section className="space-y-2">
+      <div className="flex items-baseline gap-2 px-1">
+        <h2 className="text-sm font-semibold text-foreground">다음 주 할일</h2>
+        <span className="text-xs text-muted-foreground tabular-nums">({weekRecur.length})</span>
+      </div>
+      <Card className="p-0 divide-y">
+        {weekRecur.map((rt) => (
+          <div key={`nw-${rt.id}`} className="p-3 flex items-start gap-3">
+            <span className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2 opacity-40" aria-hidden>
+              <span className="w-6 h-6 rounded-full border-2 border-muted-foreground/40" />
+            </span>
+            <span
+              className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ background: rt.color }}
+              aria-hidden
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium break-words text-muted-foreground">{rt.title}</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
+                  🔁 매주
+                </span>
+              </div>
+              {rt.notes && (
+                <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+                  {rt.notes}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </Card>
+    </section>
+  )
 
   const weeklySection = weeklyActive.length === 0 ? null : (
     <section className="space-y-2">
@@ -337,7 +375,7 @@ export default async function HomePage({
     visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
     (visibleBuckets.includes('today') ? recurringActive.length : 0) +
     (visibleBuckets.includes('tomorrow') ? tomorrowRecurringActive.length : 0) +
-    weeklyActive.length  // weekly section is visible across all filters
+    (filter === 'nextweek' ? weekRecur.length : weeklyActive.length)
 
   const hasAnything = totalActive > 0 || totalDone > 0
 
@@ -403,7 +441,7 @@ export default async function HomePage({
           />
           <FilterChip
             label="다음 주"
-            count={buckets.nextweek.length + weeklyActive.length}
+            count={buckets.nextweek.length + weekRecur.length}
             href={timeHref('nextweek')}
             active={filter === 'nextweek'}
           />
@@ -584,7 +622,8 @@ export default async function HomePage({
               </section>
             )
           })}
-          {(filter === 'today' || filter === 'tomorrow' || filter === 'nextweek') && weeklySection}
+          {(filter === 'today' || filter === 'tomorrow') && weeklySection}
+          {nextWeekPreviewSection}
         </div>
       )}
 
