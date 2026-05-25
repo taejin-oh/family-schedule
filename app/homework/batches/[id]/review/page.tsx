@@ -2,6 +2,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { notFound, redirect } from 'next/navigation'
 import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
+import { localDateIso } from '@/server/util/date'
 import { ReviewForm } from './review-form'
 
 const SIM_THRESHOLD = 0.4
@@ -106,7 +107,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       </div>
       <ReviewForm
         batchId={batchId}
-        todayIso={new Date().toISOString().slice(0, 10)}
+        todayIso={localDateIso()}
         initial={items.map((it) => ({
           id: it.id,
           title: it.title,

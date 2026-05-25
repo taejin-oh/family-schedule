@@ -80,6 +80,7 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
 }
 
 export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ctx = {}): Promise<Result> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return { ok: false, error: '잘못된 날짜 형식' }
   const db = ctx.db ?? getDb()
   const task = db.select({ cadence: schema.recurringTasks.cadence }).from(schema.recurringTasks).where(eq(schema.recurringTasks.id, taskId)).get()
   if (!task) return { ok: false, error: 'task not found' }
@@ -104,6 +105,7 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
 }
 
 export async function markRecurringUndone(taskId: number, dateIso: string, ctx: Ctx = {}): Promise<Result> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return { ok: false, error: '잘못된 날짜 형식' }
   const db = ctx.db ?? getDb()
   const task = db.select({ cadence: schema.recurringTasks.cadence }).from(schema.recurringTasks).where(eq(schema.recurringTasks.id, taskId)).get()
   if (!task) return { ok: false, error: 'task not found' }

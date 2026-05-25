@@ -24,7 +24,15 @@ const DAYS: { key: DayKey; label: string }[] = [
   { key: 'wed', label: '수' }, { key: 'thu', label: '목' },
   { key: 'fri', label: '금' }, { key: 'sat', label: '토' }, { key: 'sun', label: '일' },
 ]
-const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#475569']
+const COLORS: { hex: string; name: string }[] = [
+  { hex: '#ef4444', name: '빨강' },
+  { hex: '#f59e0b', name: '주황' },
+  { hex: '#10b981', name: '초록' },
+  { hex: '#3b82f6', name: '파랑' },
+  { hex: '#8b5cf6', name: '보라' },
+  { hex: '#ec4899', name: '분홍' },
+  { hex: '#475569', name: '회색' },
+]
 
 type Props = {
   open: boolean
@@ -58,6 +66,10 @@ function RecurringEditForm({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (cadence === 'daily' && days.length === 0) {
+      setError('요일을 하나 이상 선택해주세요')
+      return
+    }
     setBusy(true)
     setError(null)
     const input: RecurringTaskInput = {
@@ -116,17 +128,17 @@ function RecurringEditForm({
         <div className="flex gap-2 flex-wrap">
           {COLORS.map((c) => (
             <button
-              key={c}
+              key={c.hex}
               type="button"
-              onClick={() => setColor(c)}
+              onClick={() => setColor(c.hex)}
               className={cn(
                 'w-9 h-9 rounded-full transition-transform',
-                color === c
+                color === c.hex
                   ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110'
                   : 'hover:scale-105',
               )}
-              style={{ background: c }}
-              aria-label={c}
+              style={{ background: c.hex }}
+              aria-label={c.name}
             />
           ))}
         </div>

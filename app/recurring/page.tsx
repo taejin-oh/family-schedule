@@ -126,7 +126,7 @@ export default async function RecurringPage({
 
       {/* 오늘 할 일 section */}
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-foreground px-1">오늘 할 매일 일</h2>
+        <h2 className="text-sm font-semibold text-foreground px-1">오늘의 매일 할 일</h2>
         {todayTasks.length === 0 ? (
           <Card className="p-6 text-center text-muted-foreground text-sm">
             오늘은 매일 할 일이 없어요

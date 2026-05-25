@@ -12,7 +12,9 @@ export async function enqueue(db: DB, type: JobType, payload: Record<string, unk
 
 export async function claimNext(db: DB) {
   const now = new Date()
-  // Atomically claim the oldest queued job
+  // Atomically claim the oldest queued job. The where-clause on UPDATE
+  // includes status='queued' so a second worker that loses the race will
+  // see changes===0 and skip. Single-worker today, but defensive.
   const row = db.transaction((tx) => {
     const next = tx.select().from(schema.jobs)
       .where(eq(schema.jobs.status, 'queued'))
@@ -20,10 +22,11 @@ export async function claimNext(db: DB) {
       .limit(1)
       .get()
     if (!next) return null
-    tx.update(schema.jobs)
+    const res = tx.update(schema.jobs)
       .set({ status: 'running', claimedAt: now })
       .where(and(eq(schema.jobs.id, next.id), eq(schema.jobs.status, 'queued')))
       .run()
+    if (res.changes === 0) return null  // lost the race; another worker claimed it
     return next
   })
   return row

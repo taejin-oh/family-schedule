@@ -48,7 +48,7 @@ describe('deleteHomeworkItem', () => {
     const appDb = makeDb()
     const res = await deleteHomeworkItem(99999, { appDb })
     expect(res.ok).toBe(false)
-    expect(res.error).toBeTruthy()
+    expect(res.error).toMatch(/항목|item|찾|존재|없/)
   })
 
   it('rejects a draft (non-committed) item', async () => {

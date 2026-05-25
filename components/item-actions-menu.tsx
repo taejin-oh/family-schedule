@@ -4,6 +4,7 @@ import { useEffect, useId, useState, useTransition } from 'react'
 import { MoreVertical } from 'lucide-react'
 import { Menu } from '@base-ui/react/menu'
 import { useLongPress } from '@/lib/use-long-press'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 
 function localDateIsoClient(d: Date = new Date()): string {
@@ -66,6 +67,7 @@ export function ItemActionsMenu(props: Props) {
   const [, startTransition] = useTransition()
 
   const instanceId = useId()
+  const isCoarsePointer = useMediaQuery('(pointer: coarse)')
 
   // Close any other open ItemActionsMenu when this one opens (mobile long-press
   // doesn't reliably trigger base-ui's outside-press dismiss).
@@ -92,9 +94,15 @@ export function ItemActionsMenu(props: Props) {
 
   function runAction(p: () => Promise<void>, failMsg: string) {
     setOpen(false)
+    setError(null)
     startTransition(async () => {
-      try { await p() }
-      catch { setError(failMsg) }
+      try {
+        await p()
+      } catch {
+        setError(failMsg)
+        // auto-dismiss after 4s so a single failed action doesn't block the row forever
+        setTimeout(() => setError(null), 4000)
+      }
     })
   }
 
@@ -120,6 +128,9 @@ export function ItemActionsMenu(props: Props) {
                 '[@media(pointer:coarse)]:invisible [@media(pointer:coarse)]:pointer-events-none',
               )}
               aria-label="액션 메뉴"
+              // Hide from a11y tree on touch devices since the button is also visually invisible
+              aria-hidden={isCoarsePointer || undefined}
+              tabIndex={isCoarsePointer ? -1 : undefined}
             >
               <MoreVertical className="h-4 w-4" />
             </button>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
@@ -56,16 +56,14 @@ export function HomeworkItem({
   const isMultiActive = multiSelect?.active ?? false
   const isChecked = multiSelect?.selected.has(id) ?? false
   const [editOpen, setEditOpen] = useState(false)
-  const [, startTransition] = useTransition()
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
   }
 
   async function handleDelete() {
-    startTransition(async () => {
-      await deleteHomeworkItem(id)
-    })
+    // ItemActionsMenu.runAction already wraps in startTransition.
+    await deleteHomeworkItem(id)
   }
 
   const rowContent = (

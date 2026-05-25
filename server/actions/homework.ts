@@ -144,19 +144,28 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   return { ok: true }
 }
 
+const AddDraftInput = z.object({
+  title: z.string().min(1, '제목이 필요합니다'),
+  notes: z.string().nullable().optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 형식의 날짜').nullable(),
+})
+
 export async function addDraftItem(
   batchId: number,
-  input: { title: string; notes?: string | null; dueDate: string | null },
+  input: z.input<typeof AddDraftInput>,
   ctx: Ctx = {},
 ): Promise<{ ok: true; data: { id: number } } | { ok: false; error: string }> {
+  const parsed = AddDraftInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
   const appDb = ctx.appDb ?? getDb()
   const batch = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, batchId)).get()
   if (!batch) return { ok: false, error: 'batch not found' }
   if (batch.status === 'committed') {
     return { ok: false, error: '확정된 batch에는 항목을 추가할 수 없습니다' }
   }
+  const data = parsed.data
   const [row] = appDb.insert(appSchema.homeworkItems).values({
-    batchId, academyId: batch.academyId, title: input.title, notes: input.notes ?? null, dueDate: input.dueDate,
+    batchId, academyId: batch.academyId, title: data.title.trim(), notes: data.notes ?? null, dueDate: data.dueDate,
     source: 'manual', isCommitted: false,
   }).returning({ id: appSchema.homeworkItems.id }).all()
   revalidatePath('/')
@@ -293,12 +302,13 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
   if (batches.length === 0) return []
 
   const ids = batches.map((b) => b.id)
-  // Fetch photo summary per batch
+  // Fetch photo summary per batch — scoped to the batches we actually return,
+  // otherwise this is a full-table scan that grows linearly with all uploads.
   const photos = appDb.select({
     batchId: appSchema.homeworkPhotos.batchId,
     resizedPath: appSchema.homeworkPhotos.resizedPath,
     originalPath: appSchema.homeworkPhotos.originalPath,
-  }).from(appSchema.homeworkPhotos).all()
+  }).from(appSchema.homeworkPhotos).where(inArray(appSchema.homeworkPhotos.batchId, ids)).all()
 
   const byBatch = new Map<number, { count: number; firstPath: string | null; isPdf: boolean }>()
   for (const p of photos) {

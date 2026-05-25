@@ -7,6 +7,9 @@ export const dynamic = 'force-dynamic'
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
   const batchId = Number(id)
+  if (!Number.isInteger(batchId) || batchId <= 0) {
+    return new Response('invalid id', { status: 400 })
+  }
   const encoder = new TextEncoder()
   let handle: ReturnType<typeof setInterval> | null = null
   let cancelled = false

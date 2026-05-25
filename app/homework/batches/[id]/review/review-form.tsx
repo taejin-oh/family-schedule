@@ -37,6 +37,7 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
   const [newDue, setNewDue] = useState<string>('')
   const [newHint, setNewHint] = useState(currentHint ?? '')
   const [rerunError, setRerunError] = useState<string | null>(null)
+  const [commitError, setCommitError] = useState<string | null>(null)
 
   function patchLocal(id: number, p: Partial<Item>) {
     setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...p } : x)))
@@ -80,8 +81,19 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
 
   async function commit() {
     setBusy(true)
-    await commitBatch(batchId)
-    router.push('/')
+    setCommitError(null)
+    try {
+      const res = await commitBatch(batchId)
+      if (!res.ok) {
+        setCommitError(res.error ?? '확정 실패')
+        setBusy(false)
+        return
+      }
+      router.push('/')
+    } catch (e) {
+      setCommitError(e instanceof Error ? e.message : '확정 실패')
+      setBusy(false)
+    }
   }
 
   async function rerun() {
@@ -273,9 +285,12 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
         </Card>}
 
         {!isReadOnly && (
-          <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
-            {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
-          </Button>
+          <>
+            <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
+              {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
+            </Button>
+            {commitError && <p className="text-sm text-destructive whitespace-pre-wrap break-words">{commitError}</p>}
+          </>
         )}
 
         <details className="group">

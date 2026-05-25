@@ -78,7 +78,7 @@ describe('deferHomework', () => {
     const appDb = makeDb()
     const res = await deferHomework(99999, '2026-06-01', { appDb })
     expect(res.ok).toBe(false)
-    expect(res.error).toBeTruthy()
+    expect(res.error).toMatch(/항목|item|찾|존재|없/)
   })
 
   it('can defer an item that currently has no due date', async () => {

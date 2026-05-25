@@ -31,7 +31,8 @@ function SheetContent({
       <DialogPrimitive.Popup
         className={cn(
           'fixed bottom-0 left-0 right-0 z-50',
-          'rounded-t-2xl border-t bg-background px-6 pb-8 pt-4 shadow-2xl',
+          'rounded-t-2xl border-t bg-background px-6 pt-4 shadow-2xl',
+          'pb-[calc(2rem+env(safe-area-inset-bottom))]',
           'data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full',
           'transition-transform duration-200',
           className,

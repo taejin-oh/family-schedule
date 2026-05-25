@@ -71,7 +71,10 @@ export function DeferMenu({ itemId, currentDueDate }: Props) {
     setOpen(false)
     startTransition(async () => {
       const res = await deferHomework(itemId, newDueDate)
-      if (!res.ok) setError(res.error ?? '오류')
+      if (!res.ok) {
+        setError(res.error ?? '오류')
+        setTimeout(() => setError(null), 4000)
+      }
     })
   }
 
@@ -136,7 +139,7 @@ export function DeferMenu({ itemId, currentDueDate }: Props) {
       </Menu.Root>
 
       {error && (
-        <div className="fixed right-2 top-2 z-50 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground whitespace-nowrap shadow">
+        <div className="absolute right-0 top-full z-50 mt-1 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground whitespace-nowrap shadow">
           {error}
         </div>
       )}

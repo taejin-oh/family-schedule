@@ -95,7 +95,7 @@ export function MultiSelectProvider({
       {/* Sticky floating bar — visible only when multi-select is active */}
       {active && (
         <div
-          className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+          className="fixed bottom-14 left-0 right-0 z-50 bg-background border-t shadow-lg px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between md:bottom-0"
           role="toolbar"
           aria-label="선택 모드 도구 모음"
         >

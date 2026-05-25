@@ -24,6 +24,10 @@ Opens at http://localhost:3001. This script runs:
 - `tsx watch worker.ts`            (background job worker — picks up
                                     extract_homework jobs from data/jobs.db)
 
+> **Warning**: `pnpm dev` alone only starts the web server. Without the
+> worker, uploaded batches stay in `pending` forever. Use `./scripts/dev.sh`
+> for full stack, or run `pnpm worker` in a separate terminal.
+
 Kill with Ctrl-C; both processes stop together.
 
 ## Tests

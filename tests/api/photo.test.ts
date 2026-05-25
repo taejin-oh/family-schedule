@@ -133,17 +133,10 @@ describe('GET /api/photo', () => {
   })
 
   describe('path-based (legacy)', () => {
-    it('valid path inside storage → 200', async () => {
-      // Use the real jpg file we created, but we need the path to be inside
-      // a "storage" dir relative to cwd. We override storageRoot indirectly:
-      // The legacy path check resolves relative to cwd/storage. Since our tmp
-      // file is outside that, we test via the traversal guard instead.
-      // So test: file inside the resolved storage boundary.
-      // The simplest valid path test: if we pass a path whose resolved form
-      // starts with cwd/storage, it passes the check. Since we can't do that
-      // without touching the actual storage/ dir, we skip the 200 leg here
-      // and test the guard only (the route itself is tested via id above).
-      // This is acceptable: the legacy path IS exercised in the real app.
+    it.skip('valid path inside storage → 200 (legacy; covered by id-based test)', () => {
+      // Legacy ?path= endpoint is exercised in the real app. Replicating the
+      // cwd/storage boundary inside vitest without touching real storage/ is
+      // not worth the setup cost. ID-based test above covers the happy path.
     })
 
     it('path traversal attempt → 403', async () => {

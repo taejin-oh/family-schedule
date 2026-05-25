@@ -113,7 +113,7 @@ export function buildMorningDigest(db: AppDb, dateIso: string): string {
     lines.push('• 오늘 학원 없음')
   } else {
     for (const s of slots) {
-      lines.push(`• ${esc(s.name)} ${s.start}–${s.end}`)
+      lines.push(`• ${esc(s.name)} ${esc(s.start)}–${esc(s.end)}`)
     }
   }
   lines.push('')

@@ -56,16 +56,22 @@ export class ClaudeCliProvider implements VisionProvider {
       })
       let stdout = ''
       let stderr = ''
+      let settled = false
+      const settle = (fn: () => void) => { if (settled) return; settled = true; fn() }
       const t = setTimeout(() => {
         proc.kill('SIGTERM')
-        reject(new Error(`claude -p timed out after ${timeoutMs}ms`))
+        settle(() => reject(new Error(`claude -p timed out after ${timeoutMs}ms`)))
       }, timeoutMs)
       proc.stdout.on('data', (b) => { stdout += b.toString() })
       proc.stderr.on('data', (b) => { stderr += b.toString() })
+      proc.on('error', (err) => {
+        clearTimeout(t)
+        settle(() => reject(err))
+      })
       proc.on('close', (code) => {
         clearTimeout(t)
-        if (code === 0) resolve(stdout)
-        else reject(new Error(`claude exited with code ${code}; stderr=${stderr.slice(0, 500)}`))
+        if (code === 0) settle(() => resolve(stdout))
+        else settle(() => reject(new Error(`claude exited with code ${code}; stderr=${stderr.slice(0, 500)}`)))
       })
     })
   }
