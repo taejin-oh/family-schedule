@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
+type Cadence = 'daily' | 'weekly'
 
 const DAYS: { key: DayKey; label: string }[] = [
   { key: 'mon', label: '월' }, { key: 'tue', label: '화' },
@@ -33,6 +34,7 @@ export function RecurringForm({
   const [title, setTitle] = useState(initial?.title ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [color, setColor] = useState(initial?.color ?? COLORS[3])
+  const [cadence, setCadence] = useState<Cadence>(initial?.cadence ?? 'daily')
   const [days, setDays] = useState<DayKey[]>(initial?.daysOfWeek ?? [])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -51,7 +53,8 @@ export function RecurringForm({
       title: title.trim(),
       notes: notes.trim() || null,
       color,
-      daysOfWeek: days,
+      cadence,
+      daysOfWeek: cadence === 'weekly' ? [] : days,
     }
     const res = await onSubmit(input)
     if (!res.ok) {
@@ -77,6 +80,31 @@ export function RecurringForm({
         </div>
 
         <div className="space-y-2">
+          <Label>반복 주기</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={cadence === 'daily' ? 'default' : 'outline'}
+              onClick={() => setCadence('daily')}
+            >
+              매일
+            </Button>
+            <Button
+              type="button"
+              variant={cadence === 'weekly' ? 'default' : 'outline'}
+              onClick={() => setCadence('weekly')}
+            >
+              매주
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {cadence === 'weekly'
+              ? '이번 주 안에 한 번 끝내면 됩니다. 매주 월요일에 새로 시작됩니다.'
+              : '선택한 요일마다 매일 표시됩니다.'}
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label>색상</Label>
           <div className="flex gap-2">
             {COLORS.map((c) => (
@@ -97,23 +125,25 @@ export function RecurringForm({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>요일</Label>
-          <div className="flex gap-2 flex-wrap">
-            {DAYS.map((d) => (
-              <Button
-                key={d.key}
-                type="button"
-                variant={days.includes(d.key) ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => toggleDay(d.key)}
-                className="w-12"
-              >
-                {d.label}
-              </Button>
-            ))}
+        {cadence === 'daily' && (
+          <div className="space-y-2">
+            <Label>요일</Label>
+            <div className="flex gap-2 flex-wrap">
+              {DAYS.map((d) => (
+                <Button
+                  key={d.key}
+                  type="button"
+                  variant={days.includes(d.key) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleDay(d.key)}
+                  className="w-12"
+                >
+                  {d.label}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="notes">메모 (선택)</Label>

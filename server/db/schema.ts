@@ -83,6 +83,7 @@ export const recurringTasks = sqliteTable('recurring_tasks', {
   title: text('title').notNull(),
   notes: text('notes'),
   color: text('color').notNull().default('#64748b'),  // slate
+  cadence: text('cadence').$type<'daily'|'weekly'>().notNull().default('daily'),
   daysOfWeek: text('days_of_week', { mode: 'json' }).$type<Array<'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'>>().notNull(),
   archivedAt: integer('archived_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),

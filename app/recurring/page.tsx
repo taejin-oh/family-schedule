@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react'
 import {
   listTodayRecurring,
+  listThisWeekRecurring,
   listRecurringTasks,
   markRecurringDone,
   markRecurringUndone,
@@ -29,8 +30,9 @@ export default async function RecurringPage({
 }) {
   const sp = await searchParams
   const todayIso = localDateIso()
-  const [todayTasks, allTasks] = await Promise.all([
+  const [todayTasks, weekTasks, allTasks] = await Promise.all([
     listTodayRecurring(),
+    listThisWeekRecurring(),
     listRecurringTasks(),
   ])
 
@@ -67,6 +69,60 @@ export default async function RecurringPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">매일 할 일</h1>
       </div>
+
+      {/* 이번 주 할 일 section (weekly cadence) */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-foreground px-1">이번 주 할 일</h2>
+        {weekTasks.length === 0 ? (
+          <Card className="p-6 text-center text-muted-foreground text-sm">
+            이번 주에 할 일이 없어요
+          </Card>
+        ) : (
+          <Card className="p-0 divide-y">
+            {weekTasks.map((t) => {
+              const done = t.doneAt !== null
+              return (
+                <div
+                  key={t.id}
+                  className={cn('p-3 flex items-center gap-3', done && 'opacity-60')}
+                >
+                  {done ? (
+                    <form action={onMarkUndone} className="flex-shrink-0">
+                      <input type="hidden" name="taskId" value={t.id} />
+                      <input type="hidden" name="date" value={todayIso} />
+                      <button
+                        type="submit"
+                        className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:bg-green-700 transition-colors"
+                        aria-label="완료 취소"
+                      >
+                        <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                      </button>
+                    </form>
+                  ) : (
+                    <form action={onMarkDone} className="flex-shrink-0">
+                      <input type="hidden" name="taskId" value={t.id} />
+                      <input type="hidden" name="date" value={todayIso} />
+                      <button
+                        type="submit"
+                        className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors"
+                        aria-label="완료로 표시"
+                      />
+                    </form>
+                  )}
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: t.color }}
+                    aria-hidden
+                  />
+                  <span className={cn('flex-1 font-medium', done && 'line-through decoration-muted-foreground/40')}>
+                    {t.title}
+                  </span>
+                </div>
+              )
+            })}
+          </Card>
+        )}
+      </section>
 
       {/* 오늘 할 일 section */}
       <section className="space-y-2">
@@ -131,7 +187,7 @@ export default async function RecurringPage({
               href="/recurring?action=new"
               className={cn(buttonVariants({ size: 'sm' }))}
             >
-              + 새 매일 할 일
+              + 새 할 일
             </Link>
           )}
         </div>
@@ -163,6 +219,7 @@ export default async function RecurringPage({
                         title: editTask.title,
                         notes: editTask.notes ?? undefined,
                         color: editTask.color,
+                        cadence: editTask.cadence,
                         daysOfWeek: editTask.daysOfWeek as DayKey[],
                       }}
                       submitLabel="저장"
@@ -175,6 +232,7 @@ export default async function RecurringPage({
                 )
               }
               const days = (t.daysOfWeek as DayKey[]).map((d) => DAY_KO[d]).join('·')
+              const isWeekly = t.cadence === 'weekly'
               return (
                 <div key={t.id} className="p-4 flex items-center gap-3">
                   <span
@@ -183,8 +241,20 @@ export default async function RecurringPage({
                     aria-hidden
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">{days}</div>
+                    <div className="font-medium flex items-center gap-2">
+                      {t.title}
+                      <span className={cn(
+                        'text-[10px] px-1.5 py-0.5 rounded-full font-medium border',
+                        isWeekly
+                          ? 'bg-violet-50 text-violet-700 border-violet-200'
+                          : 'bg-muted/60 text-muted-foreground border-foreground/10',
+                      )}>
+                        {isWeekly ? '매주' : '매일'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {isWeekly ? '이번 주 안에 끝내기' : days}
+                    </div>
                   </div>
                   <Link
                     href={`/recurring?action=edit&id=${t.id}`}

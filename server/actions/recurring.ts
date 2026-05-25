@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, isNull, asc, and } from 'drizzle-orm'
+import { eq, isNull, asc, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
-import { localDateIso } from '@/server/util/date'
+import { localDateIso, mondayOfWeekIso } from '@/server/util/date'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -16,10 +16,19 @@ const TaskInput = z.object({
   title: z.string().min(1, '제목이 필요합니다'),
   notes: z.string().nullable().optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '색상은 #RRGGBB').optional(),
-  daysOfWeek: z.array(z.enum(['mon','tue','wed','thu','fri','sat','sun'])).min(1, '요일을 하나 이상 선택해주세요'),
+  cadence: z.enum(['daily', 'weekly']).default('daily'),
+  daysOfWeek: z.array(z.enum(['mon','tue','wed','thu','fri','sat','sun'])).default([]),
+}).superRefine((v, ctx) => {
+  if (v.cadence === 'daily' && v.daysOfWeek.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['daysOfWeek'], message: '요일을 하나 이상 선택해주세요' })
+  }
 })
 
 export type RecurringTaskInput = z.infer<typeof TaskInput>
+
+function completionKey(cadence: 'daily'|'weekly', dateIso: string): string {
+  return cadence === 'weekly' ? mondayOfWeekIso(dateIso) : dateIso
+}
 
 export async function listRecurringTasks(ctx: Ctx = {}) {
   const db = ctx.db ?? getDb()
@@ -35,6 +44,7 @@ export async function createRecurringTask(input: RecurringTaskInput, ctx: Ctx = 
     title: data.title,
     notes: data.notes ?? null,
     color: data.color ?? '#64748b',
+    cadence: data.cadence,
     daysOfWeek: data.daysOfWeek,
   }).returning({ id: schema.recurringTasks.id }).all()
   revalidatePath('/recurring')
@@ -51,6 +61,7 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput,
     title: data.title,
     notes: data.notes ?? null,
     color: data.color ?? '#64748b',
+    cadence: data.cadence,
     daysOfWeek: data.daysOfWeek,
   }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
@@ -68,18 +79,20 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
 
 export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ctx = {}): Promise<Result> {
   const db = ctx.db ?? getDb()
-  // Check if already exists
+  const task = db.select({ cadence: schema.recurringTasks.cadence }).from(schema.recurringTasks).where(eq(schema.recurringTasks.id, taskId)).get()
+  if (!task) return { ok: false, error: 'task not found' }
+  const key = completionKey(task.cadence, dateIso)
   const existing = db.select()
     .from(schema.recurringTaskCompletions)
     .where(and(
       eq(schema.recurringTaskCompletions.taskId, taskId),
-      eq(schema.recurringTaskCompletions.completionDate, dateIso),
+      eq(schema.recurringTaskCompletions.completionDate, key),
     ))
     .get()
   if (!existing) {
     db.insert(schema.recurringTaskCompletions).values({
       taskId,
-      completionDate: dateIso,
+      completionDate: key,
       doneAt: new Date(),
     }).run()
   }
@@ -90,10 +103,13 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
 
 export async function markRecurringUndone(taskId: number, dateIso: string, ctx: Ctx = {}): Promise<Result> {
   const db = ctx.db ?? getDb()
+  const task = db.select({ cadence: schema.recurringTasks.cadence }).from(schema.recurringTasks).where(eq(schema.recurringTasks.id, taskId)).get()
+  if (!task) return { ok: false, error: 'task not found' }
+  const key = completionKey(task.cadence, dateIso)
   db.delete(schema.recurringTaskCompletions)
     .where(and(
       eq(schema.recurringTaskCompletions.taskId, taskId),
-      eq(schema.recurringTaskCompletions.completionDate, dateIso),
+      eq(schema.recurringTaskCompletions.completionDate, key),
     ))
     .run()
   revalidatePath('/recurring')
@@ -109,17 +125,21 @@ export async function listTodayRecurring(ctx: Ctx = {}) {
   const todayKey: DayKey = DAY_KEYS[new Date().getDay()]
   const todayIso = localDateIso()
 
-  const tasks = db.select().from(schema.recurringTasks).where(isNull(schema.recurringTasks.archivedAt)).orderBy(asc(schema.recurringTasks.id)).all()
+  const tasks = db.select().from(schema.recurringTasks)
+    .where(and(isNull(schema.recurringTasks.archivedAt), eq(schema.recurringTasks.cadence, 'daily')))
+    .orderBy(asc(schema.recurringTasks.id)).all()
 
   const todayTasks = tasks.filter((t) => {
     const days = t.daysOfWeek as DayKey[]
     return Array.isArray(days) && days.includes(todayKey)
   })
 
-  // Fetch completions for today
-  const completions = db.select()
+  const completions = todayTasks.length === 0 ? [] : db.select()
     .from(schema.recurringTaskCompletions)
-    .where(eq(schema.recurringTaskCompletions.completionDate, todayIso))
+    .where(and(
+      eq(schema.recurringTaskCompletions.completionDate, todayIso),
+      inArray(schema.recurringTaskCompletions.taskId, todayTasks.map((t) => t.id)),
+    ))
     .all()
   const doneMap = new Map(completions.map((c) => [c.taskId, c.doneAt]))
 
@@ -128,7 +148,37 @@ export async function listTodayRecurring(ctx: Ctx = {}) {
     title: t.title,
     notes: t.notes,
     color: t.color,
+    cadence: t.cadence,
     daysOfWeek: t.daysOfWeek as DayKey[],
     doneAt: doneMap.get(t.id) ?? null,
+  }))
+}
+
+export async function listThisWeekRecurring(ctx: Ctx = {}) {
+  const db = ctx.db ?? getDb()
+  const todayIso = localDateIso()
+  const weekKey = mondayOfWeekIso(todayIso)
+
+  const tasks = db.select().from(schema.recurringTasks)
+    .where(and(isNull(schema.recurringTasks.archivedAt), eq(schema.recurringTasks.cadence, 'weekly')))
+    .orderBy(asc(schema.recurringTasks.id)).all()
+
+  const completions = tasks.length === 0 ? [] : db.select()
+    .from(schema.recurringTaskCompletions)
+    .where(and(
+      eq(schema.recurringTaskCompletions.completionDate, weekKey),
+      inArray(schema.recurringTaskCompletions.taskId, tasks.map((t) => t.id)),
+    ))
+    .all()
+  const doneMap = new Map(completions.map((c) => [c.taskId, c.doneAt]))
+
+  return tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    notes: t.notes,
+    color: t.color,
+    cadence: t.cadence,
+    doneAt: doneMap.get(t.id) ?? null,
+    weekStartIso: weekKey,
   }))
 }

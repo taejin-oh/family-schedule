@@ -13,9 +13,10 @@ import {
   markRecurringDone,
   markRecurringUndone,
   listTodayRecurring,
+  listThisWeekRecurring,
   listRecurringTasks,
 } from '@/server/actions/recurring'
-import { localDateIso } from '@/server/util/date'
+import { localDateIso, mondayOfWeekIso } from '@/server/util/date'
 
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
@@ -164,5 +165,99 @@ describe('updateRecurringTask + archiveRecurringTask', () => {
 
     const rows = await listRecurringTasks({ db })
     expect(rows).toHaveLength(0) // archived tasks are excluded
+  })
+})
+
+describe('mondayOfWeekIso', () => {
+  it('Monday returns itself', () => {
+    expect(mondayOfWeekIso('2026-05-25')).toBe('2026-05-25') // Mon
+  })
+  it('Sunday returns previous Monday (not next)', () => {
+    expect(mondayOfWeekIso('2026-05-24')).toBe('2026-05-18') // Sun → previous Mon
+  })
+  it('mid-week Wednesday returns same-week Monday', () => {
+    expect(mondayOfWeekIso('2026-05-27')).toBe('2026-05-25')
+  })
+  it('handles month boundary', () => {
+    expect(mondayOfWeekIso('2026-06-01')).toBe('2026-06-01') // Mon
+    expect(mondayOfWeekIso('2026-05-31')).toBe('2026-05-25') // Sun
+  })
+})
+
+describe('weekly cadence', () => {
+  it('createRecurringTask accepts cadence=weekly with empty daysOfWeek', async () => {
+    const { db } = makeDb()
+    const res = await createRecurringTask({ title: '주간 청소', cadence: 'weekly', daysOfWeek: [] }, { db })
+    expect(res.ok).toBe(true)
+    const rows = db.select().from(schema.recurringTasks).all()
+    expect(rows[0].cadence).toBe('weekly')
+  })
+
+  it('createRecurringTask defaults cadence to daily and requires daysOfWeek', async () => {
+    const { db } = makeDb()
+    const res = await createRecurringTask({ title: '매일', daysOfWeek: [] }, { db })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/요일/)
+  })
+
+  it('markRecurringDone on weekly task normalizes to Monday key', async () => {
+    const { db } = makeDb()
+    const res = await createRecurringTask({ title: '주간', cadence: 'weekly', daysOfWeek: [] }, { db })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+
+    // Mark done on a Wednesday — should store the Monday of that week
+    const wed = '2026-05-27'
+    await markRecurringDone(res.data!.id, wed, { db })
+    const rows = db.select().from(schema.recurringTaskCompletions).all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].completionDate).toBe('2026-05-25') // Monday of that week
+
+    // Marking on Friday of the same week is idempotent (same Monday key)
+    await markRecurringDone(res.data!.id, '2026-05-29', { db })
+    expect(db.select().from(schema.recurringTaskCompletions).all()).toHaveLength(1)
+  })
+
+  it('markRecurringUndone on weekly task removes by Monday key', async () => {
+    const { db } = makeDb()
+    const res = await createRecurringTask({ title: '주간', cadence: 'weekly', daysOfWeek: [] }, { db })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+
+    await markRecurringDone(res.data!.id, '2026-05-27', { db }) // Wed
+    expect(db.select().from(schema.recurringTaskCompletions).all()).toHaveLength(1)
+
+    await markRecurringUndone(res.data!.id, '2026-05-29', { db }) // Fri — same week
+    expect(db.select().from(schema.recurringTaskCompletions).all()).toHaveLength(0)
+  })
+
+  it('listTodayRecurring excludes weekly tasks', async () => {
+    const { db } = makeDb()
+    const today = todayKey()
+    await createRecurringTask({ title: '매일 것', daysOfWeek: [today] }, { db })
+    await createRecurringTask({ title: '주간 것', cadence: 'weekly', daysOfWeek: [] }, { db })
+
+    const result = await listTodayRecurring({ db })
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('매일 것')
+  })
+
+  it('listThisWeekRecurring returns weekly tasks with doneAt reflecting this-week completion', async () => {
+    const { db } = makeDb()
+    const today = todayKey()
+    await createRecurringTask({ title: '매일 것', daysOfWeek: [today] }, { db })
+    const w = await createRecurringTask({ title: '주간 것', cadence: 'weekly', daysOfWeek: [] }, { db })
+    expect(w.ok).toBe(true)
+    if (!w.ok) return
+
+    let result = await listThisWeekRecurring({ db })
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('주간 것')
+    expect(result[0].doneAt).toBeNull()
+
+    // Mark done somewhere this week
+    await markRecurringDone(w.data!.id, localDateIso(), { db })
+    result = await listThisWeekRecurring({ db })
+    expect(result[0].doneAt).not.toBeNull()
   })
 })
