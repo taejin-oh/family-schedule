@@ -106,8 +106,10 @@ async function maybeFireDigest(
 }
 
 async function main() {
-  const appDb = openDb(resolve('data/app.db'), resolve('server/db/migrations'), appSchema)
-  const jobsDb = openDb(resolve('data/jobs.db'), resolve('server/jobs/migrations'), jobsSchema)
+  const appDbPath = process.env.APP_DB_PATH ?? resolve('data/app.db')
+  const jobsDbPath = process.env.JOBS_DB_PATH ?? resolve('data/jobs.db')
+  const appDb = openDb(appDbPath, resolve('server/db/migrations'), appSchema)
+  const jobsDb = openDb(jobsDbPath, resolve('server/jobs/migrations'), jobsSchema)
   // ensure settings row
   appDb.insert(appSchema.appSettings).values({ id: 1 }).onConflictDoNothing().run()
 
