@@ -136,6 +136,25 @@ export function Timetable({
   weekStart?: Date
   slotProgress?: SlotProgress
 }) {
+  // Hooks must be called unconditionally — declare before any early return.
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+
+  // Earliest schedule start row across all academies — used for auto-scroll
+  let earliestRowIdx = -1
+  for (const a of academies) {
+    for (const s of a.scheduleRule?.slots ?? []) {
+      const ri = timeToRowIndex(s.start)
+      if (ri < 0) continue
+      if (earliestRowIdx === -1 || ri < earliestRowIdx) earliestRowIdx = ri
+    }
+  }
+
+  useEffect(() => {
+    if (earliestRowIdx < 1) return
+    const row = tbodyRef.current?.querySelectorAll('tr')[earliestRowIdx]
+    row?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  }, [earliestRowIdx])
+
   const hasSlots = academies.some(
     (a) => a.scheduleRule?.slots && a.scheduleRule.slots.length > 0,
   )
@@ -159,23 +178,6 @@ export function Timetable({
 
   const cells = buildCells(academies)
   const todayKey = JS_DAY_TO_KEY[new Date().getDay()]
-
-  // Earliest schedule start row across all academies — used for auto-scroll
-  let earliestRowIdx = -1
-  for (const a of academies) {
-    for (const s of a.scheduleRule?.slots ?? []) {
-      const ri = timeToRowIndex(s.start)
-      if (ri < 0) continue
-      if (earliestRowIdx === -1 || ri < earliestRowIdx) earliestRowIdx = ri
-    }
-  }
-
-  const tbodyRef = useRef<HTMLTableSectionElement>(null)
-  useEffect(() => {
-    if (earliestRowIdx < 1) return  // already at top
-    const row = tbodyRef.current?.querySelectorAll('tr')[earliestRowIdx]
-    row?.scrollIntoView({ block: 'start', behavior: 'auto' })
-  }, [earliestRowIdx])
 
   return (
     <div className="space-y-4">
