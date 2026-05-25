@@ -25,14 +25,15 @@ type RecurringItem = {
   dateIso: string  // value to send to markRecurringDone (today/tomorrow for daily, anything-in-week for weekly)
 }
 
-type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'later' | 'nodate'
-type FilterKey = 'all' | 'today' | 'tomorrow' | 'thisweek'
+type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'nextweek' | 'later' | 'nodate'
+type FilterKey = 'all' | 'today' | 'tomorrow' | 'thisweek' | 'nextweek'
 
 const BUCKET_META: Record<BucketKey, { label: string; tone?: 'destructive' | 'today' }> = {
   overdue:  { label: '지났음', tone: 'destructive' },
   today:    { label: '오늘',   tone: 'today' },
   tomorrow: { label: '내일' },
   thisweek: { label: '이번 주' },
+  nextweek: { label: '다음 주' },
   later:    { label: '이후' },
   nodate:   { label: '기한 없음' },
 }
@@ -49,13 +50,18 @@ function bucketOf(item: ActiveItem, todayIso: string): BucketKey {
   if (dd < 0) return 'overdue'
   if (dd === 0) return 'today'
   if (dd === 1) return 'tomorrow'
-  if (dd <= 7) return 'thisweek'
+  // Calendar-based week boundaries (Sunday = last day of week)
+  const today = new Date(todayIso + 'T00:00:00')
+  const dow = today.getDay()  // 0=Sun..6=Sat
+  const daysUntilThisSunday = (7 - dow) % 7
+  if (dd <= daysUntilThisSunday) return 'thisweek'
+  if (dd <= daysUntilThisSunday + 7) return 'nextweek'
   return 'later'
 }
 
 function bucketize(items: ActiveItem[], todayIso: string): Record<BucketKey, ActiveItem[]> {
   const out: Record<BucketKey, ActiveItem[]> = {
-    overdue: [], today: [], tomorrow: [], thisweek: [], later: [], nodate: [],
+    overdue: [], today: [], tomorrow: [], thisweek: [], nextweek: [], later: [], nodate: [],
   }
   for (const it of items) out[bucketOf(it, todayIso)].push(it)
   return out
@@ -104,7 +110,7 @@ function formatRelative(doneAt: Date, now: number): string {
 }
 
 function isFilterKey(s: string | undefined): s is FilterKey {
-  return s === 'today' || s === 'tomorrow' || s === 'thisweek' || s === 'all'
+  return s === 'today' || s === 'tomorrow' || s === 'thisweek' || s === 'nextweek' || s === 'all'
 }
 
 function FilterChip({
@@ -240,6 +246,7 @@ export default async function HomePage({
         today:    buckets.today.filter((it) => it.academyId === academyFilter),
         tomorrow: buckets.tomorrow.filter((it) => it.academyId === academyFilter),
         thisweek: buckets.thisweek.filter((it) => it.academyId === academyFilter),
+        nextweek: buckets.nextweek.filter((it) => it.academyId === academyFilter),
         later:    buckets.later.filter((it) => it.academyId === academyFilter),
         nodate:   buckets.nodate.filter((it) => it.academyId === academyFilter),
       }
@@ -271,12 +278,14 @@ export default async function HomePage({
     filter === 'today'    ? ['overdue', 'today']
   : filter === 'tomorrow' ? ['tomorrow']
   : filter === 'thisweek' ? ['overdue', 'today', 'tomorrow', 'thisweek']
-  : /* all */               ['overdue', 'today', 'tomorrow', 'thisweek', 'later', 'nodate']
+  : filter === 'nextweek' ? ['nextweek']
+  : /* all */               ['overdue', 'today', 'tomorrow', 'thisweek', 'nextweek', 'later', 'nodate']
 
   // Weekly section label varies by current filter
   const weeklyLabel =
     filter === 'today'    ? '남은 이번 주 할일'
   : filter === 'tomorrow' ? '남은 이번 주 할일'
+  : filter === 'nextweek' ? '남은 이번 주 할일'
   : /* thisweek / all */    '이번 주 할일'
 
   const weeklySection = weeklyActive.length === 0 ? null : (
@@ -391,6 +400,12 @@ export default async function HomePage({
             count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + weeklyActive.length}
             href={timeHref('thisweek')}
             active={filter === 'thisweek'}
+          />
+          <FilterChip
+            label="다음 주"
+            count={buckets.nextweek.length + weeklyActive.length}
+            href={timeHref('nextweek')}
+            active={filter === 'nextweek'}
           />
           <MultiSelectToggle />
         </div>
@@ -569,7 +584,7 @@ export default async function HomePage({
               </section>
             )
           })}
-          {(filter === 'today' || filter === 'tomorrow') && weeklySection}
+          {(filter === 'today' || filter === 'tomorrow' || filter === 'nextweek') && weeklySection}
         </div>
       )}
 
