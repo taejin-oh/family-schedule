@@ -275,7 +275,7 @@ export default async function HomePage({
 
   // Weekly section label varies by current filter
   const weeklyLabel =
-    filter === 'today'    ? '이번 주 해야할일'
+    filter === 'today'    ? '남은 이번 주 할일'
   : filter === 'tomorrow' ? '남은 이번 주 할일'
   : /* thisweek / all */    '이번 주 할일'
 
