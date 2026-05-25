@@ -64,17 +64,36 @@ describe('settings', () => {
   })
 
   it('updateSettings rejects invalid telegramMorningTime format (25:00)', async () => {
-    // The timeHHMM validator uses /^\d{2}:\d{2}$/ which accepts "25:00"
-    // (it only checks the pattern, not numeric range).
-    // This test documents the current behavior: '25:00' passes validation.
     const db = makeDb()
     const res = await updateSettings({
       visionProvider: 'claude',
       visionModel: 'claude-opus-4-7',
       telegramMorningTime: '25:00',
     }, { appDb: db })
-    // NOTE: '25:00' matches /^\d{2}:\d{2}$/ so it is currently accepted.
-    // If stricter hour/minute range validation is added later, change this expectation.
-    expect(res.ok).toBe(true)
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected failure')
+    expect(res.error).toMatch(/HH:MM|범위|format/)
+  })
+
+  it('updateSettings rejects invalid minute (07:60)', async () => {
+    const db = makeDb()
+    const res = await updateSettings({
+      visionProvider: 'claude',
+      visionModel: 'claude-opus-4-7',
+      telegramMorningTime: '07:60',
+    }, { appDb: db })
+    expect(res.ok).toBe(false)
+  })
+
+  it('updateSettings accepts boundary times (00:00, 23:59)', async () => {
+    const db = makeDb()
+    const a = await updateSettings({
+      visionProvider: 'claude', visionModel: 'claude-opus-4-7', telegramMorningTime: '00:00',
+    }, { appDb: db })
+    const b = await updateSettings({
+      visionProvider: 'claude', visionModel: 'claude-opus-4-7', telegramEveningTime: '23:59',
+    }, { appDb: db })
+    expect(a.ok).toBe(true)
+    expect(b.ok).toBe(true)
   })
 })
