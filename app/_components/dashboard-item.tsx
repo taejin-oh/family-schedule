@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
+import { DeferMenu } from '@/components/defer-menu'
 
 type DuePillProps = {
   label: string
@@ -106,9 +107,11 @@ export function HomeworkItem({
           <input type="hidden" name="id" value={id} />
           <button
             type="submit"
-            className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center"
+            className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
             aria-label="완료로 표시"
-          />
+          >
+            <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
+          </button>
         </form>
       )}
       <span
@@ -153,15 +156,20 @@ export function HomeworkItem({
           </form>
         ) : (
           <>
-            <div
-              className="font-medium break-words cursor-pointer hover:underline underline-offset-2 decoration-muted-foreground/40"
-              onClick={startEdit}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && startEdit()}
-              aria-label={`${title} 편집`}
-            >
-              {title}
+            <div className="flex items-start justify-between gap-1">
+              <div
+                className="font-medium break-words cursor-pointer hover:underline underline-offset-2 decoration-muted-foreground/40"
+                onClick={startEdit}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && startEdit()}
+                aria-label={`${title} 편집`}
+              >
+                {title}
+              </div>
+              {!isMultiActive && (
+                <DeferMenu itemId={id} currentDueDate={dueDate} />
+              )}
             </div>
             <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">
               <span>{academyName}</span>

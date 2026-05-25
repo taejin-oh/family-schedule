@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, real } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -58,6 +58,8 @@ export const homeworkItems = sqliteTable('homework_items', {
   dueDate: text('due_date'),                 // 'YYYY-MM-DD' or null
   source: text('source', { enum: ['ai','manual'] }).notNull(),
   aiOriginalTitle: text('ai_original_title'),
+  confidence: real('confidence'),
+  sourcePhotoId: integer('source_photo_id').references(() => homeworkPhotos.id, { onDelete: 'set null' }),
   isCommitted: integer('is_committed', { mode: 'boolean' }).notNull().default(false),
   doneAt: integer('done_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
@@ -67,6 +69,13 @@ export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey().default(1),  // single-row table
   visionProvider: text('vision_provider').notNull().default('claude'),
   visionModel: text('vision_model').notNull().default('claude-opus-4-7'),
+  telegramEnabled: integer('telegram_enabled', { mode: 'boolean' }).notNull().default(false),
+  telegramMorningEnabled: integer('telegram_morning_enabled', { mode: 'boolean' }).notNull().default(true),
+  telegramMorningTime: text('telegram_morning_time').notNull().default('07:00'),
+  telegramEveningEnabled: integer('telegram_evening_enabled', { mode: 'boolean' }).notNull().default(true),
+  telegramEveningTime: text('telegram_evening_time').notNull().default('21:00'),
+  telegramMiddayEnabled: integer('telegram_midday_enabled', { mode: 'boolean' }).notNull().default(true),
+  telegramMiddayTime: text('telegram_midday_time').notNull().default('12:00'),
 })
 
 export const recurringTasks = sqliteTable('recurring_tasks', {

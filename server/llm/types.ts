@@ -2,6 +2,8 @@ export type DraftItem = {
   title: string
   dueDate: string | null   // 'YYYY-MM-DD'
   notes?: string
+  confidence?: number       // 0~1, optional
+  sourcePhotoIndex?: number // 0-based index into the imagePaths array
 }
 
 export type AcademyContext = {

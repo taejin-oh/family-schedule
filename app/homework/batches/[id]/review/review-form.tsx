@@ -22,11 +22,13 @@ type Item = {
   notes: string | null
   dueDate: string | null
   source: 'ai' | 'manual'
+  confidence?: number | null
+  sourcePhotoPath?: string | null
   similar?: SimilarMatch | null
 }
 type Photo = { path: string; isPdf: boolean }
 
-export function ReviewForm({ batchId, initial, photos, currentHint, isReadOnly = false }: { batchId: number; initial: Item[]; photos: Photo[]; currentHint: string | null; isReadOnly?: boolean }) {
+export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, isReadOnly = false }: { batchId: number; todayIso: string; initial: Item[]; photos: Photo[]; currentHint: string | null; isReadOnly?: boolean }) {
   const router = useRouter()
   const [items, setItems] = useState<Item[]>(initial)
   const [busy, setBusy] = useState(false)
@@ -119,10 +121,36 @@ export function ReviewForm({ batchId, initial, photos, currentHint, isReadOnly =
                   >
                     {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
                   </span>
+                  {it.confidence != null && it.confidence < 0.6 && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                      확신 낮음 ({Math.round(it.confidence * 100)}%)
+                    </span>
+                  )}
+                  {(it.dueDate == null || it.dueDate < todayIso) && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300">
+                      날짜 의심
+                    </span>
+                  )}
                   {it.similar && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-300">
                       ⚠️ 유사 항목 있음 ({Math.round(it.similar.score * 100)}%)
                     </span>
+                  )}
+                  {it.sourcePhotoPath && (
+                    <a
+                      href={`/api/photo?path=${encodeURIComponent(it.sourcePhotoPath)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0"
+                      title="출처 사진 보기"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/photo?path=${encodeURIComponent(it.sourcePhotoPath)}`}
+                        alt="출처 사진"
+                        className="w-12 h-12 object-cover rounded border"
+                      />
+                    </a>
                   )}
                 </div>
                 {!isReadOnly && (

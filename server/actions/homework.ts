@@ -426,6 +426,29 @@ export async function listRelatedBatches(batchId: number, ctx: Ctx = {}) {
 }
 
 /**
+ * Defer a committed homework item to a new due date.
+ */
+export async function deferHomework(
+  itemId: number,
+  newDueDate: string,
+  opts?: { appDb?: AppDb },
+): Promise<{ ok: boolean; error?: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
+    return { ok: false, error: '잘못된 날짜' }
+  }
+  const appDb = opts?.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (!item.isCommitted) return { ok: false, error: '확정 후 미루기 가능' }
+  appDb.update(appSchema.homeworkItems).set({ dueDate: newDueDate }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/academies')
+  const academyId = item.academyId
+  revalidatePath(`/academies/${academyId}`, 'page')
+  return { ok: true }
+}
+
+/**
  * Bulk mark items done or undone.
  * Wraps updates in a transaction for atomicity.
  */

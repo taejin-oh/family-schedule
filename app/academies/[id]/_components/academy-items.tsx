@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { toggleItemDone } from '@/server/actions/homework'
 import { cn } from '@/lib/utils'
+import { DeferMenu } from '@/components/defer-menu'
 
 type Item = {
   id: number
@@ -112,7 +113,10 @@ export function ActiveAcademyItems({
             aria-label="완료로 표시"
           />
           <div className="flex-1 min-w-0">
-            <div className="font-medium break-words">{it.title}</div>
+            <div className="flex items-start justify-between gap-1">
+              <div className="font-medium break-words">{it.title}</div>
+              <DeferMenu itemId={it.id} currentDueDate={it.dueDate} />
+            </div>
             <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
               {it.dueDate && (
                 <DuePill due={it.dueDate} todayIso={todayIso} />

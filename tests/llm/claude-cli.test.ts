@@ -46,6 +46,27 @@ describe('ClaudeCliProvider', () => {
     expect(out.modelUsed).toBe('claude-opus-4-7')
   })
 
+  it('parses confidence and sourcePhotoIndex when present', async () => {
+    mockSpawnOnce(JSON.stringify({
+      items: [
+        { title: '단어 50개 외우기', dueDate: '2026-05-28', confidence: 0.92, sourcePhotoIndex: 1 },
+        { title: '추측 항목', dueDate: null, confidence: 0.4, sourcePhotoIndex: 0 },
+        { title: '필드 없는 항목', dueDate: null },
+      ]
+    }))
+    const p = new ClaudeCliProvider()
+    const out = await p.extractHomework({
+      imagePaths: ['/x/a.jpg', '/x/b.jpg'],
+      academy: { name: '영어', subject: 'english', nextSessionAt: null },
+    })
+    expect(out.items).toHaveLength(3)
+    expect(out.items[0].confidence).toBe(0.92)
+    expect(out.items[0].sourcePhotoIndex).toBe(1)
+    expect(out.items[1].confidence).toBe(0.4)
+    expect(out.items[2].confidence).toBeUndefined()
+    expect(out.items[2].sourcePhotoIndex).toBeUndefined()
+  })
+
   it('throws a useful error when JSON is malformed', async () => {
     mockSpawnOnce('not json at all')
     const p = new ClaudeCliProvider()

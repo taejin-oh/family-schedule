@@ -85,16 +85,23 @@ export async function processExtractHomework(
       }).where(eq(schema.homeworkBatches.id, batch.id)).run()
 
       if (dedupedItems.length > 0) {
-        tx.insert(schema.homeworkItems).values(dedupedItems.map((it) => ({
-          batchId: batch.id,
-          academyId: batch.academyId,
-          title: it.title,
-          notes: it.notes ?? null,
-          dueDate: it.dueDate,
-          source: 'ai' as const,
-          aiOriginalTitle: it.title,
-          isCommitted: false,
-        }))).run()
+        tx.insert(schema.homeworkItems).values(dedupedItems.map((it) => {
+          const photoId = (it.sourcePhotoIndex != null && it.sourcePhotoIndex >= 0 && it.sourcePhotoIndex < photos.length)
+            ? photos[it.sourcePhotoIndex].id
+            : null
+          return {
+            batchId: batch.id,
+            academyId: batch.academyId,
+            title: it.title,
+            notes: it.notes ?? null,
+            dueDate: it.dueDate,
+            source: 'ai' as const,
+            aiOriginalTitle: it.title,
+            confidence: it.confidence ?? null,
+            sourcePhotoId: photoId,
+            isCommitted: false,
+          }
+        })).run()
       }
     })
     void skippedCount   // available for future UI surface; currently silent
