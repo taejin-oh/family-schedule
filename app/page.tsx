@@ -243,14 +243,19 @@ export default async function KidsHome() {
           <h2 className="text-sm font-semibold text-muted-foreground px-1">
             이번 주 남은 숙제 📅 {upcoming.length}개
           </h2>
-          <Card className="p-3 divide-y">
+          <Card className="p-0 divide-y">
             {upcomingDates.map((d) => {
               const items = upcomingByDay.get(d)!
               return (
-                <div key={d} className="py-2 first:pt-0 last:pb-0 flex items-center gap-3">
+                <Link
+                  key={d}
+                  href={`/day/${d}`}
+                  className="px-3 py-2.5 flex items-center gap-3 hover:bg-accent/40 active:bg-accent/60 transition-colors"
+                >
                   <span className="text-sm font-medium w-14 flex-shrink-0">{weekdayLabel(d)}</span>
                   <span className="text-sm text-muted-foreground flex-1">{items.length}개</span>
-                </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden />
+                </Link>
               )
             })}
           </Card>
