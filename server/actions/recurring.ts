@@ -51,6 +51,7 @@ export async function createRecurringTask(input: RecurringTaskInput, ctx: Ctx = 
   }).returning({ id: schema.recurringTasks.id }).all()
   revalidatePath('/recurring')
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true, data: { id: row.id } }
 }
 
@@ -68,6 +69,7 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput,
   }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
@@ -76,6 +78,7 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
   db.update(schema.recurringTasks).set({ archivedAt: new Date() }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
@@ -101,6 +104,7 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
   }
   revalidatePath('/recurring')
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
@@ -118,6 +122,7 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
     .run()
   revalidatePath('/recurring')
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 

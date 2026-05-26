@@ -68,6 +68,7 @@ export async function createEmptyBatch(
     status: 'ready',
   }).returning().all()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: batch.id } }
 }
@@ -122,6 +123,7 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
   }
 
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: batch.id } }
 }
@@ -140,6 +142,7 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -169,6 +172,7 @@ export async function addDraftItem(
     source: 'manual', isCommitted: false,
   }).returning({ id: appSchema.homeworkItems.id }).all()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true, data: { id: row.id } }
 }
@@ -179,6 +183,7 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -210,6 +215,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
   })
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -386,6 +392,7 @@ export async function rerunBatch(
 
   await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: newBatch.id } }
 }
@@ -402,6 +409,7 @@ export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: bool
   if (!exists) return { ok: false, error: '존재하지 않는 batch' }
   appDb.delete(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -475,6 +483,7 @@ export async function deleteHomeworkItem(
   if (!item.isCommitted) return { ok: false, error: '확정된 항목만 삭제 가능합니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/academies', 'layout')
   return { ok: true }
 }
@@ -505,6 +514,7 @@ export async function updateHomeworkItem(
   }
   appDb.update(appSchema.homeworkItems).set(update).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/academies', 'layout')
   return { ok: true }
 }
@@ -526,6 +536,7 @@ export async function deferHomework(
   if (!item.isCommitted) return { ok: false, error: '확정 후 미루기 가능' }
   appDb.update(appSchema.homeworkItems).set({ dueDate: newDueDate }).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
+  revalidatePath('/dashboard')
   revalidatePath('/academies')
   const academyId = item.academyId
   revalidatePath(`/academies/${academyId}`, 'page')
@@ -552,6 +563,7 @@ export async function bulkToggleItemsDone(
     }
   })
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
@@ -574,5 +586,6 @@ export async function bulkDeleteItems(
     }
   })
   revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }

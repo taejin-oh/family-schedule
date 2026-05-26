@@ -13,6 +13,9 @@ export function useLongPress(
   onMouseDown: (e: React.MouseEvent) => void
   onMouseUp: () => void
   onMouseLeave: () => void
+  // For consumers that also have a click handler on the same target: returns
+  // true (and resets) if a long-press just fired — caller should suppress click.
+  consumeLongPress: () => boolean
 } {
   const ms = opts?.ms ?? 500
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -77,5 +80,11 @@ export function useLongPress(
     clear()
   }, [])
 
-  return { onTouchStart, onTouchEnd, onTouchCancel, onTouchMove, onMouseDown, onMouseUp, onMouseLeave }
+  const consumeLongPress = useCallback(() => {
+    const v = fired.current
+    fired.current = false
+    return v
+  }, [])
+
+  return { onTouchStart, onTouchEnd, onTouchCancel, onTouchMove, onMouseDown, onMouseUp, onMouseLeave, consumeLongPress }
 }

@@ -80,7 +80,7 @@ export function ItemActionsMenu(props: Props) {
     return () => window.removeEventListener('iam:close-others', handler)
   }, [instanceId])
 
-  const longPress = useLongPress(() => {
+  const { consumeLongPress, ...longPress } = useLongPress(() => {
     window.dispatchEvent(new CustomEvent('iam:close-others', { detail: instanceId }))
     setOpen(true)
   })
@@ -107,7 +107,18 @@ export function ItemActionsMenu(props: Props) {
   }
 
   return (
-    <div className="relative group/row" {...longPress}>
+    <div
+      className="relative group/row"
+      {...longPress}
+      onClickCapture={(e) => {
+        // Suppress the click that follows a fired long-press so card-level
+        // form submits (e.g. KidsTodoCard) don't trigger right after the menu opens.
+        if (consumeLongPress()) {
+          e.stopPropagation()
+          e.preventDefault()
+        }
+      }}
+    >
       {children}
 
       <Menu.Root open={open} onOpenChange={setOpen} modal={false}>
