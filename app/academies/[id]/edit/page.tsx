@@ -18,8 +18,11 @@ export default async function EditAcademyPage({ params }: { params: Promise<{ id
     return res
   }
   return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-semibold">{row.name} 편집</h1>
+    <div className="space-y-4">
+      <header className="px-1 pt-2 pb-1">
+        <h1 className="text-[30px] leading-tight font-bold tracking-tight">{row.name} 편집</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">학원·과목·일정 수정</p>
+      </header>
       <AcademyForm
         initial={{
           name: row.name, subject: row.subject as AcademyInput['subject'], color: row.color,

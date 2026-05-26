@@ -37,22 +37,33 @@ export default async function AcademyDetailPage({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Link
-          href={dateFilter ? '/timetable' : '/academies'}
-          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
-        >
-          ← {dateFilter ? '시간표' : '학원 목록'}
-        </Link>
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <Link
+            href={dateFilter ? '/timetable' : '/academies'}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            ← {dateFilter ? '시간표' : '학원 목록'}
+          </Link>
+          <div className="flex items-center gap-2 mt-1">
+            <span
+              className="inline-block w-[5px] h-7 rounded-full flex-shrink-0"
+              style={{ background: academy.color }}
+              aria-hidden
+            />
+            <h1 className="text-[28px] leading-tight font-bold tracking-tight truncate">{academy.name}</h1>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {SUBJECT_KO[academy.subject] ?? academy.subject}
+          </p>
+        </div>
         <Link href={`/academies/${numId}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           편집
         </Link>
-      </div>
+      </header>
 
-      {/* Date-filter banner */}
       {dateFilter && (
-        <div className="rounded-md bg-accent/40 border border-foreground/10 px-3 py-2 text-sm flex items-center justify-between">
+        <Card className="px-3 py-2 gap-0 flex flex-row items-center justify-between text-sm">
           <span>
             <span className="font-medium">{dateFilter}</span> 마감 항목만 보는 중
           </span>
@@ -62,55 +73,46 @@ export default async function AcademyDetailPage({
           >
             전체 보기
           </Link>
-        </div>
+        </Card>
       )}
 
-      {/* Academy info card */}
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-            style={{ background: academy.color }}
-            aria-hidden
-          />
-          <h1 className="text-xl font-semibold">{academy.name}</h1>
-          <span className="text-sm text-muted-foreground">({SUBJECT_KO[academy.subject] ?? academy.subject})</span>
-        </div>
-
+      <Card className="p-4 gap-2">
         {scheduleSlots.length > 0 && (
-          <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">이번 주: </span>
-            {scheduleSlots.map((s, i) => (
-              <span key={i}>
-                {i > 0 && ' · '}
-                {DAY_KO[s.day] ?? s.day} {s.start}–{s.end}
-              </span>
-            ))}
+          <div className="text-sm">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">이번 주 일정</span>
+            <span className="text-foreground">
+              {scheduleSlots.map((s, i) => (
+                <span key={i}>
+                  {i > 0 && ' · '}
+                  {DAY_KO[s.day] ?? s.day} {s.start}–{s.end}
+                </span>
+              ))}
+            </span>
           </div>
         )}
 
         {academy.location && (
-          <div className="text-sm">
-            <span className="text-muted-foreground">위치: </span>
-            {academy.location}
+          <div className="text-sm flex items-baseline gap-2">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider min-w-[60px]">위치</span>
+            <span>{academy.location}</span>
           </div>
         )}
 
         {academy.notes && (
-          <div className="text-sm">
-            <span className="text-muted-foreground">메모: </span>
-            {academy.notes}
+          <div className="text-sm flex items-baseline gap-2">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider min-w-[60px]">메모</span>
+            <span className="whitespace-pre-wrap break-words">{academy.notes}</span>
           </div>
         )}
 
         {academy.extractionHint && (
-          <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
-            힌트: &ldquo;{academy.extractionHint}&rdquo;
+          <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 mt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider block mb-0.5">AI 힌트</span>
+            “{academy.extractionHint}”
           </div>
         )}
       </Card>
 
-      {/* CTA: add homework for this academy */}
       <Link
         href={`/homework/upload?academy=${numId}`}
         className={cn(buttonVariants(), 'w-full justify-center')}
@@ -118,9 +120,10 @@ export default async function AcademyDetailPage({
         + 이 학원 숙제 추가
       </Link>
 
-      {/* Active homework — interactive toggle */}
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold px-1">📚 진행 중인 숙제 ({active.length})</h2>
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+          📚 진행 중인 숙제 · {active.length}
+        </h2>
         <ActiveAcademyItems items={active} todayIso={todayIso} />
       </section>
 

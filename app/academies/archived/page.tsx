@@ -46,30 +46,33 @@ export default async function ArchivedAcademiesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">보관함</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            보관한 학원 · 복원하거나 영구 삭제 가능
+          <h1 className="text-[30px] leading-tight font-bold tracking-tight">보관함</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {rows.length}개 · 복원 또는 영구 삭제
           </p>
         </div>
         <Link href="/academies" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
           ← 학원 목록
         </Link>
-      </div>
+      </header>
 
       {rows.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">
+        <Card className="p-8 text-center text-muted-foreground text-sm">
           보관된 학원이 없습니다.
         </Card>
       ) : (
-        <Card className="divide-y p-0">
+        <Card className="p-0 gap-0 divide-y divide-foreground/10">
           {rows.map((r) => (
-            <div key={r.id} className="p-4 flex items-center gap-3">
-              <span className="w-4 h-4 rounded-full flex-shrink-0 opacity-50" style={{ background: r.color }} />
+            <div key={r.id} className="px-4 py-3 flex items-center gap-3">
+              <span
+                className="w-[5px] h-9 rounded-full flex-shrink-0 opacity-50"
+                style={{ background: r.color }}
+              />
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-muted-foreground line-through">{r.name}</div>
-                <div className="text-xs text-muted-foreground/70">
+                <div className="font-medium text-[15px] text-muted-foreground line-through">{r.name}</div>
+                <div className="text-xs text-muted-foreground/70 mt-0.5">
                   {SUBJECT_KO[r.subject] ?? r.subject}
                   {r.archivedAt && ` · ${formatArchivedAt(r.archivedAt)} 보관됨`}
                 </div>
