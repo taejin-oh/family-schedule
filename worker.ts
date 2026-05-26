@@ -11,6 +11,9 @@ import { getProvider } from '@/server/llm/registry'
 import { and, eq } from 'drizzle-orm'
 import { sendTelegram } from '@/server/notifications/telegram'
 import { buildMorningDigest, buildEveningDigest, buildMiddayDigest } from '@/server/notifications/digests'
+import { runBatchCleanup } from '@/server/util/batch-cleanup'
+
+const CLEANUP_HHMM = '04:00'
 
 // Note: we let drizzle's return type infer naturally (it includes the $client
 // property in addition to BetterSQLite3Database<S> — needed by helpers like
@@ -136,6 +139,7 @@ async function main() {
 
   let pollCount = 0
   let lastCheckedMinute = ''
+  let lastCleanupDate = ''  // in-memory; cleanup is idempotent, so re-running on restart is safe
 
   while (true) {
     pollCount++
@@ -144,7 +148,7 @@ async function main() {
       await reapAndRecoverBatches()
     }
 
-    // Digest scheduling — check once per minute
+    // Minute-tick: digest + daily batch cleanup
     const { hhmm, dateIso } = seoulNow()
     if (hhmm !== lastCheckedMinute) {
       lastCheckedMinute = hhmm
@@ -157,6 +161,21 @@ async function main() {
         }
       } catch (e) {
         console.error('[digest] scheduler error:', e)
+      }
+
+      // Daily batch retention cleanup at 04:00 Seoul. Idempotent — safe to repeat.
+      if (hhmm === CLEANUP_HHMM && lastCleanupDate !== dateIso) {
+        lastCleanupDate = dateIso
+        try {
+          const res = runBatchCleanup(appDb)
+          console.log(
+            `[cleanup] ${dateIso} archived=${res.archivedBatchIds.length} `
+            + `photosCleaned=${res.photosCleanedBatchIds.length}(files=${res.deletedPhotoFiles}) `
+            + `failedDeleted=${res.deletedFailedBatchIds.length}`
+          )
+        } catch (e) {
+          console.error('[cleanup] error:', e)
+        }
       }
     }
 
