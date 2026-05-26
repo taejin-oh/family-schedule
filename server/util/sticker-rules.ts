@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { eq, and, isNull, gte, lt, inArray } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
-import { localDateIso, localDayWindow, mondayOfWeekIso } from './date'
+import { localDateIso, localDayWindow } from './date'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
@@ -15,8 +15,16 @@ export type TodayEvaluation = {
   allDone: boolean
 }
 
-// Mirrors the "오늘 끝!" condition rendered by app/page.tsx so stamp eligibility
-// matches what the kid sees.  hadAny+allDone => stamp eligible.
+/**
+ * Stamp eligibility for today.  Considers ONLY items whose unit-of-completion
+ * is the day itself: today-due (or overdue) homework + daily recurring tasks
+ * scheduled today.
+ *
+ * Weekly recurring tasks are intentionally excluded — their deadline is the
+ * end of the week, not today.  If a kid finishes everything daily-scoped on
+ * Monday but still has a weekly task open, they've earned today's stamp; the
+ * weekly task is tracked separately on the home page.
+ */
 export function evaluateToday(db: AppDb): TodayEvaluation {
   const todayIso = localDateIso()
   const { start, end } = localDayWindow()
@@ -55,23 +63,8 @@ export function evaluateToday(db: AppDb): TodayEvaluation {
   const todayDailyActive = todayDaily.filter((t) => !dailyDoneIds.has(t.id)).length
   const todayDailyDone = todayDaily.filter((t) => dailyDoneIds.has(t.id)).length
 
-  const weekKey = mondayOfWeekIso(todayIso)
-  const weeklyTasks = db.select().from(schema.recurringTasks)
-    .where(and(isNull(schema.recurringTasks.archivedAt), eq(schema.recurringTasks.cadence, 'weekly')))
-    .all()
-  const weeklyCompletions = weeklyTasks.length === 0 ? [] : db.select()
-    .from(schema.recurringTaskCompletions)
-    .where(and(
-      eq(schema.recurringTaskCompletions.completionDate, weekKey),
-      inArray(schema.recurringTaskCompletions.taskId, weeklyTasks.map((t) => t.id)),
-    ))
-    .all()
-  const weeklyDoneIds = new Set(weeklyCompletions.map((c) => c.taskId))
-  const weeklyActive = weeklyTasks.filter((t) => !weeklyDoneIds.has(t.id)).length
-  const weeklyDone = weeklyTasks.filter((t) => weeklyDoneIds.has(t.id)).length
-
-  const totalActive = todayActiveHw + todayDailyActive + weeklyActive
-  const totalDone = doneHwToday + todayDailyDone + weeklyDone
+  const totalActive = todayActiveHw + todayDailyActive
+  const totalDone = doneHwToday + todayDailyDone
   return {
     totalActive,
     totalDone,

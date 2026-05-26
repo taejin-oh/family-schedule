@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { eq } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import {
   setActiveReward,
@@ -182,5 +183,43 @@ describe('tryStampToday (auto adjudication)', () => {
     await tryStampToday({ db })  // re-fires
     await tryStampToday({ db })
     expect((await getStickerState({ db })).count).toBe(1)
+  })
+
+  // === Weekly recurring is intentionally OUT of stamp evaluation. ===
+
+  it('stamps even when a weekly recurring task is still active', async () => {
+    // 사용자 시나리오: 월요일에 매일 일은 끝냈는데 매주 일이 남아있어도 stamp 받아야 한다.
+    const { db } = makeDb()
+    await createRecurringTask({ title: '구몬', cadence: 'daily', daysOfWeek: [todayKey()] }, { db })
+    await createRecurringTask({ title: '독서록', cadence: 'weekly', daysOfWeek: [] }, { db })
+    const tIso = localDateIso()
+    const dailyTask = db.select().from(schema.recurringTasks)
+      .where(eq(schema.recurringTasks.cadence, 'daily')).get()!
+    await markRecurringDone(dailyTask.id, tIso, { db })
+    const state = await getStickerState({ db })
+    expect(state.count).toBe(1)
+    expect(state.stamps[0].kind).toBe('auto')
+  })
+
+  it('does not stamp on a day that only has weekly tasks (no daily/homework scoped to today)', async () => {
+    // 오늘 daily/homework 0개이고 weekly만 존재 → "오늘 다 함" 의미 없음 → stamp 안 줌
+    const { db } = makeDb()
+    await createRecurringTask({ title: '독서록', cadence: 'weekly', daysOfWeek: [] }, { db })
+    const weeklyTask = db.select().from(schema.recurringTasks).get()!
+    const tIso = localDateIso()
+    await markRecurringDone(weeklyTask.id, tIso, { db })
+    expect((await getStickerState({ db })).count).toBe(0)
+  })
+
+  it('completing a weekly task does not by itself trigger a stamp even if a daily exists', async () => {
+    // daily는 active 상태로 남아있고 weekly만 완료 → daily가 여전히 active이므로 stamp 안 줌
+    const { db } = makeDb()
+    await createRecurringTask({ title: '구몬', cadence: 'daily', daysOfWeek: [todayKey()] }, { db })
+    await createRecurringTask({ title: '독서록', cadence: 'weekly', daysOfWeek: [] }, { db })
+    const weeklyTask = db.select().from(schema.recurringTasks)
+      .where(eq(schema.recurringTasks.cadence, 'weekly')).get()!
+    const tIso = localDateIso()
+    await markRecurringDone(weeklyTask.id, tIso, { db })
+    expect((await getStickerState({ db })).count).toBe(0)
   })
 })

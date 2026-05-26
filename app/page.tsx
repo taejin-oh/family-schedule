@@ -40,13 +40,14 @@ export default async function KidsHome() {
     return diffDays(it.dueDate, todayIso) <= 0
   })
 
-  // 매일·매주 recurring active
+  // 매일 recurring (오늘 due) — 스티커 평가에 포함
   const dailyTodayActive = todayRec.filter((r) => r.doneAt === null)
-  const weeklyActive = weekRec.filter((r) => r.doneAt === null)
-
-  // 완료한 일 = 오늘 한 일 (homework + daily today done) + 이번 주 weekly done
   const dailyTodayDone = todayRec.filter((r) => r.doneAt !== null)
+
+  // 매주 recurring — 이번 주 단위. 스티커 평가에서 제외, 별도 섹션에 표시
+  const weeklyActive = weekRec.filter((r) => r.doneAt === null)
   const weeklyDone = weekRec.filter((r) => r.doneAt !== null)
+  const weeklyTotal = weeklyActive.length + weeklyDone.length
 
   // 이번 주 남은 (오늘 이후 ~ 이번 주 일요일까지 마감 homework)
   const todayDate = new Date(todayIso + 'T00:00:00')
@@ -65,9 +66,9 @@ export default async function KidsHome() {
   }
   const upcomingDates = [...upcomingByDay.keys()].sort()
 
-  // 진행률 (오늘 단위)
-  const totalActive = todayList.length + dailyTodayActive.length + weeklyActive.length
-  const totalDone = doneToday.length + dailyTodayDone.length + weeklyDone.length
+  // 진행률 (오늘 단위) — 매주는 별도 섹션, 스티커 평가에서도 제외되므로 여기서도 제외
+  const totalActive = todayList.length + dailyTodayActive.length
+  const totalDone = doneToday.length + dailyTodayDone.length
   const total = totalActive + totalDone
   const pct = total === 0 ? 100 : Math.round((totalDone / total) * 100)
 
@@ -198,18 +199,6 @@ export default async function KidsHome() {
                 onComplete={onRecComplete}
               />
             ))}
-            {weeklyActive.map((rt) => (
-              <KidsRecurringTodoCard
-                key={`w-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="weekly"
-                dateIso={todayIso}
-                notes={rt.notes}
-                onComplete={onRecComplete}
-              />
-            ))}
           </div>
         </section>
       ) : (
@@ -247,6 +236,29 @@ export default async function KidsHome() {
                 cadence="daily"
                 dateIso={todayIso}
                 onUndo={onRecUndo}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 이번 주 안에 할 일 (매주 recurring) — 스티커 무관 */}
+      {weeklyTotal > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            이번 주 안에 할 일 · {weeklyDone.length} / {weeklyTotal}
+          </h2>
+          <div className="space-y-2">
+            {weeklyActive.map((rt) => (
+              <KidsRecurringTodoCard
+                key={`w-${rt.id}`}
+                id={rt.id}
+                title={rt.title}
+                color={rt.color}
+                cadence="weekly"
+                dateIso={todayIso}
+                notes={rt.notes}
+                onComplete={onRecComplete}
               />
             ))}
             {weeklyDone.map((rt) => (
