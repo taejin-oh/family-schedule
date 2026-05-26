@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useId, useState, useTransition } from 'react'
+import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { MoreVertical } from 'lucide-react'
 import { Menu } from '@base-ui/react/menu'
 import { useLongPress } from '@/lib/use-long-press'
 import { useMediaQuery } from '@/lib/use-media-query'
+import { shouldIgnoreTransientLongPressClose } from '@/lib/menu-close-policy'
 import { cn } from '@/lib/utils'
 
 function localDateIsoClient(d: Date = new Date()): string {
@@ -65,6 +66,7 @@ export function ItemActionsMenu(props: Props) {
   const [error, setError] = useState<string | null>(null)
   const [customDate, setCustomDate] = useState('')
   const [, startTransition] = useTransition()
+  const ignoreTransientCloseRef = useRef(false)
 
   const instanceId = useId()
   const isCoarsePointer = useMediaQuery('(pointer: coarse)')
@@ -80,8 +82,27 @@ export function ItemActionsMenu(props: Props) {
     return () => window.removeEventListener('iam:close-others', handler)
   }, [instanceId])
 
+  function armTransientCloseGuard() {
+    ignoreTransientCloseRef.current = true
+    const controller = new AbortController()
+    window.setTimeout(() => {
+      ignoreTransientCloseRef.current = false
+      controller.abort()
+    }, 1000)
+    const release = () => {
+      window.setTimeout(() => {
+        ignoreTransientCloseRef.current = false
+        controller.abort()
+      }, 0)
+    }
+    window.addEventListener('mouseup', release, { capture: true, once: true, signal: controller.signal })
+    window.addEventListener('touchend', release, { capture: true, once: true, signal: controller.signal })
+    window.addEventListener('touchcancel', release, { capture: true, once: true, signal: controller.signal })
+  }
+
   const { consumeLongPress, ...longPress } = useLongPress(() => {
     window.dispatchEvent(new CustomEvent('iam:close-others', { detail: instanceId }))
+    armTransientCloseGuard()
     setOpen(true)
   })
   const today = localDateIsoClient()
@@ -121,7 +142,23 @@ export function ItemActionsMenu(props: Props) {
     >
       {children}
 
-      <Menu.Root open={open} onOpenChange={setOpen} modal={false}>
+      <Menu.Root
+        open={open}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (
+            shouldIgnoreTransientLongPressClose({
+              nextOpen,
+              openedByLongPress: ignoreTransientCloseRef.current,
+              reason: eventDetails.reason,
+            })
+          ) {
+            return
+          }
+          if (!nextOpen) ignoreTransientCloseRef.current = false
+          setOpen(nextOpen)
+        }}
+        modal={false}
+      >
         <Menu.Trigger
           render={(triggerProps) => (
             <button
@@ -157,12 +194,12 @@ export function ItemActionsMenu(props: Props) {
 
               {props.itemKind === 'homework' && (
                 <Menu.SubmenuRoot>
-                  <Menu.SubmenuTrigger className={cn(ITEM_CLASS, 'justify-between')}>
+                  <Menu.SubmenuTrigger className={cn(ITEM_CLASS, 'justify-between')} closeDelay={150}>
                     <span>미루기</span>
                     <span className="text-muted-foreground">›</span>
                   </Menu.SubmenuTrigger>
                   <Menu.Portal>
-                    <Menu.Positioner align="start" sideOffset={4} side="right">
+                    <Menu.Positioner align="start" sideOffset={0} side="right">
                       <Menu.Popup className={POPUP_CLASS}>
                         {deferOptions.map((opt) => (
                           <Menu.Item

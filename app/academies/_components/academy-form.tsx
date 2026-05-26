@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
+import { SUBJECTS, subjectLabel } from '@/lib/subjects'
 import { cn } from '@/lib/utils'
 
 type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -20,16 +21,6 @@ const DAYS: { key: Day; label: string }[] = [
 ]
 const DAY_ORDER: Record<Day, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 }
 
-const SUBJECTS: { value: AcademyInput['subject']; label: string }[] = [
-  { value: 'math', label: '수학' },
-  { value: 'english', label: '영어' },
-  { value: 'korean', label: '국어' },
-  { value: 'art', label: '미술' },
-  { value: 'music', label: '음악' },
-  { value: 'pe', label: '체육' },
-  { value: 'science', label: '과학' },
-  { value: 'other', label: '기타' },
-]
 const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#475569']
 
 export function AcademyForm({
@@ -97,7 +88,9 @@ export function AcademyForm({
         <div className="space-y-2">
           <Label htmlFor="subject">과목</Label>
           <Select value={subject} onValueChange={(v) => setSubject(v as AcademyInput['subject'])}>
-            <SelectTrigger id="subject" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="subject" className="w-full">
+              <SelectValue>{subjectLabel}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {SUBJECTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
