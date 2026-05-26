@@ -7,6 +7,7 @@ import { z } from 'zod'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { localDateIso, mondayOfWeekIso } from '@/server/util/date'
+import { tryStampToday } from '@/server/actions/stickers'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -102,6 +103,7 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
       doneAt: new Date(),
     }).run()
   }
+  await tryStampToday({ db })
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
@@ -120,6 +122,7 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
       eq(schema.recurringTaskCompletions.completionDate, key),
     ))
     .run()
+  await tryStampToday({ db })
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')

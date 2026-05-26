@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, uniqueIndex, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, real, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -96,4 +96,42 @@ export const recurringTaskCompletions = sqliteTable('recurring_task_completions'
   doneAt: integer('done_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 }, (t) => [
   uniqueIndex('rtc_task_date_unique').on(t.taskId, t.completionDate),
+])
+
+// === Sticker / reward system ===
+
+// 활성 보상은 한 번에 1개 (archivedAt IS NULL인 가장 최근 row가 active).
+// 보상 내용을 바꾸면 기존 row를 archive하고 새 row를 insert해서 변경 이력을 남긴다.
+export const rewardSettings = sqliteTable('reward_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  emoji: text('emoji').notNull().default('🎁'),
+  targetCount: integer('target_count').notNull(),
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+})
+
+// 보상 지급 이력. 지급 시점의 보상 이름/이모지/목표를 snapshot.
+export const redemptions = sqliteTable('redemptions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  rewardSettingsId: integer('reward_settings_id').notNull().references(() => rewardSettings.id),
+  rewardName: text('reward_name').notNull(),
+  rewardEmoji: text('reward_emoji').notNull(),
+  targetCount: integer('target_count').notNull(),
+  redeemedAt: integer('redeemed_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  notes: text('notes'),
+})
+
+// 적립된 스티커. auto=오늘 active 0 도달 시 자동, manual=부모 수동 추가.
+// auto 스티커는 forDate UNIQUE (한 날짜에 하나). manual은 forDate NULL.
+// 보상으로 redeem 된 스티커는 redemptionId가 세팅됨 (회수 불가, 카운트에서 제외).
+export const stamps = sqliteTable('stamps', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  forDate: text('for_date'),
+  kind: text('kind', { enum: ['auto', 'manual'] }).notNull(),
+  redemptionId: integer('redemption_id').references((): AnySQLiteColumn => redemptions.id, { onDelete: 'set null' }),
+  awardedAt: integer('awarded_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  notes: text('notes'),
+}, (t) => [
+  uniqueIndex('stamps_for_date_unique').on(t.forDate),
 ])

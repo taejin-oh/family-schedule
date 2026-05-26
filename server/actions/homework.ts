@@ -14,6 +14,7 @@ import { getDb } from '@/server/db/client'
 import { enqueue } from '@/server/jobs/queue'
 import { saveOriginal, makeResized } from '@/server/storage/photos'
 import { localDayWindow } from '@/server/util/date'
+import { tryStampToday } from '@/server/actions/stickers'
 
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
 type JobsDb = ReturnType<typeof drizzle<typeof jobsSchema>>
@@ -226,6 +227,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
 export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): Promise<{ ok: true } | { ok: false; error: string }> {
   const appDb = ctx.appDb ?? getDb()
   appDb.update(appSchema.homeworkItems).set({ doneAt: done ? new Date() : null }).where(eq(appSchema.homeworkItems.id, id)).run()
+  await tryStampToday({ db: appDb })
   revalidatePath('/')
   revalidatePath('/dashboard')
   return { ok: true }

@@ -3,11 +3,13 @@ import { revalidatePath } from 'next/cache'
 import { Check, ArrowRight } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { getStickerState, redeem } from '@/server/actions/stickers'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
 import { KidsDoneCard } from '@/app/_components/kids-done-card'
 import { KidsRecurringTodoCard, KidsRecurringDoneCard } from '@/app/_components/kids-recurring-card'
+import { StickersRow } from '@/app/_components/stickers-row'
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -23,11 +25,12 @@ function weekdayLabel(iso: string): string {
 }
 
 export default async function KidsHome() {
-  const [active, doneToday, todayRec, weekRec] = await Promise.all([
+  const [active, doneToday, todayRec, weekRec, sticker] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
     listTodayRecurring(),
     listThisWeekRecurring(),
+    getStickerState(),
   ])
   const todayIso = localDateIso()
 
@@ -101,9 +104,24 @@ export default async function KidsHome() {
     revalidatePath('/dashboard')
     revalidatePath('/recurring')
   }
+  async function onRedeem() {
+    'use server'
+    const res = await redeem()
+    if (!res.ok) throw new Error(res.error)
+    revalidatePath('/')
+    revalidatePath('/admin/settings')
+  }
 
   return (
     <div className="space-y-5">
+      {/* 스티커 보상 */}
+      <StickersRow
+        reward={sticker.reward}
+        count={sticker.count}
+        canRedeem={sticker.canRedeem}
+        onRedeem={onRedeem}
+      />
+
       {/* 진행 카드 */}
       <Card className="p-5 space-y-3">
         <div className="flex items-baseline justify-between gap-2">
