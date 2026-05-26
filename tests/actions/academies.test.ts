@@ -46,6 +46,32 @@ describe('academy actions', () => {
     expect(res.ok).toBe(false)
   })
 
+  it('createAcademy rejects impossible schedule times', async () => {
+    const db = makeDb()
+    const res = await createAcademy({
+      name: '수학학원',
+      subject: 'math',
+      color: '#ef4444',
+      scheduleRule: { slots: [{ day: 'mon', start: '25:00', end: '26:00' }] },
+      location: null,
+      notes: null,
+    }, { db })
+    expect(res.ok).toBe(false)
+  })
+
+  it('createAcademy rejects slots whose end time is not after the start time', async () => {
+    const db = makeDb()
+    const res = await createAcademy({
+      name: '수학학원',
+      subject: 'math',
+      color: '#ef4444',
+      scheduleRule: { slots: [{ day: 'mon', start: '21:00', end: '19:00' }] },
+      location: null,
+      notes: null,
+    }, { db })
+    expect(res.ok).toBe(false)
+  })
+
   it('createAcademy rejects empty name', async () => {
     const db = makeDb()
     const res = await createAcademy({

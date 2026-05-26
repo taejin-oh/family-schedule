@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
 import { SUBJECTS, subjectLabel } from '@/lib/subjects'
+import { isValidScheduleTime, normalizeSlotAfterEdit, normalizeSlotsForSubmit } from '@/lib/time-slots'
 import { cn } from '@/lib/utils'
 
 type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -22,6 +23,14 @@ const DAYS: { key: Day; label: string }[] = [
 const DAY_ORDER: Record<Day, number> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 }
 
 const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899','#475569']
+const TIME_INPUT_CLASS = cn(
+  'h-8 min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none',
+  'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50',
+  'aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm',
+  'dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
+  'w-full pr-9 font-mono tabular-nums text-transparent caret-transparent',
+)
+const TIME_VALUE_CLASS = 'pointer-events-none absolute inset-y-0 left-2.5 flex items-center font-mono text-sm tabular-nums text-foreground'
 
 export function AcademyForm({
   initial,
@@ -40,6 +49,7 @@ export function AcademyForm({
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [extractionHint, setExtractionHint] = useState(initial?.extractionHint ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [timeWarning, setTimeWarning] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   function toggleDay(d: Day) {
@@ -57,18 +67,47 @@ export function AcademyForm({
     })
   }
 
-  function updateSlot(d: Day, patch: Partial<Slot>) {
-    setSlots((cur) => cur.map((s) => (s.day === d ? { ...s, ...patch } : s)))
+  function updateSlotDraft(d: Day, field: 'start' | 'end', value: string) {
+    const current = slots.find((s) => s.day === d)
+    if (!current) return
+
+    const draft = { ...current, [field]: value }
+    if (value.length === 5 && isValidScheduleTime(value)) {
+      const res = normalizeSlotAfterEdit(draft, field)
+      setSlots((cur) => cur.map((s) => (s.day === d ? res.slot : s)))
+      setTimeWarning(res.warning)
+      return
+    }
+
+    setSlots((cur) => cur.map((s) => (s.day === d ? draft : s)))
+  }
+
+  function normalizeSlot(d: Day, field: 'start' | 'end', value: string) {
+    const current = slots.find((s) => s.day === d)
+    if (!current) return
+
+    const res = normalizeSlotAfterEdit({ ...current, [field]: value }, field)
+    setSlots((cur) => cur.map((s) => (s.day === d ? res.slot : s)))
+    setTimeWarning(res.warning)
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true); setError(null)
+    const normalized = normalizeSlotsForSubmit(slots)
+    if (normalized.warning) {
+      setSlots(normalized.slots)
+      setTimeWarning(normalized.warning)
+      setBusy(false)
+      return
+    }
+
+    setTimeWarning(null)
     const input: AcademyInput = {
       name: name.trim(),
       subject,
       color,
-      scheduleRule: slots.length > 0 ? { slots } : null,
+      scheduleRule: normalized.slots.length > 0 ? { slots: normalized.slots } : null,
       location: location.trim() || null,
       notes: notes.trim() || null,
       extractionHint: extractionHint.trim() || null,
@@ -135,27 +174,48 @@ export function AcademyForm({
                   </Button>
                   {active && slot && (
                     <div className="flex items-center gap-2 flex-1">
-                      <Input
-                        type="time"
-                        value={slot.start}
-                        onChange={(e) => updateSlot(d.key, { start: e.target.value })}
-                        className="flex-1"
-                        aria-label={`${d.label}요일 시작`}
-                      />
+                      <div className="relative flex-1">
+                        <span className={TIME_VALUE_CLASS} aria-hidden="true">{slot.start}</span>
+                        <input
+                          type="time"
+                          lang="en-GB"
+                          min="00:00"
+                          max="23:59"
+                          value={slot.start}
+                          onInput={(e) => updateSlotDraft(d.key, 'start', e.currentTarget.value)}
+                          onChange={(e) => updateSlotDraft(d.key, 'start', e.currentTarget.value)}
+                          onBlurCapture={(e) => normalizeSlot(d.key, 'start', e.currentTarget.value)}
+                          className={TIME_INPUT_CLASS}
+                          aria-label={`${d.label}요일 시작`}
+                        />
+                      </div>
                       <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        value={slot.end}
-                        onChange={(e) => updateSlot(d.key, { end: e.target.value })}
-                        className="flex-1"
-                        aria-label={`${d.label}요일 종료`}
-                      />
+                      <div className="relative flex-1">
+                        <span className={TIME_VALUE_CLASS} aria-hidden="true">{slot.end}</span>
+                        <input
+                          type="time"
+                          lang="en-GB"
+                          min="00:00"
+                          max="23:59"
+                          value={slot.end}
+                          onInput={(e) => updateSlotDraft(d.key, 'end', e.currentTarget.value)}
+                          onChange={(e) => updateSlotDraft(d.key, 'end', e.currentTarget.value)}
+                          onBlurCapture={(e) => normalizeSlot(d.key, 'end', e.currentTarget.value)}
+                          className={TIME_INPUT_CLASS}
+                          aria-label={`${d.label}요일 종료`}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
               )
             })}
           </div>
+          {timeWarning && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800" aria-live="polite">
+              {timeWarning}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">

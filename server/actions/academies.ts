@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
+import { isValidScheduleTime, isValidTimeRange } from '@/lib/time-slots'
 
 function revalidateAcademyPages() {
   revalidatePath('/')
@@ -23,11 +24,21 @@ const InputSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '색상은 #RRGGBB 형식'),
   scheduleRule: z.union([
     z.object({
-      slots: z.array(z.object({
-        day: z.enum(['mon','tue','wed','thu','fri','sat','sun']),
-        start: z.string().regex(/^\d{2}:\d{2}$/, '시간 형식은 HH:MM'),
-        end: z.string().regex(/^\d{2}:\d{2}$/, '시간 형식은 HH:MM'),
-      })).min(1, '요일을 하나 이상 선택해주세요'),
+      slots: z.array(
+        z.object({
+          day: z.enum(['mon','tue','wed','thu','fri','sat','sun']),
+          start: z.string().refine(isValidScheduleTime, '시간은 00:00-24:00 형식이어야 합니다'),
+          end: z.string().refine(isValidScheduleTime, '시간은 00:00-24:00 형식이어야 합니다'),
+        }).superRefine((slot, ctx) => {
+          if (!isValidTimeRange(slot.start, slot.end)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['end'],
+              message: '종료 시간은 시작 시간보다 늦어야 합니다',
+            })
+          }
+        }),
+      ).min(1, '요일을 하나 이상 선택해주세요'),
     }),
     z.null(),
   ]),
