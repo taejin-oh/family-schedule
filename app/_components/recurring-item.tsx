@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { archiveRecurringTask } from '@/server/actions/recurring'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
@@ -30,12 +30,10 @@ export function RecurringItem({
   onComplete,
 }: RecurringItemProps) {
   const [editOpen, setEditOpen] = useState(false)
-  const [, startTransition] = useTransition()
 
   async function handleArchive() {
-    startTransition(async () => {
-      await archiveRecurringTask(id)
-    })
+    // ItemActionsMenu.runAction already wraps in startTransition + catches errors.
+    await archiveRecurringTask(id)
   }
 
   const badgeClass = cadence === 'weekly'

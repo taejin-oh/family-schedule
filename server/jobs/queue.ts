@@ -56,7 +56,7 @@ export async function markFailed(db: DB, id: number, message: string) {
  * Called on worker startup and periodically (every few loops) to recover from
  * crashed workers.
  */
-export async function reapStaleRunningJobs(db: DB, timeoutMs: number): Promise<number> {
+export async function reapStaleRunningJobs(db: DB, timeoutMs: number): Promise<{ count: number; batchIds: number[] }> {
   const cutoff = new Date(Date.now() - timeoutMs)
   const stale = db.select().from(schema.jobs)
     .where(and(
@@ -64,7 +64,8 @@ export async function reapStaleRunningJobs(db: DB, timeoutMs: number): Promise<n
       lt(schema.jobs.claimedAt, cutoff),
     ))
     .all()
-  if (stale.length === 0) return 0
+  if (stale.length === 0) return { count: 0, batchIds: [] }
+  const batchIds: number[] = []
   for (const job of stale) {
     db.update(schema.jobs)
       .set({
@@ -75,6 +76,11 @@ export async function reapStaleRunningJobs(db: DB, timeoutMs: number): Promise<n
       })
       .where(eq(schema.jobs.id, job.id))
       .run()
+    if (job.type === 'extract_homework') {
+      const p = job.payload as Record<string, unknown> | null
+      const bid = Number(p?.batchId)
+      if (Number.isFinite(bid) && bid > 0) batchIds.push(bid)
+    }
   }
-  return stale.length
+  return { count: stale.length, batchIds }
 }

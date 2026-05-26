@@ -79,7 +79,8 @@ describe('queue', () => {
       .run()
 
     const reaped = await reapStaleRunningJobs(db, 10 * 60 * 1000) // 10 min timeout
-    expect(reaped).toBe(1)
+    expect(reaped.count).toBe(1)
+    expect(reaped.batchIds).toEqual([1])
 
     const rows = db.select().from(jobsSchema.jobs).all()
     expect(rows[0].status).toBe('failed')
@@ -96,7 +97,8 @@ describe('queue', () => {
     // claimedAt is just now — well within the 10 min timeout
 
     const reaped = await reapStaleRunningJobs(db, 10 * 60 * 1000)
-    expect(reaped).toBe(0)
+    expect(reaped.count).toBe(0)
+    expect(reaped.batchIds).toEqual([])
 
     const rows = db.select().from(jobsSchema.jobs).all()
     expect(rows[0].status).toBe('running')

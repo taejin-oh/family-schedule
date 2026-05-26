@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq, desc, sql, inArray, and, isNull } from 'drizzle-orm'
+import { eq, desc, sql, inArray, and, isNull, gte, lt } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -13,6 +13,7 @@ import * as jobsSchema from '@/server/jobs/schema'
 import { getDb } from '@/server/db/client'
 import { enqueue } from '@/server/jobs/queue'
 import { saveOriginal, makeResized } from '@/server/storage/photos'
+import { localDayWindow } from '@/server/util/date'
 
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
 type JobsDb = ReturnType<typeof drizzle<typeof jobsSchema>>
@@ -139,7 +140,8 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid' }
   const appDb = ctx.appDb ?? getDb()
   const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
-  if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (item.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
@@ -180,7 +182,8 @@ export async function addDraftItem(
 export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
   const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
-  if (item?.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (item.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
@@ -223,12 +226,15 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
 export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): Promise<{ ok: true } | { ok: false; error: string }> {
   const appDb = ctx.appDb ?? getDb()
   appDb.update(appSchema.homeworkItems).set({ doneAt: done ? new Date() : null }).where(eq(appSchema.homeworkItems.id, id)).run()
+  revalidatePath('/')
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
 export async function listCommittedItems(ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
-  const rows = appDb.select({
+  // SQL-side filter (doneAt IS NULL) + ORDER BY dueDate ASC NULLS LAST.
+  return appDb.select({
     id: appSchema.homeworkItems.id,
     title: appSchema.homeworkItems.title,
     notes: appSchema.homeworkItems.notes,
@@ -240,30 +246,26 @@ export async function listCommittedItems(ctx: Ctx = {}) {
   })
   .from(appSchema.homeworkItems)
   .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
-  .where(eq(appSchema.homeworkItems.isCommitted, true))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    isNull(appSchema.homeworkItems.doneAt),
+  ))
+  .orderBy(
+    sql`CASE WHEN ${appSchema.homeworkItems.dueDate} IS NULL THEN 1 ELSE 0 END`,
+    appSchema.homeworkItems.dueDate,
+  )
   .all()
-
-  // Filter undone + sort: dueDate asc, null dates last
-  return rows
-    .filter((r) => r.doneAt === null)
-    .sort((x, y) => {
-      if (x.dueDate === null && y.dueDate === null) return 0
-      if (x.dueDate === null) return 1
-      if (y.dueDate === null) return -1
-      return x.dueDate.localeCompare(y.dueDate)
-    })
 }
 
 /**
  * Items completed in the current local calendar day, newest completion first.
- * "Today" boundary is computed by the caller's timezone (server clock).
+ * "Today" boundary is computed by `localDayWindow()` (server local TZ).
  */
 export async function listDoneToday(ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  const end = new Date(start); end.setDate(end.getDate() + 1)
+  const { start, end } = localDayWindow()
 
-  const rows = appDb.select({
+  return appDb.select({
     id: appSchema.homeworkItems.id,
     title: appSchema.homeworkItems.title,
     notes: appSchema.homeworkItems.notes,
@@ -275,12 +277,13 @@ export async function listDoneToday(ctx: Ctx = {}) {
   })
   .from(appSchema.homeworkItems)
   .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
-  .where(eq(appSchema.homeworkItems.isCommitted, true))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    gte(appSchema.homeworkItems.doneAt, start),
+    lt(appSchema.homeworkItems.doneAt, end),
+  ))
+  .orderBy(desc(appSchema.homeworkItems.doneAt))
   .all()
-
-  return rows
-    .filter((r) => r.doneAt !== null && r.doneAt >= start && r.doneAt < end)
-    .sort((x, y) => (y.doneAt!.getTime() - x.doneAt!.getTime()))
 }
 
 /**
@@ -330,15 +333,16 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
     }
   }
 
-  // Item counts for committed batches
+  // Item counts scoped to the batches we actually return (vs full-table scan).
   const itemCounts = appDb.select({
     batchId: appSchema.homeworkItems.batchId,
     cnt: sql<number>`count(*)`.as('cnt'),
-  }).from(appSchema.homeworkItems).groupBy(appSchema.homeworkItems.batchId).all()
+  }).from(appSchema.homeworkItems)
+    .where(inArray(appSchema.homeworkItems.batchId, ids))
+    .groupBy(appSchema.homeworkItems.batchId).all()
   const itemMap = new Map(itemCounts.map((c) => [c.batchId, Number(c.cnt)]))
 
   return batches
-    .filter((b) => ids.includes(b.id))
     .map((b) => ({
       ...b,
       photoCount: byBatch.get(b.id)?.count ?? 0,
@@ -554,14 +558,10 @@ export async function bulkToggleItemsDone(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ids.length === 0) return { ok: true }
   const appDb = ctx.appDb ?? getDb()
-  appDb.transaction((tx) => {
-    for (const id of ids) {
-      tx.update(appSchema.homeworkItems)
-        .set({ doneAt: done ? new Date() : null })
-        .where(eq(appSchema.homeworkItems.id, id))
-        .run()
-    }
-  })
+  appDb.update(appSchema.homeworkItems)
+    .set({ doneAt: done ? new Date() : null })
+    .where(inArray(appSchema.homeworkItems.id, ids))
+    .run()
   revalidatePath('/')
   revalidatePath('/dashboard')
   return { ok: true }
@@ -578,13 +578,9 @@ export async function bulkDeleteItems(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ids.length === 0) return { ok: true }
   const appDb = ctx.appDb ?? getDb()
-  appDb.transaction((tx) => {
-    for (const id of ids) {
-      tx.delete(appSchema.homeworkItems)
-        .where(eq(appSchema.homeworkItems.id, id))
-        .run()
-    }
-  })
+  appDb.delete(appSchema.homeworkItems)
+    .where(inArray(appSchema.homeworkItems.id, ids))
+    .run()
   revalidatePath('/')
   revalidatePath('/dashboard')
   return { ok: true }

@@ -1,7 +1,7 @@
 'use server'
 
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import * as appSchema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 
@@ -29,17 +29,22 @@ export async function getAcademyDetail(academyId: number, ctx: Ctx = {}) {
     .limit(10)
     .all()
 
-  // Photo counts per batch (one query)
-  const photoCounts = appDb.select({
+  // Photo / item counts scoped to the 10 batches we return (vs full-table scan).
+  const batchIds = batches.map((b) => b.id)
+  const photoCounts = batchIds.length === 0 ? [] : appDb.select({
     batchId: appSchema.homeworkPhotos.batchId,
     cnt: sql<number>`count(*)`.as('cnt'),
-  }).from(appSchema.homeworkPhotos).groupBy(appSchema.homeworkPhotos.batchId).all()
+  }).from(appSchema.homeworkPhotos)
+    .where(inArray(appSchema.homeworkPhotos.batchId, batchIds))
+    .groupBy(appSchema.homeworkPhotos.batchId).all()
   const photoMap = new Map(photoCounts.map((c) => [c.batchId, Number(c.cnt)]))
 
-  const itemCounts = appDb.select({
+  const itemCounts = batchIds.length === 0 ? [] : appDb.select({
     batchId: appSchema.homeworkItems.batchId,
     cnt: sql<number>`count(*)`.as('cnt'),
-  }).from(appSchema.homeworkItems).groupBy(appSchema.homeworkItems.batchId).all()
+  }).from(appSchema.homeworkItems)
+    .where(inArray(appSchema.homeworkItems.batchId, batchIds))
+    .groupBy(appSchema.homeworkItems.batchId).all()
   const itemMap = new Map(itemCounts.map((c) => [c.batchId, Number(c.cnt)]))
 
   const enrichedBatches = batches.map((b) => ({

@@ -113,9 +113,24 @@ async function main() {
   // ensure settings row
   appDb.insert(appSchema.appSettings).values({ id: 1 }).onConflictDoNothing().run()
 
-  // Recover any stale running jobs from a previous crashed worker
-  const reaped = await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
-  if (reaped > 0) console.log(`[worker] reaped ${reaped} stale running job(s) on startup`)
+  // Recover any stale running jobs from a previous crashed worker.
+  // Also mark the corresponding batches as failed so users aren't stuck on
+  // an infinite "processing" spinner.
+  async function reapAndRecoverBatches() {
+    const { count, batchIds } = await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
+    if (count > 0) console.log(`[worker] reaped ${count} stale running job(s)`)
+    for (const bid of batchIds) {
+      const b = appDb.select().from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, bid)).get()
+      if (b && (b.status === 'processing' || b.status === 'pending')) {
+        appDb.update(appSchema.homeworkBatches).set({
+          status: 'failed',
+          failureReason: '워커가 처리 중 종료됨 — 다시 분석해주세요',
+        }).where(eq(appSchema.homeworkBatches.id, bid)).run()
+        console.log(`[worker] marked batch#${bid} as failed (stuck in ${b.status})`)
+      }
+    }
+  }
+  await reapAndRecoverBatches()
 
   console.log('[worker] started, polling every 1s')
 
@@ -126,7 +141,7 @@ async function main() {
     pollCount++
     // Periodically reap stale jobs (~every 60 polls = ~60s)
     if (pollCount % 60 === 0) {
-      await reapStaleRunningJobs(jobsDb, 10 * 60 * 1000)
+      await reapAndRecoverBatches()
     }
 
     // Digest scheduling — check once per minute

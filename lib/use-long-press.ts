@@ -29,6 +29,17 @@ export function useLongPress(
     }
   }
 
+  /** After long-press fires, swallow the next click that bubbles up to window
+   *  (within a short window). Prevents the touchend → click → form submit
+   *  chain on mobile where a card-level `<button type="submit">` would otherwise
+   *  trigger right after the action menu opens. */
+  function suppressNextClick() {
+    if (typeof window === 'undefined') return
+    const handler = (ev: Event) => { ev.stopPropagation(); ev.preventDefault() }
+    window.addEventListener('click', handler, { capture: true, once: true })
+    setTimeout(() => window.removeEventListener('click', handler, true), 120)
+  }
+
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
       fired.current = false
@@ -38,6 +49,7 @@ export function useLongPress(
       timerRef.current = setTimeout(() => {
         fired.current = true
         onLongPress()
+        suppressNextClick()
       }, ms)
     },
     [ms, onLongPress],
@@ -67,6 +79,7 @@ export function useLongPress(
       timerRef.current = setTimeout(() => {
         fired.current = true
         onLongPress()
+        suppressNextClick()
       }, ms)
     },
     [ms, onLongPress],

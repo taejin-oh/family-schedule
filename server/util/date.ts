@@ -15,3 +15,15 @@ export function mondayOfWeekIso(dateIso: string): string {
   dt.setDate(dt.getDate() + diff)
   return localDateIso(dt)
 }
+
+/** Returns the local-day window [start, end) for a given local date.
+ *  Used to compare `doneAt` timestamps against "today" in SQL queries
+ *  in a TZ-explicit way (rather than relying on `setHours(0,0,0,0)` which
+ *  depends on the Node process timezone). */
+export function localDayWindow(d: Date = new Date()): { start: Date; end: Date } {
+  const start = new Date(d)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}

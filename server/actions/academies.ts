@@ -2,8 +2,16 @@ import 'server-only'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { eq, isNotNull, isNull, asc, desc } from 'drizzle-orm'
 import { z } from 'zod'
+import { revalidatePath } from 'next/cache'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
+
+function revalidateAcademyPages() {
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  revalidatePath('/academies', 'layout')
+  revalidatePath('/timetable')
+}
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -35,6 +43,7 @@ export async function createAcademy(input: AcademyInput, ctx: Ctx = {}): Promise
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
   const db = ctx.db ?? getDb()
   const [row] = db.insert(schema.academies).values(parsed.data).returning({ id: schema.academies.id }).all()
+  revalidateAcademyPages()
   return { ok: true, data: { id: row.id } }
 }
 
@@ -43,12 +52,14 @@ export async function updateAcademy(id: number, input: AcademyInput, ctx: Ctx = 
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set(parsed.data).where(eq(schema.academies.id, id)).run()
+  revalidateAcademyPages()
   return { ok: true }
 }
 
 export async function archiveAcademy(id: number, ctx: Ctx = {}): Promise<Result> {
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set({ archivedAt: new Date() }).where(eq(schema.academies.id, id)).run()
+  revalidateAcademyPages()
   return { ok: true }
 }
 
@@ -67,6 +78,7 @@ export async function listArchivedAcademies(ctx: Ctx = {}) {
 export async function unarchiveAcademy(id: number, ctx: Ctx = {}): Promise<Result> {
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set({ archivedAt: null }).where(eq(schema.academies.id, id)).run()
+  revalidateAcademyPages()
   return { ok: true }
 }
 
@@ -83,5 +95,6 @@ export async function deleteAcademyPermanently(id: number, ctx: Ctx = {}): Promi
     tx.delete(schema.homeworkBatches).where(eq(schema.homeworkBatches.academyId, id)).run()
     tx.delete(schema.academies).where(eq(schema.academies.id, id)).run()
   })
+  revalidateAcademyPages()
   return { ok: true }
 }

@@ -6,7 +6,6 @@ import { listCommittedItems, toggleItemDone } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
-import { KidsDoneCard } from '@/app/_components/kids-done-card'
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -22,11 +21,10 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
   const todayIso = localDateIso()
 
   const all = await listCommittedItems()
-  // listCommittedItems excludes already-done items, so we also pick up dueDate=date items.
-  // For "completed on this day" we'd need a separate query; here we focus on active (남은) which matches "이번 주 남은 숙제" entry.
-  const onThisDay = all.filter((it) => it.dueDate === date)
-  const active = onThisDay.filter((it) => it.doneAt === null)
-  const done = onThisDay.filter((it) => it.doneAt !== null)
+  // listCommittedItems excludes done items (SQL WHERE doneAt IS NULL),
+  // so this page only shows "남은 (active) only" — matching the "이번 주
+  // 남은 숙제" entry. Completed-on-this-day is intentionally out of scope.
+  const active = all.filter((it) => it.dueDate === date)
 
   const [y, m, d] = date.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
@@ -47,15 +45,6 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
     revalidatePath('/dashboard')
     revalidatePath(`/day/${date}`)
   }
-  async function onUndo(formData: FormData) {
-    'use server'
-    const id = Number(formData.get('id'))
-    await toggleItemDone(id, false)
-    revalidatePath('/')
-    revalidatePath('/dashboard')
-    revalidatePath(`/day/${date}`)
-  }
-
   return (
     <div className="space-y-4">
       <Link href="/" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
@@ -67,7 +56,7 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
         <div className="text-sm text-muted-foreground">{monthDay} · {relLabel}</div>
       </Card>
 
-      {active.length > 0 && (
+      {active.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-lg font-semibold px-1">해야 할 숙제</h2>
           <div className="space-y-2">
@@ -85,30 +74,10 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
             ))}
           </div>
         </section>
-      )}
-
-      {done.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-base font-semibold px-1">완료한 숙제 ({done.length})</h2>
-          <div className="space-y-2">
-            {done.map((it) => (
-              <KidsDoneCard
-                key={it.id}
-                id={it.id}
-                title={it.title}
-                academyName={it.academyName}
-                academyColor={it.academyColor}
-                onUndo={onUndo}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {active.length === 0 && done.length === 0 && (
+      ) : (
         <Card className="p-10 text-center space-y-2">
           <div className="text-4xl">🌤️</div>
-          <div className="text-lg font-semibold">이 날 숙제 없음</div>
+          <div className="text-lg font-semibold">남은 숙제 없음</div>
         </Card>
       )}
     </div>
