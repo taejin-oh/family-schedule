@@ -62,9 +62,14 @@ export default async function UploadPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {reuse ? '재분석' : '숙제 추가'}
-      </h1>
+      <header className="px-1 pt-2 pb-1">
+        <h1 className="text-[30px] leading-tight font-bold tracking-tight">
+          {reuse ? '재분석' : '숙제 추가'}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          {reuse ? '같은 파일로 다시 분석' : '사진 또는 직접 입력'}
+        </p>
+      </header>
       <UploadForm
         academies={academies}
         batchesByAcademy={batchesByAcademy}

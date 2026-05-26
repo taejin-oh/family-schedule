@@ -200,13 +200,15 @@ export function UploadForm({
                   }}
                   disabled={disabled}
                   className={cn(
-                    'p-3 rounded-md border bg-card text-left flex items-center gap-2 transition-colors',
-                    selected ? 'border-foreground ring-2 ring-foreground' : 'hover:bg-accent',
+                    'p-3 rounded-xl text-left flex items-center gap-2 transition-colors text-sm font-semibold',
+                    selected
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted hover:bg-accent',
                     disabled && 'opacity-30 cursor-not-allowed'
                   )}
                 >
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: a.color }} />
-                  <span className="font-medium truncate">{a.name}</span>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: a.color }} />
+                  <span className="truncate">{a.name}</span>
                 </button>
               )
             })}
@@ -215,36 +217,27 @@ export function UploadForm({
 
         {/* Two-mode chooser (landing). Hidden once a mode is selected. */}
         {showChooser && academyId !== null && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             <Link
               href={`/homework/upload?mode=file&academy=${academyId}`}
-              className="p-3 rounded-md border bg-card text-left hover:bg-accent transition-colors"
+              className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left"
             >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                📷 파일 업로드
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                사진/PDF를 올리면 AI가 숙제 항목으로 추출
-              </p>
-              <p className="text-[10px] text-foreground/70 mt-1">
-                → 업로드 화면으로
+              <div className="text-2xl mb-1.5">📷</div>
+              <div className="text-sm font-bold">파일 업로드</div>
+              <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                사진/PDF를 올리면 AI가 자동 추출
               </p>
             </Link>
             <button
               type="button"
               onClick={startManual}
               disabled={busy}
-              className="p-3 rounded-md border bg-card text-left hover:bg-accent transition-colors disabled:opacity-50"
+              className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left disabled:opacity-50"
             >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Pencil className="h-4 w-4" aria-hidden />
-                수동 추가
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                파일 없이 항목을 직접 입력하기
-              </p>
-              <p className="text-[10px] text-foreground/70 mt-1">
-                → 바로 입력 화면으로
+              <div className="text-2xl mb-1.5"><Pencil className="h-6 w-6 inline" aria-hidden /></div>
+              <div className="text-sm font-bold">수동 추가</div>
+              <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                파일 없이 직접 입력하기
               </p>
             </button>
           </div>
@@ -269,7 +262,7 @@ export function UploadForm({
                 <div key={b.id} className="relative group">
                   <Link
                     href={`/homework/upload?reuse=${b.id}`}
-                    className="block p-2.5 pr-7 rounded-md border bg-card hover:bg-accent transition-colors text-xs space-y-1"
+                    className="block p-2.5 pr-7 rounded-xl bg-muted hover:bg-accent transition-colors text-xs space-y-1"
                     title="이 파일로 다시 분석"
                   >
                     <div className="flex items-center justify-between gap-1">
