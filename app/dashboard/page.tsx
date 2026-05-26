@@ -228,20 +228,22 @@ export default async function HomePage({
       }
     : buckets
 
-  // Helper to build href preserving the other param
+  // Helper to build href preserving the other param.
+  // Targets /dashboard (this page) — earlier the dashboard lived at "/" and
+  // these helpers still pointed there after the split.
   function timeHref(f: string) {
     const p = new URLSearchParams()
     if (f !== 'all') p.set('filter', f)
     if (academyFilter) p.set('academy', String(academyFilter))
     const qs = p.toString()
-    return qs ? `/?${qs}` : '/'
+    return qs ? `/dashboard?${qs}` : '/dashboard'
   }
   function academyHref(id: number | null) {
     const p = new URLSearchParams()
     if (filter !== 'all') p.set('filter', filter)
     if (id) p.set('academy', String(id))
     const qs = p.toString()
-    return qs ? `/?${qs}` : '/'
+    return qs ? `/dashboard?${qs}` : '/dashboard'
   }
 
   const totalActive = active.length + recurringActive.length
@@ -454,7 +456,7 @@ export default async function HomePage({
         <Card className="p-6 text-center text-muted-foreground space-y-2">
           <div className="text-sm">선택한 기간에 할 일이 없습니다.</div>
           <Link
-            href={academyFilter ? academyHref(null) : '/'}
+            href={academyFilter ? academyHref(null) : '/dashboard'}
             className="inline-block text-xs text-foreground/70 hover:text-foreground underline underline-offset-2"
           >
             전체 보기
