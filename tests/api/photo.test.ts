@@ -132,21 +132,15 @@ describe('GET /api/photo', () => {
     })
   })
 
-  describe('path-based (legacy)', () => {
-    it.skip('valid path inside storage → 200 (legacy; covered by id-based test)', () => {
-      // Legacy ?path= endpoint is exercised in the real app. Replicating the
-      // cwd/storage boundary inside vitest without touching real storage/ is
-      // not worth the setup cost. ID-based test above covers the happy path.
-    })
-
-    it('path traversal attempt → 403', async () => {
+  describe('path-based access', () => {
+    it('path traversal attempt → 400 because path access is disabled', async () => {
       const res = await GET(req('/api/photo?path=../../etc/passwd'))
-      expect(res.status).toBe(403)
+      expect(res.status).toBe(400)
     })
 
-    it('path outside storage → 403', async () => {
+    it('path outside storage → 400 because path access is disabled', async () => {
       const res = await GET(req(`/api/photo?path=${encodeURIComponent('/tmp/evil.jpg')}`))
-      expect(res.status).toBe(403)
+      expect(res.status).toBe(400)
     })
   })
 

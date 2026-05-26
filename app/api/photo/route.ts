@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises'
-import { resolve, sep, relative } from 'node:path'
 import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
 import { eq } from 'drizzle-orm'
@@ -51,27 +50,9 @@ export async function GET(req: Request) {
     })
   }
 
-  // --- Path-based (legacy / deprecated) ---
   if (pathParam !== null) {
-    const storageRoot = resolve(process.cwd(), 'storage')
-    const abs = resolve(pathParam)
-    const rel = relative(storageRoot, abs)
-    if (rel.startsWith('..') || rel === '' || rel.startsWith(sep) || abs === storageRoot) {
-      return new Response('forbidden', { status: 403 })
-    }
-    let bytes: Buffer
-    try {
-      bytes = await readFile(abs)
-    } catch {
-      return new Response('not found', { status: 404 })
-    }
-    return new Response(new Uint8Array(bytes), {
-      headers: {
-        'Content-Type': mimeFromPath(abs),
-        'Cache-Control': 'private, max-age=60',
-      },
-    })
+    return new Response('path access disabled', { status: 400 })
   }
 
-  return new Response('missing id or path', { status: 400 })
+  return new Response('missing id', { status: 400 })
 }

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { listAcademies } from '@/server/actions/academies'
 import { listRecentBatches } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
@@ -12,7 +12,7 @@ export default async function UploadHistoryPage({
 }) {
   const sp = await searchParams
   const academyId = sp.academy ? Number(sp.academy) : null
-  if (academyId === null || Number.isNaN(academyId)) notFound()
+  if (academyId === null || Number.isNaN(academyId)) redirect('/homework/upload')
 
   const [academies, allBatches] = await Promise.all([
     listAcademies(),

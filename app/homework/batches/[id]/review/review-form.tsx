@@ -112,8 +112,8 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
     <div className="grid md:grid-cols-3 gap-4">
       <div className="md:col-span-2 space-y-3">
         {isReadOnly && (
-          <div className="rounded-md bg-muted/40 border border-foreground/10 px-3 py-2 text-sm text-muted-foreground">
-            이미 확정된 batch입니다. 항목은 읽기 전용. 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
+          <div className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">
+            🔒 이미 확정된 batch입니다. 항목은 읽기 전용. 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
           </div>
         )}
         {items.length === 0 ? (
@@ -124,28 +124,28 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
           items.map((it) => (
             <Card key={it.id} className={cn('p-4 space-y-3', it.similar && 'ring-2 ring-amber-300/60')}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span
                     className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                      it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                      it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
                   </span>
                   {it.confidence != null && it.confidence < 0.6 && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
-                      확신 낮음 ({Math.round(it.confidence * 100)}%)
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800">
+                      확신 낮음 {Math.round(it.confidence * 100)}%
                     </span>
                   )}
-                  {(it.dueDate == null || it.dueDate < todayIso) && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300">
+                  {!isReadOnly && (it.dueDate == null || it.dueDate < todayIso) && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600">
                       날짜 의심
                     </span>
                   )}
                   {it.similar && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-300">
-                      ⚠️ 유사 항목 있음 ({Math.round(it.similar.score * 100)}%)
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800">
+                      ⚠️ 유사 {Math.round(it.similar.score * 100)}%
                     </span>
                   )}
                   {it.sourcePhotoId != null && (
@@ -160,7 +160,7 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
                       <img
                         src={`/api/photo?id=${it.sourcePhotoId}`}
                         alt="출처 사진"
-                        className="w-12 h-12 object-cover rounded border"
+                        className="w-12 h-12 object-cover rounded-lg ring-1 ring-foreground/10"
                       />
                     </a>
                   )}
@@ -286,7 +286,11 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
 
         {!isReadOnly && (
           <>
-            <Button onClick={commit} disabled={busy || items.length === 0} className="w-full">
+            <Button
+              onClick={commit}
+              disabled={busy || items.length === 0}
+              className="w-full h-12 text-base font-semibold rounded-xl"
+            >
               {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
             </Button>
             {commitError && <p className="text-sm text-destructive whitespace-pre-wrap break-words">{commitError}</p>}
@@ -324,12 +328,14 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
       </div>
 
       <div className="space-y-2">
-        <div className="text-sm font-medium">원본 파일</div>
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+          원본 파일
+        </h2>
         {photos.map((p, i) => {
           const href = `/api/photo?id=${p.id}`
           if (p.isPdf) {
             return (
-              <Card key={p.id} className="p-3 space-y-2">
+              <Card key={p.id} className="p-3 gap-2">
                 <div className="text-xs text-muted-foreground">📄 PDF {i + 1}</div>
                 <a href={href} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
                   새 창에서 열기
@@ -338,9 +344,9 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
             )
           }
           return (
-            <a key={p.id} href={href} target="_blank" rel="noreferrer">
+            <a key={p.id} href={href} target="_blank" rel="noreferrer" className="block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={href} alt={`photo ${i + 1}`} className="w-full rounded-md border" />
+              <img src={href} alt={`photo ${i + 1}`} className="w-full rounded-xl ring-1 ring-foreground/10" />
             </a>
           )
         })}
