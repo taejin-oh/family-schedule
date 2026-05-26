@@ -162,10 +162,10 @@ export function Timetable({
   if (!hasSlots) {
     return (
       <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">주간 시간표</h1>
-          <p className="text-sm text-muted-foreground mt-1">이번 주 학원 일정</p>
-        </div>
+        <header className="px-1 pt-2 pb-1">
+          <h1 className="text-[30px] leading-tight font-bold tracking-tight">시간표</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">이번 주 학원 일정</p>
+        </header>
         <Card className="p-8 text-center text-muted-foreground">
           <p>등록된 학원 시간이 없습니다.</p>
           <Link href="/academies/new" className={cn(buttonVariants({ variant: 'outline' }), 'mt-4')}>
@@ -181,17 +181,18 @@ export function Timetable({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">주간 시간표</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+      <header className="px-1 pt-2 pb-1">
+        <h1 className="text-[30px] leading-tight font-bold tracking-tight">시간표</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           이번 주 학원 일정{weekStart ? ` · ${formatWeekRange(weekStart)}` : ''}
         </p>
-      </div>
+      </header>
 
-      {/* Weekly homework progress per academy — sticky so it stays visible while scrolling */}
       {weeklyProgress.length > 0 && (
         <div className="space-y-1.5 sticky top-0 z-10 bg-background py-2 -my-2">
-          <div className="text-xs text-muted-foreground px-1">이번 주 숙제 진행</div>
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            이번 주 숙제 진행
+          </div>
           <div className="flex flex-wrap gap-2">
             {weeklyProgress.map((p) => {
               const done = p.done === p.total && p.total > 0
@@ -201,13 +202,13 @@ export function Timetable({
                   key={p.academyId}
                   href={`/academies/${p.academyId}`}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition-colors hover:bg-accent',
-                    done ? 'border-green-500/40' : 'border-foreground/10',
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card text-sm transition-colors hover:bg-accent',
+                    done && 'ring-1 ring-green-500/40',
                   )}
                   title={`${p.name}: ${p.done}/${p.total}개 완료 (${pct}%)`}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-                  <span className="font-medium">{p.name}</span>
+                  <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+                  <span className="font-semibold">{p.name}</span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {p.done}/{p.total}
                   </span>
@@ -219,17 +220,17 @@ export function Timetable({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <Card className="p-2 overflow-x-auto">
         <table className="w-full border-collapse text-sm table-fixed">
           <thead>
             <tr>
-              <th className="w-10 sm:w-14 text-right pr-1 sm:pr-2 font-normal text-muted-foreground text-xs" />
+              <th className="w-10 sm:w-12 text-right pr-1 font-normal text-muted-foreground text-[10px]" />
               {DAYS.map((d) => (
                 <th
                   key={d.key}
                   className={cn(
-                    'text-center py-2 font-semibold border border-border',
-                    d.key === todayKey && 'bg-primary/10',
+                    'text-center py-2 text-xs font-semibold border-b border-foreground/10',
+                    d.key === todayKey && 'bg-violet-50 text-violet-900 rounded-t-md',
                   )}
                 >
                   {d.label}
@@ -240,12 +241,13 @@ export function Timetable({
           <tbody ref={tbodyRef}>
             {cells.map((row, rowIdx) => (
               <tr key={rowIdx} className="h-7">
-                <td className="text-right pr-2 text-xs text-muted-foreground align-top pt-0.5 whitespace-nowrap">
+                <td className="text-right pr-2 text-[10px] text-muted-foreground align-top pt-0.5 whitespace-nowrap">
                   {rowIdx % 2 === 0 ? rowIndexToLabel(rowIdx) : ''}
                 </td>
                 {row.map((cell, dayIdx) => {
                   const dayKey = DAYS[dayIdx].key
-                  const todayBg = dayKey === todayKey ? 'bg-primary/5' : ''
+                  const isToday = dayKey === todayKey
+                  const todayBg = isToday ? 'bg-violet-50/60' : ''
 
                   if (cell === 'skip') return null
 
@@ -253,7 +255,7 @@ export function Timetable({
                     return (
                       <td
                         key={dayKey}
-                        className={cn('border border-border', todayBg)}
+                        className={cn('border-t border-l border-foreground/5', todayBg)}
                       />
                     )
                   }
@@ -264,7 +266,7 @@ export function Timetable({
                   const allDone = !!progress && progress.total > 0 && progress.done === progress.total
                   const inner = (
                     <div
-                      className="w-full h-full px-1.5 py-1 text-white text-xs font-medium overflow-hidden leading-tight flex flex-col gap-0.5"
+                      className="w-full h-full px-1.5 py-1.5 text-white text-xs font-semibold overflow-hidden leading-tight flex flex-col gap-1 rounded-md"
                       style={{
                         backgroundColor: cell.color,
                         minHeight: `${rowSpan * 28}px`,
@@ -274,12 +276,12 @@ export function Timetable({
                       {progress && progress.total > 0 && (
                         <div
                           className={cn(
-                            'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-semibold',
+                            'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-bold',
                             allDone
-                              ? 'bg-white/95 text-green-700'
+                              ? 'bg-white text-green-700'
                               : progress.done === 0
                                 ? 'bg-white/25 text-white'
-                                : 'bg-white/80 text-foreground',
+                                : 'bg-white/85 text-foreground',
                           )}
                         >
                           {allDone && <Check className="h-2.5 w-2.5" aria-hidden />}
@@ -293,7 +295,7 @@ export function Timetable({
                     <td
                       key={dayKey}
                       rowSpan={rowSpan}
-                      className={cn('border border-border align-top p-0', todayBg)}
+                      className={cn('border-t border-l border-foreground/5 align-top p-0.5', todayBg)}
                     >
                       {slotDate ? (
                         <Link
@@ -313,7 +315,7 @@ export function Timetable({
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   )
 }
