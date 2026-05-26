@@ -6,14 +6,23 @@ import {
   removeManualStamp,
   listRedemptions,
 } from '@/server/actions/stickers'
+import { getCleanupStats, runManualCleanup } from '@/server/actions/cleanup'
+import { CLEANUP_CONFIG } from '@/server/util/batch-cleanup'
 import { revalidatePath } from 'next/cache'
 import { TelegramTestButton } from './_components/telegram-test-button'
+import { CleanupSection } from './_components/cleanup-section'
 
 export default async function SettingsPage() {
   const s = await getSettings()
   const providers = await listProviderOptions()
   const stickers = await getStickerState()
   const redemptions = await listRedemptions()
+  const cleanupStats = await getCleanupStats()
+
+  async function runCleanup() {
+    'use server'
+    return runManualCleanup()
+  }
 
   async function save(formData: FormData) {
     'use server'
@@ -159,6 +168,16 @@ export default async function SettingsPage() {
             </ul>
           </div>
         )}
+      </section>
+
+      <section className="bg-white p-4 rounded border space-y-3">
+        <h2 className="text-base font-semibold">📦 업로드 정리</h2>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          모든 숙제가 완료된 batch는 마지막 완료로부터 <strong>{CLEANUP_CONFIG.ARCHIVE_AFTER_DAYS}일</strong> 후 보관 처리되고,
+          보관 후 <strong>{CLEANUP_CONFIG.PHOTOS_DELETE_AFTER_DAYS}일</strong>이 지나면 사진만 삭제돼요(기록은 유지).
+          실패/대기 중인 batch는 <strong>{CLEANUP_CONFIG.FAILED_DELETE_AFTER_DAYS}일</strong> 후 전체 삭제됩니다.
+        </p>
+        <CleanupSection stats={cleanupStats} onRun={runCleanup} />
       </section>
 
       <form action={save} className="bg-white p-4 rounded border space-y-3">

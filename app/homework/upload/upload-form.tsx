@@ -3,13 +3,14 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, X, Pencil } from 'lucide-react'
+import { RefreshCw, Pencil } from 'lucide-react'
 import { uploadHomework, rerunBatch, deleteBatch, createEmptyBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { BatchCard } from './batch-card'
 
 type Academy = { id: number; name: string; color: string; extractionHint: string | null }
 
@@ -24,6 +25,10 @@ type BatchSummary = {
   firstPhotoPath: string | null
   isPdf: boolean
   itemCount: number
+  minDue: string | null
+  maxDue: string | null
+  archivedAt: Date | null
+  photosCleanedAt: Date | null
 }
 
 type ReuseSource = {
@@ -256,56 +261,26 @@ export function UploadForm({
         {/* Past uploads (not in reuse mode) */}
         {showFileForm && !reuse && academyId !== null && pastBatches.length > 0 && (
           <div className="space-y-2">
-            <Label>이 학원의 이전 업로드 ({pastBatches.length})</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {pastBatches.slice(0, 6).map((b) => (
-                <div key={b.id} className="relative group">
-                  <Link
-                    href={`/homework/upload?reuse=${b.id}`}
-                    className="block p-2.5 pr-7 rounded-xl bg-muted hover:bg-accent transition-colors text-xs space-y-1"
-                    title="이 파일로 다시 분석"
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-muted-foreground tabular-nums">{formatDate(b.capturedAt)}</span>
-                      <span
-                        className={cn(
-                          'px-1.5 py-0.5 rounded text-[10px] shrink-0',
-                          b.status === 'committed' && 'bg-green-100 text-green-700',
-                          b.status === 'ready' && 'bg-blue-100 text-blue-700',
-                          b.status === 'failed' && 'bg-red-100 text-red-700',
-                          (b.status === 'pending' || b.status === 'processing') && 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {STATUS_LABEL[b.status]}
-                      </span>
-                    </div>
-                    <div className="text-foreground">
-                      {b.isPdf ? '📄' : '🖼️'} {b.photoCount}개 파일
-                      {b.itemCount > 0 && ` · 항목 ${b.itemCount}`}
-                    </div>
-                    {b.userHint && (
-                      <div className="text-muted-foreground line-clamp-1 italic">
-                        “{b.userHint}”
-                      </div>
-                    )}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteBatch(b, e)}
-                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-50 group-hover:opacity-100"
-                    aria-label="삭제"
-                    title="삭제"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </div>
+            <div className="flex items-baseline justify-between">
+              <Label>이 학원의 이전 업로드 ({pastBatches.length})</Label>
+              {pastBatches.length > 3 && (
+                <Link
+                  href={`/homework/upload/history?academy=${academyId}`}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  전체 보기 →
+                </Link>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {pastBatches.slice(0, 3).map((b) => (
+                <BatchCard
+                  key={b.id}
+                  batch={b}
+                  onDelete={(e) => handleDeleteBatch(b, e)}
+                />
               ))}
             </div>
-            {pastBatches.length > 6 && (
-              <p className="text-xs text-muted-foreground">
-                최근 6개 표시 · 더 보기는 향후 추가 예정
-              </p>
-            )}
           </div>
         )}
 

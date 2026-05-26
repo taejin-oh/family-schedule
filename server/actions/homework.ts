@@ -291,7 +291,8 @@ export async function listDoneToday(ctx: Ctx = {}) {
 /**
  * Recent batches across all academies (last `limit`, newest first).
  * Used by the upload page to show "이전 업로드" for the selected academy.
- * Returns the batch + photo count + first photo path (for thumbnail).
+ * Returns the batch + photo count + first photo path (for thumbnail) + due-range
+ * summary + archive lifecycle fields.
  */
 export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
@@ -304,6 +305,8 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
     status: appSchema.homeworkBatches.status,
     userHint: appSchema.homeworkBatches.userHint,
     failureReason: appSchema.homeworkBatches.failureReason,
+    archivedAt: appSchema.homeworkBatches.archivedAt,
+    photosCleanedAt: appSchema.homeworkBatches.photosCleanedAt,
   })
   .from(appSchema.homeworkBatches)
   .orderBy(desc(appSchema.homeworkBatches.capturedAt))
@@ -313,8 +316,6 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
   if (batches.length === 0) return []
 
   const ids = batches.map((b) => b.id)
-  // Fetch photo summary per batch — scoped to the batches we actually return,
-  // otherwise this is a full-table scan that grows linearly with all uploads.
   const photos = appDb.select({
     batchId: appSchema.homeworkPhotos.batchId,
     resizedPath: appSchema.homeworkPhotos.resizedPath,
@@ -335,23 +336,28 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
     }
   }
 
-  // Item counts scoped to the batches we actually return (vs full-table scan).
-  const itemCounts = appDb.select({
+  const itemAgg = appDb.select({
     batchId: appSchema.homeworkItems.batchId,
     cnt: sql<number>`count(*)`.as('cnt'),
+    minDue: sql<string | null>`min(${appSchema.homeworkItems.dueDate})`.as('minDue'),
+    maxDue: sql<string | null>`max(${appSchema.homeworkItems.dueDate})`.as('maxDue'),
   }).from(appSchema.homeworkItems)
     .where(inArray(appSchema.homeworkItems.batchId, ids))
     .groupBy(appSchema.homeworkItems.batchId).all()
-  const itemMap = new Map(itemCounts.map((c) => [c.batchId, Number(c.cnt)]))
+  const itemMap = new Map(itemAgg.map((c) => [c.batchId, c]))
 
-  return batches
-    .map((b) => ({
+  return batches.map((b) => {
+    const agg = itemMap.get(b.id)
+    return {
       ...b,
       photoCount: byBatch.get(b.id)?.count ?? 0,
       firstPhotoPath: byBatch.get(b.id)?.firstPath ?? null,
       isPdf: byBatch.get(b.id)?.isPdf ?? false,
-      itemCount: itemMap.get(b.id) ?? 0,
-    }))
+      itemCount: agg ? Number(agg.cnt) : 0,
+      minDue: agg?.minDue ?? null,
+      maxDue: agg?.maxDue ?? null,
+    }
+  })
 }
 
 /**
