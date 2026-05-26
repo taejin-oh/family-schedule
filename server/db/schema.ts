@@ -37,6 +37,11 @@ export const homeworkBatches = sqliteTable('homework_batches', {
   rawResponse: text('raw_response'),
   failureReason: text('failure_reason'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  // Cleanup lifecycle.
+  // archivedAt: 모든 item이 done + 가장 늦은 done이 7일 이상 전이라 정리 후보로 표시된 시각.
+  // photosCleanedAt: archivedAt 후 90일이 지나 photos 파일·row가 실제 삭제된 시각.
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+  photosCleanedAt: integer('photos_cleaned_at', { mode: 'timestamp' }),
 })
 
 export const homeworkPhotos = sqliteTable('homework_photos', {

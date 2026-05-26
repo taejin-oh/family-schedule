@@ -71,6 +71,13 @@
       "when": 1779766190286,
       "tag": "0009_orange_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1779783274116,
+      "tag": "0010_burly_butterfly",
+      "breakpoints": true
     }
   ]
 }
