@@ -114,10 +114,10 @@ function FilterChip({
     <Link
       href={href}
       className={cn(
-        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors border',
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors',
         active
-          ? 'bg-foreground text-background border-foreground'
-          : 'bg-card text-muted-foreground border-foreground/10 hover:bg-accent hover:text-foreground'
+          ? 'bg-foreground text-background'
+          : 'bg-card text-foreground/80 hover:bg-accent hover:text-foreground'
       )}
     >
       {dot && (
@@ -128,7 +128,7 @@ function FilterChip({
         />
       )}
       <span>{label}</span>
-      <span className={cn('text-xs tabular-nums', active ? 'text-background/80' : 'text-muted-foreground/70')}>
+      <span className={cn('text-xs font-normal tabular-nums', active ? 'text-background/80' : 'text-muted-foreground')}>
         {count}
       </span>
     </Link>
@@ -270,33 +270,25 @@ export default async function HomePage({
   // Read-only — no toggle since 'doneAt' here reflects current week's completion, not next week's.
   const nextWeekPreviewSection = filter !== 'nextweek' || weekRecur.length === 0 ? null : (
     <section className="space-y-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-sm font-semibold text-foreground">다음 주 할일</h2>
-        <span className="text-xs text-muted-foreground tabular-nums">({weekRecur.length})</span>
-      </div>
-      <Card className="p-0 divide-y">
+      <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+        다음 주 할일 · {weekRecur.length}
+      </h2>
+      <Card className="p-0 gap-0 divide-y divide-foreground/10">
         {weekRecur.map((rt) => (
-          <div key={`nw-${rt.id}`} className="p-3 flex items-start gap-3">
-            <span className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2 opacity-40" aria-hidden>
-              <span className="w-6 h-6 rounded-full border-2 border-muted-foreground/40" />
-            </span>
+          <div key={`nw-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60">
+            <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/30 flex-shrink-0" aria-hidden />
             <span
-              className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+              className="w-[5px] h-9 rounded-full flex-shrink-0"
               style={{ background: rt.color }}
               aria-hidden
             />
             <div className="flex-1 min-w-0">
-              <div className="font-medium break-words text-muted-foreground">{rt.title}</div>
+              <div className="font-medium text-[15px] break-words leading-snug">{rt.title}</div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
-                  🔁 매주
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
+                  🔁 이번 주 안에
                 </span>
               </div>
-              {rt.notes && (
-                <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                  {rt.notes}
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -306,11 +298,10 @@ export default async function HomePage({
 
   const weeklySection = weeklyActive.length === 0 ? null : (
     <section className="space-y-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-sm font-semibold text-foreground">{weeklyLabel}</h2>
-        <span className="text-xs text-muted-foreground tabular-nums">({weeklyActive.length})</span>
-      </div>
-      <Card className="p-0 divide-y">
+      <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+        {weeklyLabel} · {weeklyActive.length}
+      </h2>
+      <Card className="p-0 gap-0 divide-y divide-foreground/10">
         {weeklyActive.map((rt) => (
           <RecurringItemRow
             key={`w-${rt.id}`}
@@ -343,32 +334,39 @@ export default async function HomePage({
   return (
     <MultiSelectProvider selectableIds={allSelectableIds}>
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">할 일</h1>
-          <Link
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            ← 아이 보기
-          </Link>
-        </div>
-        <Link href="/homework/upload" className={cn(buttonVariants())}>
-          + 숙제 추가
-        </Link>
-      </div>
-
-      {/* Top progress recap */}
-      {hasAnything && (
-        <Card className="p-4">
-          <div className="flex items-baseline justify-between text-sm">
-            <div>
-              <span className="font-medium text-foreground">오늘 ✓ {totalDone}</span>
-              <span className="text-muted-foreground"> · 남은 {totalActive}개</span>
-            </div>
-            <div className="text-xs text-muted-foreground tabular-nums">{completionPct}%</div>
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
+        <div>
+          <h1 className="text-[30px] leading-tight font-bold tracking-tight">할 일</h1>
+          <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2">
+            <span>남은 {totalActive} · 완료 {totalDone}</span>
+            <Link
+              href="/"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              · 아이 보기
+            </Link>
           </div>
-          <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+        </div>
+        <Link href="/homework/upload" className={cn(buttonVariants({ size: 'sm' }))}>
+          + 숙제
+        </Link>
+      </header>
+
+      {hasAnything && (
+        <Card className="p-4 gap-2">
+          <div className="flex items-center gap-4">
+            <div className="text-[36px] leading-none font-bold tabular-nums">{totalActive}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                REMAINING
+              </div>
+              <div className="text-sm font-medium mt-0.5">
+                오늘 ✓ {totalDone} · {completionPct}% 완료
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground tabular-nums shrink-0">{completionPct}%</div>
+          </div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-foreground transition-all"
               style={{ width: `${completionPct}%` }}
@@ -378,7 +376,6 @@ export default async function HomePage({
         </Card>
       )}
 
-      {/* Time filter chips + multi-select toggle */}
       {active.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
           <FilterChip
@@ -415,28 +412,26 @@ export default async function HomePage({
         </div>
       )}
 
-      {/* Academy filter chips (only shown when 2+ academies have items) */}
+      {/* Academy filter chips — '전체' chip 제거. 학원 chip 클릭으로 toggle. */}
       {showAcademyRow && active.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <FilterChip
-            label="전체"
-            count={active.length}
-            href={academyHref(null)}
-            active={academyFilter === null}
-          />
+        <div className="flex flex-wrap gap-2 items-center">
           {academiesWithItems.map((ac) => {
             const cnt = active.filter((it) => it.academyId === ac.id).length
+            const isActive = academyFilter === ac.id
             return (
               <FilterChip
                 key={ac.id}
                 label={ac.name}
                 count={cnt}
-                href={academyHref(ac.id)}
-                active={academyFilter === ac.id}
+                href={academyHref(isActive ? null : ac.id)}
+                active={isActive}
                 dot={ac.color}
               />
             )
           })}
+          {academyFilter !== null && (
+            <span className="text-[11px] text-muted-foreground">탭 해제 = 전체</span>
+          )}
         </div>
       )}
 
@@ -470,11 +465,10 @@ export default async function HomePage({
             if (allWeekHw.length === 0) return null
             return (
               <section className="space-y-2">
-                <div className="flex items-baseline gap-2 px-1">
-                  <h2 className="text-sm font-semibold text-foreground">이번 주 숙제</h2>
-                  <span className="text-xs text-muted-foreground tabular-nums">({allWeekHw.length})</span>
-                </div>
-                <Card className="p-0 divide-y">
+                <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+                  이번 주 숙제 · {allWeekHw.length}
+                </h2>
+                <Card className="p-0 gap-0 divide-y divide-foreground/10">
                   {allWeekHw.map((it) => {
                     const dueLabel = formatDueLabel(it.dueDate, todayIso)
                     const itBucket = bucketOf(it, todayIso)
@@ -511,22 +505,17 @@ export default async function HomePage({
             const meta = BUCKET_META[bk]
             return (
               <section key={bk} className="space-y-2">
-                <div className="flex items-baseline gap-2 px-1">
-                  <h2
-                    className={cn(
-                      'text-sm font-semibold',
-                      meta.tone === 'destructive' && 'text-destructive',
-                      meta.tone === 'today' && 'text-foreground',
-                      !meta.tone && 'text-muted-foreground'
-                    )}
-                  >
-                    {meta.label}
-                  </h2>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    ({hwList.length + recurList.length})
-                  </span>
-                </div>
-                <Card className="p-0 divide-y">
+                <h2
+                  className={cn(
+                    'text-[11px] font-semibold uppercase tracking-wider px-1 pt-1',
+                    meta.tone === 'destructive' && 'text-destructive',
+                    meta.tone === 'today' && 'text-foreground',
+                    !meta.tone && 'text-muted-foreground'
+                  )}
+                >
+                  {meta.label} · {hwList.length + recurList.length}
+                </h2>
+                <Card className="p-0 gap-0 divide-y divide-foreground/10">
                   {hwList.map((it) => {
                     const dueLabel = formatDueLabel(it.dueDate, todayIso)
                     return (
@@ -568,8 +557,8 @@ export default async function HomePage({
 
       {/* 오늘 한 일 — collapsible */}
       {(doneToday.length > 0 || recurringDoneToday.length > 0) && (
-        <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
-          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
+        <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
               <Check className="h-4 w-4 text-green-600" aria-hidden />
               오늘 한 일 ({doneToday.length + recurringDoneToday.length})
@@ -577,26 +566,26 @@ export default async function HomePage({
             <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
             <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
           </summary>
-          <div className="divide-y border-t">
+          <div className="divide-y divide-foreground/10 border-t border-foreground/10">
             {doneToday.map((it) => (
-              <div key={it.id} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
+              <div key={it.id} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
                 <form action={onUndo} className="flex-shrink-0">
                   <input type="hidden" name="id" value={it.id} />
                   <button
                     type="submit"
-                    className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
                     aria-label="완료 취소"
                   >
-                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                    <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
                   </button>
                 </form>
                 <span
-                  className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  className="w-[5px] h-9 rounded-full flex-shrink-0"
                   style={{ background: it.academyColor }}
                   aria-hidden
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium break-words line-through decoration-muted-foreground/40">
+                  <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">
                     {it.title}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
@@ -607,29 +596,29 @@ export default async function HomePage({
               </div>
             ))}
             {recurringDoneToday.map((rt) => (
-              <div key={`r-${rt.id}`} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
+              <div key={`r-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
                 <form action={onRecurringUndo} className="flex-shrink-0">
                   <input type="hidden" name="taskId" value={rt.id} />
                   <input type="hidden" name="dateIso" value={todayIso} />
                   <button
                     type="submit"
-                    className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
                     aria-label="완료 취소"
                   >
-                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                    <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
                   </button>
                 </form>
                 <span
-                  className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  className="w-[5px] h-9 rounded-full flex-shrink-0"
                   style={{ background: rt.color }}
                   aria-hidden
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium break-words line-through decoration-muted-foreground/40">
+                  <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">
                     {rt.title}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                    <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-muted/60 border-foreground/10">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
                       🔁 매일
                     </span>
                     {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
@@ -643,40 +632,40 @@ export default async function HomePage({
 
       {/* 완료한 이번 주 할일 — weekly recurring done (collapsible, not shown in nextweek view) */}
       {filter !== 'nextweek' && weeklyDone.length > 0 && (
-        <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
-          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
+        <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
               <Check className="h-4 w-4 text-violet-600" aria-hidden />
               완료한 이번 주 할일 ({weeklyDone.length})
             </span>
             <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">▾</span>
           </summary>
-          <div className="divide-y border-t">
+          <div className="divide-y divide-foreground/10 border-t border-foreground/10">
             {weeklyDone.map((rt) => (
-              <div key={`wd-${rt.id}`} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
+              <div key={`wd-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
                 <form action={onRecurringUndo} className="flex-shrink-0">
                   <input type="hidden" name="taskId" value={rt.id} />
                   <input type="hidden" name="dateIso" value={rt.dateIso} />
                   <button
                     type="submit"
-                    className="mt-0.5 w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    className="w-[22px] h-[22px] rounded-full bg-violet-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
                     aria-label="완료 취소"
                   >
-                    <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+                    <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
                   </button>
                 </form>
                 <span
-                  className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  className="w-[5px] h-9 rounded-full flex-shrink-0"
                   style={{ background: rt.color }}
                   aria-hidden
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium break-words line-through decoration-muted-foreground/40">
+                  <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">
                     {rt.title}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                    <span className="inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium bg-violet-50 text-violet-700 border-violet-200">
-                      🔁 매주
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
+                      🔁 이번 주 안에
                     </span>
                     {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
                   </div>

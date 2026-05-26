@@ -37,39 +37,39 @@ export function RecurringItem({
   }
 
   const badgeClass = cadence === 'weekly'
-    ? 'bg-violet-50 text-violet-700 border-violet-200'
-    : 'bg-muted/60 text-muted-foreground border-foreground/10'
+    ? 'bg-violet-100 text-violet-700'
+    : 'bg-muted text-muted-foreground'
 
   const rowContent = (
-    <div className="p-3 flex items-start gap-3">
+    <div className="px-4 py-3 flex items-center gap-3">
       <form action={onComplete} className="flex-shrink-0">
         <input type="hidden" name="taskId" value={id} />
         <input type="hidden" name="dateIso" value={dateIso} />
         <button
           type="submit"
-          className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
+          className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
           aria-label="완료로 표시"
         >
-          <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
+          <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
         </button>
       </form>
       <span
-        className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+        className="w-[5px] h-9 rounded-full flex-shrink-0"
         style={{ background: color }}
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium break-words">{title}</div>
+        <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
           <span className={cn(
-            'inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium',
+            'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold',
             badgeClass,
           )}>
-            {cadence === 'weekly' ? '🔁 매주' : '🔁 매일'}
+            🔁 {cadence === 'weekly' ? '이번 주 안에' : '매일'}
           </span>
         </div>
         {notes && (
-          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2">
             {notes}
           </div>
         )}

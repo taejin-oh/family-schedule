@@ -68,7 +68,7 @@ export function HomeworkItem({
 
   const rowContent = (
     <div
-      className={cn('p-3 flex items-start gap-3', isMultiActive && isChecked && 'bg-accent/40')}
+      className={cn('px-4 py-3 flex items-center gap-3', isMultiActive && isChecked && 'bg-accent/40')}
       onClick={isMultiActive ? () => multiSelect?.toggle(id) : undefined}
       role={isMultiActive ? 'checkbox' : undefined}
       aria-checked={isMultiActive ? isChecked : undefined}
@@ -78,34 +78,34 @@ export function HomeworkItem({
           type="button"
           onClick={(e) => { e.stopPropagation(); multiSelect?.toggle(id) }}
           className={cn(
-            'mt-0.5 w-6 h-6 rounded flex-shrink-0 border-2 transition-colors flex items-center justify-center',
+            'w-[22px] h-[22px] rounded flex-shrink-0 border-2 transition-colors flex items-center justify-center',
             isChecked
               ? 'bg-foreground border-foreground text-background'
-              : 'border-muted-foreground hover:border-foreground'
+              : 'border-muted-foreground/40 hover:border-foreground'
           )}
           aria-label={isChecked ? '선택 해제' : '선택'}
         >
-          {isChecked && <Check className="h-3.5 w-3.5" aria-hidden />}
+          {isChecked && <Check className="h-3 w-3" strokeWidth={3} aria-hidden />}
         </button>
       ) : (
         <form action={onComplete} className="flex-shrink-0">
           <input type="hidden" name="id" value={id} />
           <button
             type="submit"
-            className="mt-0.5 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-2"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
             aria-label="완료로 표시"
           >
-            <span className="w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center" />
+            <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
           </button>
         </form>
       )}
       <span
-        className="mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0"
+        className="w-[5px] h-9 rounded-full flex-shrink-0"
         style={{ background: academyColor }}
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium break-words">{title}</div>
+        <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
         <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">
           <span>{academyName}</span>
           {dueLabel && (
@@ -116,7 +116,7 @@ export function HomeworkItem({
           )}
         </div>
         {notes && (
-          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2">
             {notes}
           </div>
         )}
