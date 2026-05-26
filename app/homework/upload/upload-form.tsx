@@ -383,6 +383,23 @@ export function UploadForm({
         {showFileForm && !reuse && (
           <div className="space-y-2">
             <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
+            <label
+              htmlFor="photos"
+              className={cn(
+                'block cursor-pointer rounded-xl border-2 border-dashed transition-colors text-center px-4 py-6',
+                files.length > 0
+                  ? 'border-foreground/30 bg-muted'
+                  : 'border-muted-foreground/25 bg-card hover:bg-accent/40',
+              )}
+            >
+              <div className="text-3xl leading-none">📷</div>
+              <div className="text-sm font-semibold mt-2">
+                {files.length > 0 ? `${files.length}개 선택됨` : '사진 또는 PDF 선택'}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {files.length > 0 ? '탭 해서 다시 선택' : '탭 해서 파일 선택 (사진/PDF, 여러 개 가능)'}
+              </div>
+            </label>
             <input
               id="photos"
               type="file"
@@ -390,20 +407,17 @@ export function UploadForm({
               capture="environment"
               multiple
               onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-secondary file:text-secondary-foreground file:font-medium hover:file:bg-accent file:cursor-pointer"
+              className="sr-only"
             />
             {files.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {files.length}개 선택됨
-                <ul className="mt-1 space-y-0.5 text-xs">
-                  {files.slice(0, 5).map((f, i) => (
-                    <li key={i} className="truncate">
-                      {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
-                    </li>
-                  ))}
-                  {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
-                </ul>
-              </div>
+              <ul className="space-y-0.5 text-xs px-1 text-muted-foreground">
+                {files.slice(0, 5).map((f, i) => (
+                  <li key={i} className="truncate">
+                    {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
+                  </li>
+                ))}
+                {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
+              </ul>
             )}
           </div>
         )}
@@ -412,7 +426,7 @@ export function UploadForm({
         {reuse && (
           <div className="space-y-2">
             <Label>재사용할 파일 ({reuse.photos.length}개)</Label>
-            <ul className="bg-muted/40 rounded-md p-3 text-xs space-y-1">
+            <ul className="bg-muted rounded-xl p-3 text-xs space-y-1">
               {reuse.photos.map((p, i) => (
                 <li key={p.path} className="truncate">
                   {p.isPdf ? '📄' : '🖼️'} 파일 {i + 1} <span className="text-muted-foreground">({p.path.split('/').pop()})</span>
@@ -444,8 +458,10 @@ export function UploadForm({
 
           {/* Past hints quick-fill */}
           {pastHints.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">이전 힌트 재사용:</div>
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                이전 힌트 재사용
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {pastHints.slice(0, 5).map((h, i) => (
                   <button
@@ -453,10 +469,10 @@ export function UploadForm({
                     key={i}
                     onClick={() => setHint(h)}
                     className={cn(
-                      'text-xs px-2 py-1 rounded border max-w-[260px] truncate',
+                      'text-xs px-3 py-1.5 rounded-full max-w-[260px] truncate font-medium transition-colors',
                       h === hint
-                        ? 'border-foreground bg-accent'
-                        : 'border-foreground/15 bg-card hover:bg-accent/60'
+                        ? 'bg-foreground text-background'
+                        : 'bg-muted hover:bg-accent text-foreground/80'
                     )}
                     title={h}
                   >
