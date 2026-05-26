@@ -112,8 +112,29 @@ export default async function KidsHome() {
     revalidatePath('/admin/settings')
   }
 
+  // v6 헤더용 날짜 라벨
+  const [ty, tm, td] = todayIso.split('-').map(Number)
+  const todayDow = new Date(ty, tm - 1, td).getDay()
+  const todaySub = `${tm}월 ${td}일 · ${DAY_KO[todayDow]}요일`
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* 상단 헤더 — Apple Reminders 톤 */}
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
+        <div>
+          <h1 className="text-[34px] leading-tight font-bold tracking-tight">오늘</h1>
+          <div className="text-sm text-muted-foreground mt-0.5">
+            {todaySub} · {totalActive > 0 ? `${totalActive}개 남음` : '오늘 끝!'}
+          </div>
+        </div>
+        <Link
+          href="/dashboard"
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 shrink-0 pb-1.5"
+        >
+          관리 <ArrowRight className="h-3 w-3" />
+        </Link>
+      </header>
+
       {/* 스티커 보상 */}
       <StickersRow
         reward={sticker.reward}
@@ -122,47 +143,35 @@ export default async function KidsHome() {
         onRedeem={onRedeem}
       />
 
-      {/* 진행 카드 */}
-      <Card className="p-5 space-y-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">오늘 숙제 🌈</h1>
-          <Link
-            href="/dashboard"
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 shrink-0"
-          >
-            관리 <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-baseline justify-between">
-            <div>
-              {totalActive > 0 ? (
-                <span className="text-base">
-                  남은 숙제 <span className="font-bold">{totalActive}개</span>
-                </span>
-              ) : (
-                <span className="text-base font-medium">오늘 끝! 🎉</span>
-              )}
+      {/* 진행 카드 — v6 inline */}
+      <Card className="p-4 gap-2">
+        <div className="flex items-center gap-4">
+          <div className="text-[40px] leading-none font-bold tabular-nums">{totalActive}</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              REMAINING
             </div>
-            <div className="text-sm text-muted-foreground tabular-nums">{pct}%</div>
+            <div className="text-sm font-medium mt-0.5">
+              완료 {totalDone} / 전체 {total}
+            </div>
           </div>
-          <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-foreground transition-all"
-              style={{ width: `${pct}%` }}
-              aria-hidden
-            />
-          </div>
-          <div className="text-xs text-muted-foreground">
-            완료 {totalDone} / 전체 {total}
-          </div>
+          <div className="text-sm text-muted-foreground tabular-nums shrink-0">{pct}%</div>
+        </div>
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-foreground transition-all"
+            style={{ width: `${pct}%` }}
+            aria-hidden
+          />
         </div>
       </Card>
 
       {/* 오늘 해야 할 숙제 */}
       {totalActive > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold px-1">오늘 해야 할 숙제</h2>
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            오늘 해야 할 숙제
+          </h2>
           <div className="space-y-2">
             {todayList.map((it) => (
               <KidsTodoCard
@@ -204,19 +213,19 @@ export default async function KidsHome() {
           </div>
         </section>
       ) : (
-        <Card className="p-10 text-center space-y-2">
-          <div className="text-4xl">🎉</div>
-          <div className="text-lg font-semibold">오늘 할 일이 없어요!</div>
-          <div className="text-sm text-muted-foreground">잘했어!</div>
+        <Card className="p-8 text-center space-y-1.5">
+          <div className="text-3xl">🎉</div>
+          <div className="font-semibold">오늘 할 일이 없어요!</div>
+          <div className="text-xs text-muted-foreground">잘했어!</div>
         </Card>
       )}
 
       {/* 완료한 숙제 */}
       {totalDone > 0 && (
         <section className="space-y-2">
-          <h2 className="text-base font-semibold px-1 flex items-center gap-1.5">
-            <Check className="h-4 w-4 text-green-600" aria-hidden />
-            완료한 숙제 ({totalDone})
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1 inline-flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />
+            <span>완료한 숙제 ({totalDone})</span>
           </h2>
           <div className="space-y-2">
             {doneToday.map((it) => (
@@ -258,17 +267,17 @@ export default async function KidsHome() {
       {/* 이번 주 남은 숙제 (작게) */}
       {upcomingDates.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground px-1">
-            이번 주 남은 숙제 📅 {upcoming.length}개
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            이번 주 남은 숙제 · {upcoming.length}개
           </h2>
-          <Card className="p-0 divide-y">
+          <Card className="p-0 gap-0 divide-y divide-foreground/10">
             {upcomingDates.map((d) => {
               const items = upcomingByDay.get(d)!
               return (
                 <Link
                   key={d}
                   href={`/day/${d}`}
-                  className="px-3 py-2.5 flex items-center gap-3 hover:bg-accent/40 active:bg-accent/60 transition-colors"
+                  className="px-4 py-3 flex items-center gap-3 hover:bg-accent/40 active:bg-accent/60 transition-colors"
                 >
                   <span className="text-sm font-medium w-14 flex-shrink-0">{weekdayLabel(d)}</span>
                   <span className="text-sm text-muted-foreground flex-1">{items.length}개</span>

@@ -9,6 +9,9 @@ type Props = {
   onRedeem: () => Promise<void>
 }
 
+const RADIUS = 42
+const CIRC = 2 * Math.PI * RADIUS
+
 export function StickersRow({ reward, count, canRedeem, onRedeem }: Props) {
   if (!reward) {
     return (
@@ -24,22 +27,48 @@ export function StickersRow({ reward, count, canRedeem, onRedeem }: Props) {
   }
   const target = reward.targetCount
   const filled = Math.min(count, target)
+  const arc = (filled / target) * CIRC
+  const remaining = Math.max(0, target - filled)
 
   return (
-    <Card className="p-4 space-y-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="text-sm font-medium truncate">
-          <span className="mr-1">{reward.emoji}</span>
-          <span className="font-semibold">{reward.name}</span>
+    <Card className="p-4 gap-3">
+      <div className="flex items-center gap-4">
+        <div className="relative w-[84px] h-[84px] shrink-0">
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#FEF3C7" strokeWidth="10" />
+            <circle
+              cx="50"
+              cy="50"
+              r={RADIUS}
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="10"
+              strokeDasharray={`${arc} ${CIRC}`}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-[32px] leading-none">
+            🏆
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground tabular-nums shrink-0">
-          {count} / {target}
+        <div className="flex-1 min-w-0">
+          <div className="text-[15px] font-bold truncate">
+            <span className="mr-1">{reward.emoji}</span>
+            {reward.name}
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {canRedeem
+              ? '목표 도달! 선물 받을 수 있어요 🎉'
+              : `${count}개 모음 · ${remaining}개 더 모으면 보상!`}
+          </div>
+          <div className="flex flex-wrap gap-0.5 text-sm leading-none mt-1.5 text-amber-500">
+            {Array.from({ length: target }).map((_, i) => (
+              <span key={i} aria-hidden className={i >= filled ? 'text-muted-foreground/25' : undefined}>
+                ★
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex flex-wrap gap-1 text-xl leading-none">
-        {Array.from({ length: target }).map((_, i) => (
-          <span key={i} aria-hidden>{i < filled ? '⭐' : '☆'}</span>
-        ))}
       </div>
       {canRedeem && <RedeemButton onRedeem={onRedeem} rewardName={reward.name} />}
     </Card>

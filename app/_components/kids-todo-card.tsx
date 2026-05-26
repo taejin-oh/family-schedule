@@ -34,7 +34,7 @@ export function KidsTodoCard({
 }) {
   const [editOpen, setEditOpen] = useState(false)
   const due = dueLabelOf(dueDate, todayIso)
-  const overdue = dueDate && diffDays(dueDate, todayIso) < 0
+  const overdue = dueDate !== null && diffDays(dueDate, todayIso) < 0
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
@@ -49,28 +49,33 @@ export function KidsTodoCard({
       <button
         type="submit"
         className={cn(
-          'w-full text-left p-4 rounded-xl border bg-card hover:bg-accent/40 active:bg-accent/60',
-          'transition-colors flex items-center gap-3 min-h-[64px]',
+          'w-full text-left p-3 rounded-xl bg-card ring-1 ring-foreground/10',
+          'hover:bg-accent/40 active:bg-accent/60 transition-colors',
+          'flex items-center gap-3 min-h-[64px]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <span
-          className="w-4 h-4 rounded-full flex-shrink-0"
+          className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 flex-shrink-0"
+          aria-hidden
+        />
+        <span
+          className="w-[5px] h-9 rounded-full flex-shrink-0"
           style={{ background: academyColor }}
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-muted-foreground">{academyName}</div>
-          <div className="font-semibold text-base break-words leading-snug">{title}</div>
-          {due && (
-            <div className={cn('text-xs mt-0.5', overdue ? 'text-destructive font-medium' : 'text-muted-foreground')}>
-              {due}
-            </div>
-          )}
+          <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {academyName}
+            {due && (
+              <>
+                <span className="mx-1">·</span>
+                <span className={cn(overdue && 'text-destructive font-medium')}>{due}</span>
+              </>
+            )}
+          </div>
         </div>
-        <span className="text-[10px] text-muted-foreground flex-shrink-0 leading-tight">
-          누르면<br />완료
-        </span>
       </button>
     </form>
   )

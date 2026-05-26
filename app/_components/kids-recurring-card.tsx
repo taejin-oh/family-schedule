@@ -28,10 +28,7 @@ export function KidsRecurringTodoCard({
   async function handleArchive() {
     await archiveRecurringTask(id)
   }
-  const badge = cadence === 'weekly' ? '매주' : '매일'
-  const badgeClass = cadence === 'weekly'
-    ? 'bg-violet-50 text-violet-700 border-violet-200'
-    : 'bg-muted/60 text-muted-foreground border-foreground/10'
+  const cadenceLabel = cadence === 'weekly' ? '매주' : '매일'
 
   const inner = (
     <form action={onComplete} className="block">
@@ -40,27 +37,25 @@ export function KidsRecurringTodoCard({
       <button
         type="submit"
         className={cn(
-          'w-full text-left p-4 rounded-xl border bg-card hover:bg-accent/40 active:bg-accent/60',
-          'transition-colors flex items-center gap-3 min-h-[64px]',
+          'w-full text-left p-3 rounded-xl bg-card ring-1 ring-foreground/10',
+          'hover:bg-accent/40 active:bg-accent/60 transition-colors',
+          'flex items-center gap-3 min-h-[64px]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <span
-          className="w-4 h-4 rounded-full flex-shrink-0"
+          className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 flex-shrink-0"
+          aria-hidden
+        />
+        <span
+          className="w-[5px] h-9 rounded-full flex-shrink-0"
           style={{ background: color }}
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-base break-words leading-snug">{title}</div>
-          <div className="mt-0.5">
-            <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-[10px] border font-medium', badgeClass)}>
-              🔁 {badge}
-            </span>
-          </div>
+          <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">🔁 {cadenceLabel}</div>
         </div>
-        <span className="text-[10px] text-muted-foreground flex-shrink-0 leading-tight">
-          누르면<br />완료
-        </span>
       </button>
     </form>
   )
@@ -103,26 +98,24 @@ export function KidsRecurringDoneCard({
       <button
         type="submit"
         className={cn(
-          'w-full text-left p-4 rounded-xl border bg-card hover:bg-accent/40 active:bg-accent/60',
-          'transition-colors flex items-center gap-3 min-h-[64px] opacity-70 hover:opacity-100',
+          'w-full text-left p-3 rounded-xl bg-card ring-1 ring-foreground/10',
+          'hover:bg-accent/40 active:bg-accent/60 transition-colors',
+          'flex items-center gap-3 min-h-[64px] opacity-70 hover:opacity-100',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
-        <span className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', checkBg)} aria-hidden>
-          <Check className="h-4 w-4 text-white" />
+        <span className={cn('w-[22px] h-[22px] rounded-full flex items-center justify-center flex-shrink-0', checkBg)} aria-hidden>
+          <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
         </span>
         <span
-          className="w-3 h-3 rounded-full flex-shrink-0"
+          className="w-[5px] h-9 rounded-full flex-shrink-0"
           style={{ background: color }}
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium break-words line-through decoration-muted-foreground/50">{title}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">🔁 {cadence === 'weekly' ? '매주' : '매일'}</div>
+          <div className="font-medium text-[15px] break-words line-through decoration-muted-foreground/50">{title}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">🔁 {cadence === 'weekly' ? '매주' : '매일'}</div>
         </div>
-        <span className="text-[10px] text-muted-foreground flex-shrink-0 leading-tight">
-          누르면<br />되돌리기
-        </span>
       </button>
     </form>
   )
