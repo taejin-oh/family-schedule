@@ -453,11 +453,16 @@ export default async function HomePage({
             key={filter}
             current={filter}
             chips={[
-              { key: 'all', label: '전체', count: active.length, href: timeHref('all') },
-              { key: 'today', label: '오늘', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + recurringActive.length + weeklyActive.length, href: timeHref('today') },
-              { key: 'tomorrow', label: '내일만', count: buckets.tomorrow.length + tomorrowRecurringActive.length + weeklyActive.length, href: timeHref('tomorrow') },
-              { key: 'thisweek', label: '이번 주', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + weeklyActive.length, href: timeHref('thisweek') },
-              { key: 'nextweek', label: '다음 주', count: buckets.nextweek.length + weekRecur.length, href: timeHref('nextweek') },
+              // 전체: 모든 미완료 항목 (homework + recurring 모두 포함)
+              { key: 'all', label: '전체', count: active.length + recurringActive.length + weeklyActive.length, href: timeHref('all') },
+              // 오늘: 오늘까지 마감(지난 마감 포함) + 오늘 daily recurring
+              { key: 'today', label: '오늘', count: buckets.overdue.length + buckets.today.length + recurringActive.length, href: timeHref('today') },
+              // 내일만: 내일 마감 + 내일 daily recurring
+              { key: 'tomorrow', label: '내일만', count: buckets.tomorrow.length + tomorrowRecurringActive.length, href: timeHref('tomorrow') },
+              // 이번 주: 이번 주 안에 해야 할 모든 것 (지난+오늘+내일+이번주 + daily recurring + weekly recurring)
+              { key: 'thisweek', label: '이번 주', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + recurringActive.length + weeklyActive.length, href: timeHref('thisweek') },
+              // 다음 주: 다음 주 마감만 (이번 주 weekly recurring은 포함 X — 다음 주 새로 시작)
+              { key: 'nextweek', label: '다음 주', count: buckets.nextweek.length, href: timeHref('nextweek') },
             ]}
           />
           <MultiSelectToggle />
