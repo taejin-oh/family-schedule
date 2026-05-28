@@ -61,7 +61,9 @@ type DigestKind = 'morning' | 'evening' | 'midday'
 type JobsDb = ReturnType<typeof drizzle<typeof jobsSchema>>
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
 
-async function maybeFireDigest(
+export type DigestResult = 'sent' | 'skipped' | 'retry'
+
+export async function maybeFireDigest(
   appDb: AppDb,
   jobsDb: JobsDb,
   kind: DigestKind,
@@ -69,8 +71,8 @@ async function maybeFireDigest(
   scheduledTime: string,
   currentHhmm: string,
   dateIso: string,
-): Promise<void> {
-  if (!enabled || scheduledTime !== currentHhmm) return
+): Promise<DigestResult> {
+  if (!enabled || scheduledTime !== currentHhmm) return 'skipped'
 
   // Race-safe claim: digest_log에 먼저 insert 시도. unique(kind, date_iso)이라
   // 다른 worker / 직전 process restart가 이미 잡았으면 changes=0으로 빠짐.
@@ -84,12 +86,14 @@ async function maybeFireDigest(
       .run()
     claimed = (res as { changes?: number }).changes !== 0
   } catch (e) {
+    // DB 일시 오류는 재시도 가치 있음.
     console.error(`[digest] ${kind} claim failed:`, e)
-    return
+    return 'retry'
   }
-  if (!claimed) return  // 누가 이미 claim했음
+  if (!claimed) return 'skipped'  // 이미 다른 호출자가 claim/발송 완료
 
-  // Build digest text. 실패 시 claim rollback (다음 polling cycle이 다시 시도).
+  // Build digest text. 실패 시 claim rollback + retry 신호.
+  // 호출자가 lastCheckedMinute을 비워 같은 분 안 다음 polling cycle이 재진입.
   let text: string
   try {
     if (kind === 'morning') text = buildMorningDigest(appDb, dateIso)
@@ -100,7 +104,7 @@ async function maybeFireDigest(
     jobsDb.delete(jobsSchema.digestLog)
       .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
       .run()
-    return
+    return 'retry'
   }
 
   const result = await sendTelegram(text)
@@ -109,9 +113,10 @@ async function maybeFireDigest(
     jobsDb.delete(jobsSchema.digestLog)
       .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
       .run()
-    return
+    return 'retry'
   }
   console.log(`[digest] ${kind} sent for ${dateIso}`)
+  return 'sent'
 }
 
 /**
@@ -176,8 +181,18 @@ export async function runWorker(): Promise<void> {
         const settings = appDb.select().from(appSchema.appSettings).where(eq(appSchema.appSettings.id, 1)).get()
         if (settings?.telegramEnabled) {
           // 점심 digest는 사용자 정의에 없어서 제거. schema column은 유지(legacy).
-          await maybeFireDigest(appDb, jobsDb, 'morning', settings.telegramMorningEnabled, settings.telegramMorningTime, hhmm, dateIso)
-          await maybeFireDigest(appDb, jobsDb, 'evening', settings.telegramEveningEnabled, settings.telegramEveningTime, hhmm, dateIso)
+          const morningRes = await maybeFireDigest(appDb, jobsDb, 'morning', settings.telegramMorningEnabled, settings.telegramMorningTime, hhmm, dateIso)
+          const eveningRes = await maybeFireDigest(appDb, jobsDb, 'evening', settings.telegramEveningEnabled, settings.telegramEveningTime, hhmm, dateIso)
+
+          // digest build/send 실패 시 같은 분(scheduledTime) 안에서 다시 시도해야
+          // 함. lastCheckedMinute 가드를 비워 다음 polling cycle이 minute block에
+          // 재진입하도록 한다. 분이 바뀌면 scheduledTime !== hhmm이 되어 그날
+          // 발송이 영구 손실되는 문제(이전 동작) 방지.
+          // academy reminder는 in-memory dedupe Set, cleanup은 lastCleanupDate
+          // 가드가 있어서 재진입해도 중복 실행 안 됨.
+          if (morningRes === 'retry' || eveningRes === 'retry') {
+            lastCheckedMinute = ''
+          }
 
           // 학원 ±N분 알림 — 매분 polling에서 매치 검사. settings로 토글 + 분 단위 제어.
           if (settings.telegramAcademyReminderEnabled) {
