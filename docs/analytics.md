@@ -167,11 +167,13 @@ sqlite3 data/app.db "SELECT category, event, count(*) FROM events GROUP BY categ
 
 ## 보존 정책
 
-현재 자동 정리는 없음 (Phase 3 예정 — 일일 cron으로 6개월 초과 row 정리).
+**30일.** 매일 04:00 Seoul daily tick (`server/worker/run.ts`)에서 `runEventsCleanup`이 자동 실행 — `local_date < today - 30days` row를 삭제.
 
-수동 정리:
+상수 변경: `server/util/events-cleanup.ts`의 `EVENTS_RETENTION_DAYS`.
+
+수동 정리(긴급 시):
 ```sql
-DELETE FROM events WHERE local_date < date('now', '-180 days');
+DELETE FROM events WHERE local_date < date('now', '-30 days');
 VACUUM;
 ```
 
@@ -186,5 +188,7 @@ VACUUM;
 - `components/analytics-tracker.tsx` — root layout navigation 자동 추적
 - `components/empty-state-tracker.tsx` — empty state 노출 client wrapper
 - `app/error.tsx` + `app/global-error.tsx` — uncaught error 자동
-- `tests/log/event.test.ts`, `tests/api/log.test.ts` — 단위 테스트 패턴
+- `server/util/events-cleanup.ts` — `runEventsCleanup` (30일 retention)
+- `server/worker/run.ts` — 04:00 daily tick에 cleanup 연결
+- `tests/log/event.test.ts`, `tests/log/events-cleanup.test.ts`, `tests/api/log.test.ts` — 단위 테스트 패턴
 - `tests/__mocks__/next-headers.ts` — vitest용 cookies stub

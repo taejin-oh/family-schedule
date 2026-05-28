@@ -15,6 +15,7 @@ import { sendTelegram } from '@/server/notifications/telegram'
 import { buildMorningDigest, buildEveningDigest, buildMiddayDigest } from '@/server/notifications/digests'
 import { findUpcomingAcademyEvents } from '@/server/notifications/academy-reminders'
 import { runBatchCleanup } from '@/server/util/batch-cleanup'
+import { runEventsCleanup } from '@/server/util/events-cleanup'
 
 const CLEANUP_HHMM = '04:00'
 
@@ -208,6 +209,12 @@ export async function runWorker(): Promise<void> {
           )
         } catch (e) {
           console.error('[cleanup] error:', e)
+        }
+        try {
+          const evRes = runEventsCleanup(appDb)
+          console.log(`[events-cleanup] ${dateIso} deleted=${evRes.deleted} cutoff<${evRes.cutoff}`)
+        } catch (e) {
+          console.error('[events-cleanup] error:', e)
         }
       }
     }
