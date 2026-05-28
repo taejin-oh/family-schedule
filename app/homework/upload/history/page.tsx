@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { listAcademies } from '@/server/actions/academies'
 import { listRecentBatches } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
-import { BatchCard } from '../batch-card'
+import { HistoryList } from './_components/history-list'
 
 export default async function UploadHistoryPage({
   searchParams,
@@ -49,11 +49,7 @@ export default async function UploadHistoryPage({
           업로드 이력이 없습니다.
         </Card>
       ) : (
-        <div className="space-y-2">
-          {batches.map((b) => (
-            <BatchCard key={b.id} batch={b} />
-          ))}
-        </div>
+        <HistoryList batches={batches} />
       )}
     </div>
   )

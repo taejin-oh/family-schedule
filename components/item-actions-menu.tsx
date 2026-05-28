@@ -4,9 +4,11 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { MoreVertical } from 'lucide-react'
 import { Menu } from '@base-ui/react/menu'
 import { useLongPress } from '@/lib/use-long-press'
-import { useMediaQuery } from '@/lib/use-media-query'
 import { shouldIgnoreTransientLongPressClose } from '@/lib/menu-close-policy'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { MiniCalendar } from '@/components/mini-calendar'
 
 function localDateIsoClient(d: Date = new Date()): string {
   const y = d.getFullYear()
@@ -32,7 +34,7 @@ function nextMonday(iso: string): string {
   return localDateIsoClient(d)
 }
 
-export type ItemKind = 'homework' | 'recurring'
+export type ItemKind = 'homework' | 'recurring' | 'academy'
 
 type HomeworkProps = {
   itemKind: 'homework'
@@ -44,11 +46,15 @@ type RecurringProps = {
   itemKind: 'recurring'
   onArchive: () => Promise<void>
 }
+type AcademyProps = {
+  itemKind: 'academy'
+  onArchive: () => Promise<void>
+}
 type CommonProps = {
   children: React.ReactNode
   onEdit: () => void
 }
-type Props = CommonProps & (HomeworkProps | RecurringProps)
+type Props = CommonProps & (HomeworkProps | RecurringProps | AcademyProps)
 
 const POPUP_CLASS = cn(
   'z-50 min-w-[11rem] rounded-md border bg-popover shadow-md py-1 text-sm text-popover-foreground outline-none',
@@ -64,12 +70,12 @@ export function ItemActionsMenu(props: Props) {
   const { children, onEdit } = props
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [customDate, setCustomDate] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerDate, setPickerDate] = useState<string | null>(null)
   const [, startTransition] = useTransition()
   const ignoreTransientCloseRef = useRef(false)
 
   const instanceId = useId()
-  const isCoarsePointer = useMediaQuery('(pointer: coarse)')
 
   // Close any other open ItemActionsMenu when this one opens (mobile long-press
   // doesn't reliably trigger base-ui's outside-press dismiss).
@@ -157,7 +163,7 @@ export function ItemActionsMenu(props: Props) {
           if (!nextOpen) ignoreTransientCloseRef.current = false
           setOpen(nextOpen)
         }}
-        modal={false}
+        modal={true}
       >
         <Menu.Trigger
           render={(triggerProps) => (
@@ -166,19 +172,16 @@ export function ItemActionsMenu(props: Props) {
               {...triggerProps}
               onClick={(e) => { e.stopPropagation(); triggerProps.onClick?.(e) }}
               className={cn(
-                'absolute right-2 top-2',
-                'h-7 w-7 rounded',
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'h-8 w-8 rounded',
                 'flex items-center justify-center',
                 'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
+                // Desktop: hover-only to keep rows uncluttered.
                 'opacity-0 group-hover/row:opacity-100 focus:opacity-100 data-[popup-open]:opacity-100',
-                // Mobile: keep button in layout (so base-ui anchor stays valid)
-                // but invisible + not clickable
-                '[@media(pointer:coarse)]:invisible [@media(pointer:coarse)]:pointer-events-none',
+                // Mobile (touch): always visible — long-press also works.
+                '[@media(pointer:coarse)]:opacity-100',
               )}
               aria-label="액션 메뉴"
-              // Hide from a11y tree on touch devices since the button is also visually invisible
-              aria-hidden={isCoarsePointer || undefined}
-              tabIndex={isCoarsePointer ? -1 : undefined}
             >
               <MoreVertical className="h-4 w-4" />
             </button>
@@ -213,27 +216,20 @@ export function ItemActionsMenu(props: Props) {
                           </Menu.Item>
                         ))}
                         <div className="border-t my-1" />
-                        <div className="px-2 py-1.5 space-y-1">
-                          <div className="text-xs text-muted-foreground">직접 선택</div>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="date"
-                              value={customDate}
-                              min={addDays(today, 1)}
-                              onChange={(e) => setCustomDate(e.target.value)}
-                              className="w-full text-xs bg-background border border-input rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <button
-                              type="button"
-                              disabled={!customDate}
-                              onClick={() => customDate && runAction(() => props.onDefer(customDate), '미루기 실패')}
-                              className="text-xs px-2 py-1 rounded bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                            >
-                              확인
-                            </button>
-                          </div>
-                        </div>
+                        <Menu.Item
+                          className={cn(ITEM_CLASS, 'justify-between gap-3')}
+                          onClick={() => {
+                            // 메뉴 닫고 sheet 열기. 두 modal 동시 띄우면 backdrop 충돌.
+                            setOpen(false)
+                            const initial = props.itemKind === 'homework' ? props.currentDueDate ?? null : null
+                            setPickerDate(initial)
+                            // 메뉴 닫힘 트랜지션 후 sheet 오픈
+                            setTimeout(() => setPickerOpen(true), 100)
+                          }}
+                        >
+                          <span>직접 선택…</span>
+                          <span className="text-muted-foreground">›</span>
+                        </Menu.Item>
                       </Menu.Popup>
                     </Menu.Positioner>
                   </Menu.Portal>
@@ -251,7 +247,7 @@ export function ItemActionsMenu(props: Props) {
                 </Menu.Item>
               )}
 
-              {props.itemKind === 'recurring' && (
+              {(props.itemKind === 'recurring' || props.itemKind === 'academy') && (
                 <Menu.Item
                   className={cn(ITEM_CLASS, 'text-muted-foreground')}
                   onClick={() => runAction(() => props.onArchive(), '보관 실패')}
@@ -268,6 +264,40 @@ export function ItemActionsMenu(props: Props) {
         <div className="absolute right-2 -bottom-1 z-50 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow whitespace-nowrap">
           {error}
         </div>
+      )}
+
+      {props.itemKind === 'homework' && (
+        <Sheet open={pickerOpen} onOpenChange={(o) => !o && setPickerOpen(false)}>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>날짜 선택</SheetTitle>
+            </SheetHeader>
+            <div className="mt-2">
+              <MiniCalendar
+                selected={pickerDate}
+                onSelect={setPickerDate}
+                todayIso={today}
+                minIso={addDays(today, 1)}
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setPickerOpen(false)}>
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!pickerDate || pickerDate < addDays(today, 1)}
+                onClick={() => {
+                  if (!pickerDate) return
+                  setPickerOpen(false)
+                  runAction(() => props.onDefer(pickerDate), '미루기 실패')
+                }}
+              >
+                이 날짜로 미루기
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Trash2, X } from 'lucide-react'
+import { Check, Trash2, Undo2, X } from 'lucide-react'
 import { bulkToggleItemsDone, bulkDeleteItems } from '@/server/actions/homework'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +12,8 @@ type MultiSelectCtx = {
   active: boolean
   selected: Set<number>
   toggle: (id: number) => void
+  /** Add many ids to selection at once (used by group "select all" buttons). */
+  selectMany: (ids: number[]) => void
   enter: () => void
   exit: () => void
 }
@@ -32,10 +34,20 @@ export function useMultiSelect() {
  */
 export function MultiSelectProvider({
   children,
-  selectableIds,
+  activeIds,
+  doneIds,
+  mode = 'full',
 }: {
   children: React.ReactNode
-  selectableIds: number[]
+  /** 활성(미완료) 항목 ID들 — "할 일 전체" 버튼이 한 번에 선택. */
+  activeIds: number[]
+  /** 완료 항목 ID들 — "완료 전체" 버튼이 한 번에 선택. */
+  doneIds: number[]
+  /**
+   * 'delete-only': 일괄 완료/복구 버튼을 숨김. 학원 상세처럼 완료 토글이 정책상
+   * 비활성인 화면에서 사용. 기본 'full'은 대시보드용.
+   */
+  mode?: 'full' | 'delete-only'
 }) {
   const router = useRouter()
   const [active, setActive] = useState(false)
@@ -61,9 +73,29 @@ export function MultiSelectProvider({
     })
   }, [])
 
-  const selectAll = useCallback(() => {
-    setSelected(new Set(selectableIds))
-  }, [selectableIds])
+  const selectMany = useCallback((ids: number[]) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.add(id)
+      return next
+    })
+  }, [])
+
+  const selectAllActive = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const id of activeIds) next.add(id)
+      return next
+    })
+  }, [activeIds])
+
+  const selectAllDone = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const id of doneIds) next.add(id)
+      return next
+    })
+  }, [doneIds])
 
   const clearAll = useCallback(() => {
     setSelected(new Set())
@@ -88,8 +120,17 @@ export function MultiSelectProvider({
     })
   }
 
+  const handleUndone = () => {
+    if (selected.size === 0) return
+    startTransition(async () => {
+      await bulkToggleItemsDone(Array.from(selected), false)
+      exit()
+      router.refresh()
+    })
+  }
+
   return (
-    <MultiSelectContext.Provider value={{ active, selected, toggle, enter, exit }}>
+    <MultiSelectContext.Provider value={{ active, selected, toggle, selectMany, enter, exit }}>
       {children}
 
       {/* Sticky floating bar — visible only when multi-select is active */}
@@ -101,13 +142,24 @@ export function MultiSelectProvider({
         >
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium">{selected.size}개 선택됨</span>
-            <button
-              type="button"
-              onClick={selectAll}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-            >
-              전체 선택
-            </button>
+            {activeIds.length > 0 && (
+              <button
+                type="button"
+                onClick={selectAllActive}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                할 일 전체
+              </button>
+            )}
+            {doneIds.length > 0 && (
+              <button
+                type="button"
+                onClick={selectAllDone}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                완료 전체
+              </button>
+            )}
             <button
               type="button"
               onClick={clearAll}
@@ -117,15 +169,28 @@ export function MultiSelectProvider({
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleDone}
-              disabled={selected.size === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <Check className="h-3.5 w-3.5" aria-hidden />
-              완료로 표시
-            </button>
+            {mode === 'full' && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDone}
+                  disabled={selected.size === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden />
+                  완료
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUndone}
+                  disabled={selected.size === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-muted text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                  복구
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={handleDelete}

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { textOn } from '@/lib/contrast'
 
 type ScheduleSlot = { day: string; start: string; end: string }
 type Academy = {
@@ -137,23 +138,39 @@ export function Timetable({
   slotProgress?: SlotProgress
 }) {
   // Hooks must be called unconditionally — declare before any early return.
+  // Current-time indicator: position a horizontal red line at the current time
+  // (only when within 06:00–22:30 grid range). We manipulate DOM via refs
+  // inside useLayoutEffect so the line appears at the correct position on the
+  // very first paint — no visible delay or flicker.
+  const tableWrapperRef = useRef<HTMLDivElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  const indicatorRef = useRef<HTMLDivElement>(null)
 
-  // Earliest schedule start row across all academies — used for auto-scroll
-  let earliestRowIdx = -1
-  for (const a of academies) {
-    for (const s of a.scheduleRule?.slots ?? []) {
-      const ri = timeToRowIndex(s.start)
-      if (ri < 0) continue
-      if (earliestRowIdx === -1 || ri < earliestRowIdx) earliestRowIdx = ri
+  useLayoutEffect(() => {
+    function compute() {
+      const wrapper = tableWrapperRef.current
+      const tbody = tbodyRef.current
+      const indicator = indicatorRef.current
+      if (!wrapper || !tbody || !indicator) return
+
+      const now = new Date()
+      const minutesFromStart = (now.getHours() - START_HOUR) * 60 + now.getMinutes()
+      if (minutesFromStart < 0 || minutesFromStart >= TOTAL_ROWS * 30) {
+        indicator.style.display = 'none'
+        return
+      }
+
+      const wrapperRect = wrapper.getBoundingClientRect()
+      const tbodyRect = tbody.getBoundingClientRect()
+      const tbodyTop = tbodyRect.top - wrapperRect.top
+      // Each row is h-7 = 28px, covering 30 minutes.
+      indicator.style.top = `${tbodyTop + (minutesFromStart / 30) * 28}px`
+      indicator.style.display = ''
     }
-  }
-
-  useEffect(() => {
-    if (earliestRowIdx < 1) return
-    const row = tbodyRef.current?.querySelectorAll('tr')[earliestRowIdx]
-    row?.scrollIntoView({ block: 'start', behavior: 'auto' })
-  }, [earliestRowIdx])
+    compute()
+    const intervalId = window.setInterval(compute, 60_000)
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const hasSlots = academies.some(
     (a) => a.scheduleRule?.slots && a.scheduleRule.slots.length > 0,
@@ -221,6 +238,7 @@ export function Timetable({
       )}
 
       <Card className="p-2 overflow-x-auto">
+        <div ref={tableWrapperRef} className="relative">
         <table className="w-full border-collapse text-sm table-fixed">
           <thead>
             <tr>
@@ -230,10 +248,19 @@ export function Timetable({
                   key={d.key}
                   className={cn(
                     'text-center py-2 text-xs font-semibold border-b border-foreground/10',
-                    d.key === todayKey && 'bg-violet-50 text-violet-900 rounded-t-md',
+                    d.key === todayKey && 'bg-violet-50 rounded-t-md',
                   )}
                 >
-                  {d.label}
+                  <span
+                    className={cn(
+                      'inline-flex w-7 h-7 items-center justify-center rounded-full text-[11px] font-bold',
+                      d.key === todayKey
+                        ? 'bg-violet-600 text-white'
+                        : 'text-foreground/80',
+                    )}
+                  >
+                    {d.label}
+                  </span>
                 </th>
               ))}
             </tr>
@@ -264,9 +291,13 @@ export function Timetable({
                   const slotDate = dateForDay(weekStart, cell.dayKey)
                   const progress = slotDate ? slotProgress[`${cell.academyId}|${slotDate}`] : undefined
                   const allDone = !!progress && progress.total > 0 && progress.done === progress.total
+                  const isDark = textOn(cell.color) === 'white'
                   const inner = (
                     <div
-                      className="w-full h-full px-1.5 py-1.5 text-white text-xs font-semibold overflow-hidden leading-tight flex flex-col gap-1 rounded-md"
+                      className={cn(
+                        'w-full h-full px-1.5 py-1.5 text-xs font-semibold overflow-hidden leading-tight flex flex-col gap-1 rounded-md',
+                        isDark ? 'text-white' : 'text-black',
+                      )}
                       style={{
                         backgroundColor: cell.color,
                         minHeight: `${rowSpan * 28}px`,
@@ -278,10 +309,10 @@ export function Timetable({
                           className={cn(
                             'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-bold',
                             allDone
-                              ? 'bg-white text-green-700'
+                              ? (isDark ? 'bg-white text-green-700' : 'bg-green-600 text-white')
                               : progress.done === 0
-                                ? 'bg-white/25 text-white'
-                                : 'bg-white/85 text-foreground',
+                                ? (isDark ? 'bg-white/25 text-white' : 'bg-black/15 text-black')
+                                : (isDark ? 'bg-white/85 text-foreground' : 'bg-black/80 text-white'),
                           )}
                         >
                           {allDone && <Check className="h-2.5 w-2.5" aria-hidden />}
@@ -315,6 +346,17 @@ export function Timetable({
             ))}
           </tbody>
         </table>
+        <div
+          ref={indicatorRef}
+          aria-hidden
+          className="absolute pointer-events-none z-10 left-10 sm:left-12 right-0"
+          style={{ top: '0px', display: 'none' }}
+        >
+          <div className="relative h-[2px] bg-destructive/80">
+            <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-destructive" />
+          </div>
+        </div>
+        </div>
       </Card>
     </div>
   )

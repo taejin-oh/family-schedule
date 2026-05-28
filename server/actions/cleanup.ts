@@ -25,6 +25,7 @@ export type CleanupStats = {
   pendingArchive: number     // committed batches 정리 후보 (모든 item done + 마지막 done 7일 전)
   pendingPhotoDelete: number // archived 90일 경과
   pendingFailedDelete: number // failed/pending/processing 7일 전
+  lastRunAt: number | null   // 마지막 정리 실행 추정 시각 (ms). archivedAt/photosCleanedAt 중 최대값.
 }
 
 const MS_PER_DAY = 86_400_000
@@ -61,12 +62,21 @@ export async function getCleanupStats(ctx: Ctx = {}): Promise<CleanupStats> {
   let pendingArchive = 0
   let pendingPhotoDelete = 0
   let pendingFailedDelete = 0
+  let lastRunAt: number | null = null
 
   for (const b of all) {
-    if (b.photosCleanedAt) photosCleanedBatches++
+    if (b.photosCleanedAt) {
+      photosCleanedBatches++
+      const t = b.photosCleanedAt.getTime()
+      if (lastRunAt === null || t > lastRunAt) lastRunAt = t
+    }
     if (b.archivedAt && !b.photosCleanedAt) {
       archivedBatches++
       if (b.archivedAt.getTime() <= photosThreshold) pendingPhotoDelete++
+    }
+    if (b.archivedAt) {
+      const t = b.archivedAt.getTime()
+      if (lastRunAt === null || t > lastRunAt) lastRunAt = t
     }
     if (b.status === 'committed' && !b.archivedAt) {
       const agg = aggMap.get(b.id)
@@ -89,5 +99,6 @@ export async function getCleanupStats(ctx: Ctx = {}): Promise<CleanupStats> {
     pendingArchive,
     pendingPhotoDelete,
     pendingFailedDelete,
+    lastRunAt,
   }
 }

@@ -2,6 +2,9 @@
 
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
+import { existsSync, unlinkSync, rmSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { revalidatePath } from 'next/cache'
 import * as appSchema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 
@@ -57,4 +60,42 @@ export async function getAcademyDetail(academyId: number, ctx: Ctx = {}) {
   const done = items.filter((it) => it.isCommitted && it.doneAt !== null)
 
   return { academy, active, done, batches: enrichedBatches }
+}
+
+/**
+ * 학원 단위 사용자 롤백: 한 업로드 배치를 통째로 삭제.
+ * homework_items / homework_photos는 batch FK가 cascade라 자동 삭제됨.
+ * photo 파일(local path)은 별도로 unlink 시도 (실패해도 무시).
+ * batch-cleanup의 deadBatch 처리 패턴과 동일.
+ */
+export async function deleteBatch(batchId: number, ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+
+  const batch = appDb.select({
+    id: appSchema.homeworkBatches.id,
+    academyId: appSchema.homeworkBatches.academyId,
+  }).from(appSchema.homeworkBatches)
+    .where(eq(appSchema.homeworkBatches.id, batchId))
+    .get()
+  if (!batch) return
+
+  const photos = appDb.select().from(appSchema.homeworkPhotos)
+    .where(eq(appSchema.homeworkPhotos.batchId, batchId))
+    .all()
+  for (const p of photos) {
+    for (const path of [p.originalPath, p.resizedPath]) {
+      try { if (existsSync(path)) unlinkSync(path) } catch { /* ignore */ }
+    }
+  }
+  if (photos.length > 0) {
+    try { rmSync(dirname(photos[0].resizedPath), { recursive: true, force: true }) } catch { /* ignore */ }
+  }
+
+  appDb.delete(appSchema.homeworkBatches)
+    .where(eq(appSchema.homeworkBatches.id, batchId))
+    .run()
+
+  revalidatePath(`/academies/${batch.academyId}`)
+  revalidatePath('/')
+  revalidatePath('/dashboard')
 }

@@ -8,16 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
+import { WeekdayPicker, type DayKey } from '@/components/weekday-picker'
 import { cn } from '@/lib/utils'
 
-type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 type Cadence = 'daily' | 'weekly'
-
-const DAYS: { key: DayKey; label: string }[] = [
-  { key: 'mon', label: '월' }, { key: 'tue', label: '화' },
-  { key: 'wed', label: '수' }, { key: 'thu', label: '목' },
-  { key: 'fri', label: '금' }, { key: 'sat', label: '토' }, { key: 'sun', label: '일' },
-]
 
 const COLORS: { hex: string; name: string }[] = [
   { hex: '#ef4444', name: '빨강' },
@@ -46,12 +40,6 @@ export function RecurringForm({
   const [days, setDays] = useState<DayKey[]>(initial?.daysOfWeek ?? [])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
-  function toggleDay(d: DayKey) {
-    setDays((cur) =>
-      cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]
-    )
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -144,20 +132,7 @@ export function RecurringForm({
         {cadence === 'daily' && (
           <div className="space-y-2">
             <Label>요일</Label>
-            <div className="flex gap-2 flex-wrap">
-              {DAYS.map((d) => (
-                <Button
-                  key={d.key}
-                  type="button"
-                  variant={days.includes(d.key) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => toggleDay(d.key)}
-                  className="w-12"
-                >
-                  {d.label}
-                </Button>
-              ))}
-            </div>
+            <WeekdayPicker value={days} onChange={setDays} />
           </div>
         )}
 

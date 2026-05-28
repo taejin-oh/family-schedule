@@ -60,11 +60,10 @@ describe('buildMorningDigest', () => {
 
     const text = buildMorningDigest(db, '2026-05-25')
 
-    expect(text).toContain('2026-05-25')
-    expect(text).toContain('(월)')
+    expect(text).toContain('2026-05-25 월')
     expect(text).toContain('수학학원')
     expect(text).toContain('17:00–18:30')
-    expect(text).toContain('[수학학원] 문제집 p.20-30')
+    expect(text).toContain('[수학학원] 문제집 p.20-30 (오늘)')
   })
 
   it('shows empty messages when no academies or homework', () => {
@@ -72,45 +71,86 @@ describe('buildMorningDigest', () => {
     const text = buildMorningDigest(db, '2026-05-25')
 
     expect(text).toContain('오늘 학원 없음')
-    expect(text).toContain('오늘 마감 숙제 없음')
+    expect(text).toContain('오늘은 마감 없어요')
   })
 
   it('shows correct Korean day for each weekday', () => {
     const db = makeDb()
-    // 2026-05-24 is Sunday (일)
-    expect(buildMorningDigest(db, '2026-05-24')).toContain('(일)')
-    // 2026-05-25 is Monday (월)
-    expect(buildMorningDigest(db, '2026-05-25')).toContain('(월)')
-    // 2026-05-26 is Tuesday (화)
-    expect(buildMorningDigest(db, '2026-05-26')).toContain('(화)')
-    // 2026-05-27 is Wednesday (수)
-    expect(buildMorningDigest(db, '2026-05-27')).toContain('(수)')
-    // 2026-05-28 is Thursday (목)
-    expect(buildMorningDigest(db, '2026-05-28')).toContain('(목)')
-    // 2026-05-29 is Friday (금)
-    expect(buildMorningDigest(db, '2026-05-29')).toContain('(금)')
-    // 2026-05-30 is Saturday (토)
-    expect(buildMorningDigest(db, '2026-05-30')).toContain('(토)')
+    expect(buildMorningDigest(db, '2026-05-24')).toContain('2026-05-24 일')
+    expect(buildMorningDigest(db, '2026-05-25')).toContain('2026-05-25 월')
+    expect(buildMorningDigest(db, '2026-05-26')).toContain('2026-05-26 화')
+    expect(buildMorningDigest(db, '2026-05-27')).toContain('2026-05-27 수')
+    expect(buildMorningDigest(db, '2026-05-28')).toContain('2026-05-28 목')
+    expect(buildMorningDigest(db, '2026-05-29')).toContain('2026-05-29 금')
+    expect(buildMorningDigest(db, '2026-05-30')).toContain('2026-05-30 토')
+  })
+
+  it('on Sunday, shows "이번 주 끝낼 거" label instead', () => {
+    const db = makeDb()
+    // 2026-05-24 is Sunday
+    const text = buildMorningDigest(db, '2026-05-24')
+    expect(text).toContain('이번 주 끝낼 거')
+    // 일요일엔 "오늘까지 끝낼 거" 라벨 X
+    expect(text).not.toContain('오늘까지 끝낼 거')
+  })
+
+  it('counts yesterday-or-earlier overdue items', () => {
+    const db = makeDb()
+    const academyId = insertAcademy(db, 'X', 'mon', '17:00', '18:30')
+    // 2026-05-25 기준 어제(05-24)와 5일 전(05-20)에 마감
+    insertHomework(db, academyId, '어제꺼', '2026-05-24')
+    insertHomework(db, academyId, '5일전꺼', '2026-05-20')
+
+    const text = buildMorningDigest(db, '2026-05-25')
+    expect(text).toContain('어제까지 마감 (0/2 완료)')
+    expect(text).toContain('1일 지남')
+    expect(text).toContain('5일 지남')
   })
 })
 
-describe('buildEveningDigest', () => {
-  it('shows tomorrow due homework', () => {
+describe('buildEveningDigest (오늘 정리 + 내일 마감)', () => {
+  it('shows tomorrow due homework in 내일 마감 section', () => {
     const db = makeDb()
     const academyId = insertAcademy(db, '영어학원', 'tue', '19:00', '20:30')
-    // tomorrow of 2026-05-25 is 2026-05-26
     insertHomework(db, academyId, '단어 100개', '2026-05-26')
 
     const text = buildEveningDigest(db, '2026-05-25')
 
-    expect(text).toContain('2026-05-26')
+    expect(text).toContain('오늘 정리')
+    expect(text).toContain('내일 마감')
     expect(text).toContain('[영어학원] 단어 100개')
   })
 
-  it('shows none message when no tomorrow homework', () => {
+  it('shows "내일은 마감 없어요" when no tomorrow homework', () => {
     const db = makeDb()
     const text = buildEveningDigest(db, '2026-05-25')
-    expect(text).toContain('내일 마감 숙제 없음')
+    expect(text).toContain('내일은 마감 없어요')
+  })
+
+  it('includes 오늘 다녀온 학원 section when slots exist', () => {
+    const db = makeDb()
+    // 2026-05-25 is Monday
+    insertAcademy(db, '수학학원', 'mon', '17:00', '18:30')
+    const text = buildEveningDigest(db, '2026-05-25')
+    expect(text).toContain('오늘 다녀온 학원')
+    expect(text).toContain('수학학원')
+  })
+
+  it('shows heuristic 제안 only when items 3+ days overdue', () => {
+    const db = makeDb()
+    const academyId = insertAcademy(db, '수학학원', 'mon', '17:00', '18:30')
+    insertHomework(db, academyId, '오래 묵은 거', '2026-05-22')  // 3일 지남
+    const text = buildEveningDigest(db, '2026-05-25')
+    expect(text).toContain('💡')  // 제안 섹션 헤더
+    expect(text).toContain('3일째')
+  })
+
+  it('no 제안 when no long-overdue items', () => {
+    const db = makeDb()
+    const academyId = insertAcademy(db, '수학학원', 'mon', '17:00', '18:30')
+    insertHomework(db, academyId, '오늘꺼', '2026-05-25')
+    const text = buildEveningDigest(db, '2026-05-25')
+    expect(text).not.toContain('💡')
   })
 })
 

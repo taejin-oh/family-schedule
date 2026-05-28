@@ -77,15 +77,19 @@ export async function addManualStamp(notes?: string, ctx: Ctx = {}): Promise<Res
   return { ok: true }
 }
 
-export async function removeManualStamp(id: number, ctx: Ctx = {}): Promise<Result> {
+/**
+ * 스티커 1개 강제 삭제. 부모(설정 화면)에서만 호출 — 자동/수동 둘 다 가능.
+ * 이미 보상으로 사용된(redeemed) 스티커는 보상 이력 무결성 위해 차단.
+ */
+export async function removeStamp(id: number, ctx: Ctx = {}): Promise<Result> {
   const db = ctx.db ?? getDb()
   const row = db.select().from(schema.stamps).where(eq(schema.stamps.id, id)).get()
   if (!row) return { ok: false, error: '스티커를 찾을 수 없습니다' }
   if (row.redemptionId !== null) return { ok: false, error: '이미 보상에 사용한 스티커' }
-  if (row.kind !== 'manual') return { ok: false, error: '자동 적립 스티커는 수동으로 지울 수 없어요 (오늘 분이면 숙제를 되돌리세요)' }
   db.delete(schema.stamps).where(eq(schema.stamps.id, id)).run()
   return { ok: true }
 }
+
 
 export async function redeem(notes?: string, ctx: Ctx = {}): Promise<Result<{ redemptionId: number; consumed: number }>> {
   const db = ctx.db ?? getDb()

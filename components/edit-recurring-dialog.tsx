@@ -14,16 +14,11 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
 import { useMediaQuery } from '@/lib/use-media-query'
+import { WeekdayPicker, type DayKey } from '@/components/weekday-picker'
 import { cn } from '@/lib/utils'
 
-type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 type Cadence = 'daily' | 'weekly'
 
-const DAYS: { key: DayKey; label: string }[] = [
-  { key: 'mon', label: '월' }, { key: 'tue', label: '화' },
-  { key: 'wed', label: '수' }, { key: 'thu', label: '목' },
-  { key: 'fri', label: '금' }, { key: 'sat', label: '토' }, { key: 'sun', label: '일' },
-]
 const COLORS: { hex: string; name: string }[] = [
   { hex: '#ef4444', name: '빨강' },
   { hex: '#f59e0b', name: '주황' },
@@ -59,10 +54,6 @@ function RecurringEditForm({
   const [days, setDays] = useState<DayKey[]>(initial.daysOfWeek)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
-  function toggleDay(d: DayKey) {
-    setDays((cur) => cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d])
-  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -147,21 +138,7 @@ function RecurringEditForm({
       {cadence === 'daily' && (
         <div className="space-y-2">
           <Label>요일</Label>
-          <div className="flex gap-2 flex-wrap">
-            {DAYS.map((d) => (
-              <button
-                key={d.key}
-                type="button"
-                onClick={() => toggleDay(d.key)}
-                className={cn(
-                  buttonVariants({ variant: days.includes(d.key) ? 'default' : 'outline', size: 'sm' }),
-                  'w-12',
-                )}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
+          <WeekdayPicker value={days} onChange={setDays} />
         </div>
       )}
 

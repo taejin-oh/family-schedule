@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
-import { EditHomeworkDialog } from '@/components/edit-homework-dialog'
+import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
+import { useToast } from '@/components/toast'
 import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { StarFly } from './star-fly'
 
 function diffDays(due: string, todayIso: string): number {
   const t = new Date(todayIso + 'T00:00:00')
@@ -30,54 +32,108 @@ export function KidsTodoCard({
   academyColor: string
   dueDate: string | null
   todayIso: string
-  onComplete: (formData: FormData) => Promise<void>
+  /**
+   * 완료 토글 핸들러. 아이홈/대시보드에서만 전달; 다른 페이지(예: day/[date])는
+   * 생략하면 display-only 카드로 렌더됨.
+   */
+  onComplete?: (formData: FormData) => Promise<void>
 }) {
   const [editOpen, setEditOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const [flying, setFlying] = useState(false)
+  const checkRef = useRef<HTMLSpanElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const due = dueLabelOf(dueDate, todayIso)
   const overdue = dueDate !== null && diffDays(dueDate, todayIso) < 0
+  const toast = useToast()
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
   }
+  // 5초 지연 패턴: 클릭하면 카드 즉시 숨김 + 토스트. 토스트 만료 또는
+  // 페이지 이동 시 onCommit에서 진짜 server 삭제. 취소하면 카드 복귀.
   async function handleDelete() {
-    await deleteHomeworkItem(id)
+    setHidden(true)
+    toast.show({
+      label: `"${title}" 삭제`,
+      onUndo: () => { setHidden(false) },
+      onCommit: async () => { await deleteHomeworkItem(id) },
+    })
   }
 
-  const inner = (
-    <form action={onComplete} className="block">
+  if (hidden) return null
+
+  // 아이홈(완료 버튼)에서는 동그라미 체크박스 노출, day 페이지(display-only)에서는 생략.
+  const cardBody = (
+    <>
+      <span
+        className="w-[5px] h-10 rounded-full flex-shrink-0"
+        style={{ background: academyColor }}
+        aria-hidden
+      />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-[17px] break-words leading-snug">{title}</div>
+        <div className="text-[13px] text-muted-foreground mt-0.5">
+          {academyName}
+          {due && (
+            <>
+              <span className="mx-1">·</span>
+              <span className={cn(overdue && 'text-destructive font-medium')}>{due}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const inner = onComplete ? (
+    <form ref={formRef} action={onComplete} className="block relative">
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"
+        onClick={(e) => {
+          // 즉시 submit하면 페이지 reload가 fly를 잘라먹음.
+          // fly가 끝난 후 onArrive에서 requestSubmit() → 모든 별이 끝까지 보임.
+          if (!flying) {
+            e.preventDefault()
+            setFlying(true)
+          }
+        }}
         className={cn(
-          'w-full text-left p-3 rounded-xl bg-card ring-1 ring-foreground/10',
+          'w-full text-left p-3 pr-12 rounded-xl bg-card ring-1 ring-foreground/10',
           'hover:bg-accent/40 active:bg-accent/60 transition-colors',
-          'flex items-center gap-3 min-h-[64px]',
+          'flex items-center gap-3 min-h-[76px]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <span
-          className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 flex-shrink-0"
+          ref={checkRef}
+          className={cn(
+            'w-[24px] h-[24px] rounded-full flex-shrink-0 transition-all duration-200',
+            flying
+              ? 'bg-amber-400 border-2 border-amber-400 scale-110'
+              : 'border-2 border-muted-foreground/40',
+          )}
           aria-hidden
         />
-        <span
-          className="w-[5px] h-9 rounded-full flex-shrink-0"
-          style={{ background: academyColor }}
-          aria-hidden
-        />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {academyName}
-            {due && (
-              <>
-                <span className="mx-1">·</span>
-                <span className={cn(overdue && 'text-destructive font-medium')}>{due}</span>
-              </>
-            )}
-          </div>
-        </div>
+        {cardBody}
       </button>
+      {flying && (
+        <StarFly
+          originRef={checkRef}
+          onArrive={() => formRef.current?.requestSubmit()}
+        />
+      )}
     </form>
+  ) : (
+    <div
+      className={cn(
+        'p-3 pr-12 rounded-xl bg-card ring-1 ring-foreground/10',
+        'flex items-center gap-3 min-h-[76px]',
+      )}
+    >
+      {cardBody}
+    </div>
   )
 
   return (

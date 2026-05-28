@@ -27,3 +27,16 @@ export function localDayWindow(d: Date = new Date()): { start: Date; end: Date }
   end.setDate(end.getDate() + 1)
   return { start, end }
 }
+
+/** 이번 주(월요일 자정 ~ 다음 주 월요일 자정 직전) 윈도우. 로컬 TZ 기준. */
+export function localWeekWindow(d: Date = new Date()): { start: Date; end: Date } {
+  const start = new Date(d)
+  start.setHours(0, 0, 0, 0)
+  const dow = start.getDay()  // 0=Sun..6=Sat
+  // 월요일을 주의 시작으로 본다 (Sun이면 6일 이전 월요일).
+  const offset = dow === 0 ? 6 : dow - 1
+  start.setDate(start.getDate() - offset)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 7)
+  return { start, end }
+}

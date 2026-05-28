@@ -1,0 +1,2 @@
+ALTER TABLE `app_settings` ADD `telegram_academy_reminder_enabled` integer DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE `app_settings` ADD `telegram_academy_reminder_minutes` integer DEFAULT 10 NOT NULL;

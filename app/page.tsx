@@ -4,6 +4,8 @@ import { Check, ArrowRight } from 'lucide-react'
 import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { getStickerState, redeem } from '@/server/actions/stickers'
+import { getEmptyStates } from '@/server/actions/empty-states'
+import { pickEmptyState } from '@/lib/empty-states'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
@@ -25,19 +27,22 @@ function weekdayLabel(iso: string): string {
 }
 
 export default async function KidsHome() {
-  const [active, doneToday, todayRec, weekRec, sticker] = await Promise.all([
+  const [active, doneToday, todayRec, weekRec, sticker, emptyStates] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
     listTodayRecurring(),
     listThisWeekRecurring(),
     getStickerState(),
+    getEmptyStates(),
   ])
   const todayIso = localDateIso()
 
-  // 오늘 해야 할 일 = overdue + today bucket homework
+  // "오늘 할 숙제 = 내일까지 끝내야 하는 숙제" (사용자 정의).
+  // overdue + 오늘 마감 + 내일 마감을 한 묶음으로 본다. 학원에서 오늘 받은 숙제는
+  // 다음 학원 가는 날(=내일)까지 끝내야 하므로 시각적으로 같이 묶어 보여줌.
   const todayList = active.filter((it) => {
     if (!it.dueDate) return false
-    return diffDays(it.dueDate, todayIso) <= 0
+    return diffDays(it.dueDate, todayIso) <= 1
   })
 
   // 매일 recurring (오늘 due) — 스티커 평가에 포함
@@ -53,10 +58,11 @@ export default async function KidsHome() {
   const todayDate = new Date(todayIso + 'T00:00:00')
   const dow = todayDate.getDay()
   const daysUntilThisSunday = (7 - dow) % 7  // today=Sunday → 0
+  // "이번 주 남은" 카드는 오늘 묶음(내일 포함)에 이미 안 들어간 dd >= 2부터.
   const upcoming = active.filter((it) => {
     if (!it.dueDate) return false
     const dd = diffDays(it.dueDate, todayIso)
-    return dd >= 1 && dd <= daysUntilThisSunday
+    return dd >= 2 && dd <= daysUntilThisSunday
   })
   const upcomingByDay = new Map<string, typeof upcoming>()
   for (const it of upcoming) {
@@ -201,46 +207,16 @@ export default async function KidsHome() {
             ))}
           </div>
         </section>
-      ) : (
-        <Card className="p-8 text-center space-y-1.5">
-          <div className="text-3xl">🎉</div>
-          <div className="font-semibold">오늘 할 일이 없어요!</div>
-          <div className="text-xs text-muted-foreground">잘했어!</div>
-        </Card>
-      )}
-
-      {/* 완료한 숙제 */}
-      {totalDone > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1 inline-flex items-center gap-1.5">
-            <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />
-            <span>완료한 숙제 ({totalDone})</span>
-          </h2>
-          <div className="space-y-2">
-            {doneToday.map((it) => (
-              <KidsDoneCard
-                key={it.id}
-                id={it.id}
-                title={it.title}
-                academyName={it.academyName}
-                academyColor={it.academyColor}
-                onUndo={onUndo}
-              />
-            ))}
-            {dailyTodayDone.map((rt) => (
-              <KidsRecurringDoneCard
-                key={`dd-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="daily"
-                dateIso={todayIso}
-                onUndo={onRecUndo}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      ) : (() => {
+        const empty = pickEmptyState(emptyStates, todayIso)
+        return (
+          <Card className="p-8 text-center space-y-2">
+            <div className="text-6xl leading-none">{empty.emoji}</div>
+            <div className="text-xl font-bold">{empty.title}</div>
+            <div className="text-base text-muted-foreground">{empty.sub}</div>
+          </Card>
+        )
+      })()}
 
       {/* 이번 주 안에 할 일 (매주 recurring) — 스티커 무관 */}
       {weeklyTotal > 0 && (
@@ -269,6 +245,7 @@ export default async function KidsHome() {
                 color={rt.color}
                 cadence="weekly"
                 dateIso={todayIso}
+                notes={rt.notes}
                 onUndo={onRecUndo}
               />
             ))}
@@ -299,6 +276,44 @@ export default async function KidsHome() {
             })}
           </Card>
         </section>
+      )}
+
+      {/* 오늘 한 일 — 맨 아래, 기본 접힘 */}
+      {totalDone > 0 && (
+        <details className="group space-y-2">
+          <summary className="cursor-pointer select-none list-none px-1 pt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+            <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />
+            <span>오늘 한 일 ({totalDone})</span>
+            <span className="ml-1 text-muted-foreground/70 group-open:hidden">펼치기</span>
+            <span className="ml-1 text-muted-foreground/70 hidden group-open:inline">접기</span>
+          </summary>
+          <div className="space-y-2 mt-2">
+            {doneToday.map((it) => (
+              <KidsDoneCard
+                key={it.id}
+                id={it.id}
+                title={it.title}
+                academyName={it.academyName}
+                academyColor={it.academyColor}
+                dueDate={it.dueDate}
+                onUndo={onUndo}
+              />
+            ))}
+            {dailyTodayDone.map((rt) => (
+              <KidsRecurringDoneCard
+                key={`dd-${rt.id}`}
+                id={rt.id}
+                title={rt.title}
+                color={rt.color}
+                cadence="daily"
+                dateIso={todayIso}
+                notes={rt.notes}
+                daysOfWeek={rt.daysOfWeek}
+                onUndo={onRecUndo}
+              />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   )

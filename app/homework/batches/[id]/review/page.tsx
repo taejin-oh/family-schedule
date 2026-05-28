@@ -96,15 +96,17 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">추출 결과 검토</h1>
-        {academy && (
-          <span className="text-sm text-muted-foreground flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full inline-block" style={{ background: academy.color }} />
-            {academy.name}
-          </span>
-        )}
-      </div>
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
+        <div>
+          <h1 className="text-[30px] leading-tight font-bold tracking-tight">추출 결과 검토</h1>
+          {academy && (
+            <div className="text-sm text-muted-foreground mt-0.5 inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: academy.color }} />
+              {academy.name}
+            </div>
+          )}
+        </div>
+      </header>
       <ReviewForm
         batchId={batchId}
         todayIso={localDateIso()}
@@ -115,6 +117,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
           dueDate: it.dueDate,
           source: it.source,
           confidence: it.confidence ?? null,
+          confidenceReason: it.confidenceReason ?? null,
           sourcePhotoId: (it.sourcePhotoId != null && photoIds.has(it.sourcePhotoId)) ? it.sourcePhotoId : null,
           similar: findSimilar(it.title, it.dueDate, existingCommitted),
         }))}

@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { revalidatePath } from 'next/cache'
 import { ArrowLeft } from 'lucide-react'
-import { listCommittedItems, toggleItemDone } from '@/server/actions/homework'
+import { listCommittedItems } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
@@ -37,14 +36,6 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
     dd < 0 ? `${Math.abs(dd)}일 지남` :
     `${dd}일 후`
 
-  async function onComplete(formData: FormData) {
-    'use server'
-    const id = Number(formData.get('id'))
-    await toggleItemDone(id, true)
-    revalidatePath('/')
-    revalidatePath('/dashboard')
-    revalidatePath(`/day/${date}`)
-  }
   return (
     <div className="space-y-4">
       <Link href="/" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
@@ -69,7 +60,6 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
                 academyColor={it.academyColor}
                 dueDate={it.dueDate}
                 todayIso={todayIso}
-                onComplete={onComplete}
               />
             ))}
           </div>

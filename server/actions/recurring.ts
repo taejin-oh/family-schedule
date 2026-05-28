@@ -83,6 +83,15 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
   return { ok: true }
 }
 
+export async function unarchiveRecurringTask(id: number, ctx: Ctx = {}): Promise<Result> {
+  const db = ctx.db ?? getDb()
+  db.update(schema.recurringTasks).set({ archivedAt: null }).where(eq(schema.recurringTasks.id, id)).run()
+  revalidatePath('/recurring')
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}
+
 export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ctx = {}): Promise<Result> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return { ok: false, error: '잘못된 날짜 형식' }
   const db = ctx.db ?? getDb()

@@ -1,11 +1,14 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
-import { toggleItemDone } from '@/server/actions/homework'
+import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { ItemActionsMenu } from '@/components/item-actions-menu'
+import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
+import { useToast } from '@/components/toast'
+import { useMultiSelect } from '@/app/_components/multi-select-bar'
 import { cn } from '@/lib/utils'
-import { DeferMenu } from '@/components/defer-menu'
 
 type Item = {
   id: number
@@ -55,7 +58,9 @@ function formatRelative(doneAt: Date, now: number): string {
     const hh = h === 0 ? 12 : h > 12 ? h - 12 : h
     return `${ampm} ${hh}:${String(m).padStart(2, '0')}`
   }
-  return `${Math.floor(diffHr / 24)}일 전`
+  const days = Math.floor(diffHr / 24)
+  if (days < 7) return `${days}일 전`
+  return `${doneAt.getMonth() + 1}/${doneAt.getDate()}`
 }
 
 function DuePill({ due, todayIso }: { due: string; todayIso: string }) {
@@ -77,6 +82,101 @@ function DuePill({ due, todayIso }: { due: string; todayIso: string }) {
   )
 }
 
+/** 다중선택 모드에서 행 좌측에 표시되는 체크박스 마커. */
+function SelectMarker({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={cn(
+        'mt-0.5 w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors',
+        selected ? 'bg-primary border-primary' : 'border-muted-foreground/40',
+      )}
+      aria-hidden
+    >
+      {selected && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} aria-hidden />}
+    </span>
+  )
+}
+
+// ── Active rows ──────────────────────────────────────────────────────────────
+
+function ActiveRow({ item, todayIso }: { item: Item; todayIso: string }) {
+  const router = useRouter()
+  const [editOpen, setEditOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const toast = useToast()
+  const ms = useMultiSelect()
+  const selectMode = ms?.active ?? false
+  const isSelected = ms?.selected.has(item.id) ?? false
+
+  async function handleDefer(newDate: string) {
+    await deferHomework(item.id, newDate)
+    router.refresh()
+  }
+  async function handleDelete() {
+    setHidden(true)
+    toast.show({
+      label: `"${item.title}" 삭제`,
+      onUndo: () => { setHidden(false) },
+      onCommit: async () => { await deleteHomeworkItem(item.id); router.refresh() },
+    })
+  }
+
+  if (hidden) return null
+
+  const body = (
+    <div className="flex-1 min-w-0">
+      <div className="font-medium break-words">{item.title}</div>
+      <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+        {item.dueDate && <DuePill due={item.dueDate} todayIso={todayIso} />}
+      </div>
+      {item.notes && (
+        <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
+          {item.notes}
+        </div>
+      )}
+    </div>
+  )
+
+  if (selectMode) {
+    return (
+      <button
+        type="button"
+        onClick={() => ms?.toggle(item.id)}
+        className={cn(
+          'w-full text-left p-3 flex items-start gap-3 transition-colors',
+          isSelected ? 'bg-primary/10' : 'hover:bg-accent/40',
+        )}
+        aria-pressed={isSelected}
+      >
+        <SelectMarker selected={isSelected} />
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <ItemActionsMenu
+        itemKind="homework"
+        currentDueDate={item.dueDate}
+        onEdit={() => setEditOpen(true)}
+        onDefer={handleDefer}
+        onDelete={handleDelete}
+      >
+        <div className="p-3 pr-12 flex items-start gap-3">{body}</div>
+      </ItemActionsMenu>
+      <EditHomeworkDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        itemId={item.id}
+        initialTitle={item.title}
+        initialNotes={item.notes}
+        initialDueDate={item.dueDate}
+      />
+    </>
+  )
+}
+
 export function ActiveAcademyItems({
   items,
   todayIso,
@@ -84,16 +184,6 @@ export function ActiveAcademyItems({
   items: Item[]
   todayIso: string
 }) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
-
-  function markDone(id: number, done: boolean) {
-    startTransition(async () => {
-      await toggleItemDone(id, done)
-      router.refresh()
-    })
-  }
-
   if (items.length === 0) {
     return (
       <div className="p-4 text-sm text-muted-foreground text-center rounded-xl ring-1 ring-foreground/10 bg-card">
@@ -101,35 +191,171 @@ export function ActiveAcademyItems({
       </div>
     )
   }
-
   return (
     <div className="rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden divide-y">
       {items.map((it) => (
-        <div key={it.id} className="p-3 flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => markDone(it.id, true)}
-            className="mt-0.5 w-6 h-6 rounded-full border-2 border-muted-foreground hover:border-foreground hover:bg-accent transition-colors flex items-center justify-center flex-shrink-0"
-            aria-label="완료로 표시"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-1">
-              <div className="font-medium break-words">{it.title}</div>
-              <DeferMenu itemId={it.id} currentDueDate={it.dueDate} />
-            </div>
-            <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-              {it.dueDate && (
-                <DuePill due={it.dueDate} todayIso={todayIso} />
-              )}
-            </div>
-            {it.notes && (
-              <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-3">
-                {it.notes}
-              </div>
-            )}
-          </div>
-        </div>
+        <ActiveRow key={it.id} item={it} todayIso={todayIso} />
       ))}
+    </div>
+  )
+}
+
+// ── Done rows ────────────────────────────────────────────────────────────────
+
+function DoneRow({ item, now }: { item: Item; now: number }) {
+  const router = useRouter()
+  const [editOpen, setEditOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const toast = useToast()
+  const ms = useMultiSelect()
+  const selectMode = ms?.active ?? false
+  const isSelected = ms?.selected.has(item.id) ?? false
+
+  async function handleDefer(newDate: string) {
+    await deferHomework(item.id, newDate)
+    router.refresh()
+  }
+  async function handleDelete() {
+    setHidden(true)
+    toast.show({
+      label: `"${item.title}" 삭제`,
+      onUndo: () => { setHidden(false) },
+      onCommit: async () => { await deleteHomeworkItem(item.id); router.refresh() },
+    })
+  }
+
+  if (hidden) return null
+
+  const body = (
+    <div className="flex-1 min-w-0">
+      <div className="font-medium break-words line-through decoration-muted-foreground/40">
+        {item.title}
+      </div>
+      <div className="text-xs text-muted-foreground mt-0.5">
+        {item.dueDate && <>~{item.dueDate} · </>}
+        {item.doneAt && <>{formatRelative(item.doneAt, now)} 완료</>}
+      </div>
+    </div>
+  )
+
+  if (selectMode) {
+    return (
+      <button
+        type="button"
+        onClick={() => ms?.toggle(item.id)}
+        className={cn(
+          'w-full text-left p-3 flex items-start gap-3 transition-colors',
+          isSelected ? 'bg-primary/10' : 'opacity-60 hover:bg-accent/40 hover:opacity-100',
+        )}
+        aria-pressed={isSelected}
+      >
+        <SelectMarker selected={isSelected} />
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <ItemActionsMenu
+        itemKind="homework"
+        currentDueDate={item.dueDate}
+        onEdit={() => setEditOpen(true)}
+        onDefer={handleDefer}
+        onDelete={handleDelete}
+      >
+        <div className="p-3 pr-12 flex items-start gap-3 opacity-60">{body}</div>
+      </ItemActionsMenu>
+      <EditHomeworkDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        itemId={item.id}
+        initialTitle={item.title}
+        initialNotes={item.notes}
+        initialDueDate={item.dueDate}
+      />
+    </>
+  )
+}
+
+/** 이번 주(현재 주 월~일)의 시작 timestamp(ms). 사용자 로컬 자정 기준. */
+function startOfThisWeek(now: number): number {
+  const d = new Date(now)
+  d.setHours(0, 0, 0, 0)
+  const dow = d.getDay()  // 0=Sun..6=Sat
+  // 월요일을 주의 시작으로 본다 (Mon=1). Sun이면 6일 이전 월요일로.
+  const offset = dow === 0 ? 6 : dow - 1
+  d.setDate(d.getDate() - offset)
+  return d.getTime()
+}
+
+export type DoneGroup = { key: string; label: string; items: Item[] }
+export type { Item }
+
+/**
+ * 완료한 항목을 그룹화: 이번 주 → 지난 주 → 그 이전 월별 → 날짜 미상.
+ * 각 그룹 내부는 doneAt 최신순.
+ * Exported for unit testing.
+ */
+export function groupDone(items: Item[], now: number): DoneGroup[] {
+  const thisWeekStart = startOfThisWeek(now)
+  const lastWeekStart = thisWeekStart - 7 * 86_400_000
+  const thisWeek: Item[] = []
+  const lastWeek: Item[] = []
+  const byMonth = new Map<string, Item[]>()
+  const noDate: Item[] = []
+
+  for (const it of items) {
+    if (!it.doneAt) {
+      noDate.push(it)
+      continue
+    }
+    const t = it.doneAt.getTime()
+    if (t >= thisWeekStart) {
+      thisWeek.push(it)
+    } else if (t >= lastWeekStart) {
+      lastWeek.push(it)
+    } else {
+      const y = it.doneAt.getFullYear()
+      const m = it.doneAt.getMonth() + 1
+      const key = `${y}-${String(m).padStart(2, '0')}`
+      if (!byMonth.has(key)) byMonth.set(key, [])
+      byMonth.get(key)!.push(it)
+    }
+  }
+
+  const sortByDoneDesc = (a: Item, b: Item) =>
+    (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0)
+  thisWeek.sort(sortByDoneDesc)
+  lastWeek.sort(sortByDoneDesc)
+  for (const arr of byMonth.values()) arr.sort(sortByDoneDesc)
+
+  const groups: DoneGroup[] = []
+  if (thisWeek.length > 0) groups.push({ key: 'this-week', label: '이번 주', items: thisWeek })
+  if (lastWeek.length > 0) groups.push({ key: 'last-week', label: '지난 주', items: lastWeek })
+  const monthKeys = [...byMonth.keys()].sort((a, b) => b.localeCompare(a))
+  for (const k of monthKeys) {
+    const [y, m] = k.split('-').map(Number)
+    groups.push({ key: k, label: `${y}년 ${m}월`, items: byMonth.get(k)! })
+  }
+  if (noDate.length > 0) groups.push({ key: 'no-date', label: '날짜 미상', items: noDate })
+  return groups
+}
+
+function DoneGroupHeader({ label, count, ids }: { label: string; count: number; ids: number[] }) {
+  const ms = useMultiSelect()
+  return (
+    <div className="px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30 flex items-center justify-between gap-2">
+      <span>{label} · {count}</span>
+      {ms?.active && (
+        <button
+          type="button"
+          onClick={() => ms.selectMany(ids)}
+          className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 normal-case tracking-normal font-medium"
+        >
+          이 그룹 전체
+        </button>
+      )}
     </div>
   )
 }
@@ -141,20 +367,11 @@ export function DoneAcademyItems({
   items: Item[]
   now: number
 }) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
-
-  function markUndone(id: number) {
-    startTransition(async () => {
-      await toggleItemDone(id, false)
-      router.refresh()
-    })
-  }
-
   if (items.length === 0) return null
+  const groups = groupDone(items, now)
 
   return (
-    <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden">
+    <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
       <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
         <span className="flex items-center gap-2">
           <Check className="h-4 w-4 text-green-600" aria-hidden />
@@ -163,25 +380,14 @@ export function DoneAcademyItems({
         <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
         <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
       </summary>
-      <div className="divide-y border-t">
-        {items.map((it) => (
-          <div key={it.id} className="p-3 flex items-start gap-3 opacity-60 hover:opacity-100 transition-opacity">
-            <button
-              type="button"
-              onClick={() => markUndone(it.id)}
-              className="mt-0.5 w-6 h-6 rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all flex-shrink-0"
-              aria-label="완료 취소"
-            >
-              <Check className="h-3.5 w-3.5 text-white" aria-hidden />
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium break-words line-through decoration-muted-foreground/40">
-                {it.title}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {it.dueDate && <>~{it.dueDate} · </>}
-                {it.doneAt && <>{formatRelative(it.doneAt, now)} 완료</>}
-              </div>
+      <div className="border-t">
+        {groups.map((g, idx) => (
+          <div key={g.key} className={cn(idx > 0 && 'border-t')}>
+            <DoneGroupHeader label={g.label} count={g.items.length} ids={g.items.map((i) => i.id)} />
+            <div className="divide-y">
+              {g.items.map((it) => (
+                <DoneRow key={it.id} item={it} now={now} />
+              ))}
             </div>
           </div>
         ))}

@@ -18,7 +18,8 @@ export default async function UploadPage({
 
   const [academyRows, batches] = await Promise.all([
     listAcademies(),
-    listRecentBatches({ limit: 30 }),
+    // 학원별 최근 3개만 보여주는 UI라 30개는 과도한 transfer. 10개로 충분.
+    listRecentBatches({ limit: 10 }),
   ])
 
   const academies = academyRows.map((r) => ({
@@ -34,9 +35,12 @@ export default async function UploadPage({
     ;(batchesByAcademy[b.academyId] ??= []).push(b)
   }
 
-  // Distinct non-null hints per academy (newest first, deduped)
+  // Distinct non-null hints per academy (newest first, deduped).
+  // 'committed' batch의 hint만 — 사용자가 리뷰까지 마쳐서 실제 등록(=억셉트)한 것.
+  // ready/failed/pending 상태의 hint는 검증 안 된 것이라 재사용 후보로 부적합.
   const hintsByAcademy: Record<number, string[]> = {}
   for (const b of batches) {
+    if (b.status !== 'committed') continue
     const h = b.userHint?.trim()
     if (!h) continue
     const list = (hintsByAcademy[b.academyId] ??= [])

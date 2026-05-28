@@ -13,7 +13,7 @@ import * as jobsSchema from '@/server/jobs/schema'
 import { getDb } from '@/server/db/client'
 import { enqueue } from '@/server/jobs/queue'
 import { saveOriginal, makeResized } from '@/server/storage/photos'
-import { localDayWindow } from '@/server/util/date'
+import { localDayWindow, localWeekWindow } from '@/server/util/date'
 import { tryStampToday } from '@/server/actions/stickers'
 
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
@@ -266,6 +266,32 @@ export async function listCommittedItems(ctx: Ctx = {}) {
 export async function listDoneToday(ctx: Ctx = {}) {
   const appDb = ctx.appDb ?? getDb()
   const { start, end } = localDayWindow()
+
+  return appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    notes: appSchema.homeworkItems.notes,
+    dueDate: appSchema.homeworkItems.dueDate,
+    doneAt: appSchema.homeworkItems.doneAt,
+    academyId: appSchema.homeworkItems.academyId,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    gte(appSchema.homeworkItems.doneAt, start),
+    lt(appSchema.homeworkItems.doneAt, end),
+  ))
+  .orderBy(desc(appSchema.homeworkItems.doneAt))
+  .all()
+}
+
+/** 이번 주(월요일 자정 ~ 다음 주 월요일 직전) 안에 완료된 모든 committed homework. */
+export async function listDoneThisWeek(ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const { start, end } = localWeekWindow()
 
   return appDb.select({
     id: appSchema.homeworkItems.id,

@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
 import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
-import { EditHomeworkDialog } from '@/components/edit-homework-dialog'
+import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
+import { useToast } from '@/components/toast'
 
 type DuePillProps = {
   label: string
@@ -38,7 +39,12 @@ export type HomeworkItemProps = {
   academyColor: string
   dueLabel: string | null
   bucket: string
-  onComplete: (formData: FormData) => Promise<void>
+  // active 카드 (기본): 빈 원 체크 → 완료 표시
+  onComplete?: (formData: FormData) => Promise<void>
+  // done variant: 체크박스 = 초록 ✓ + 클릭 시 완료 취소.
+  done?: boolean
+  doneRelativeLabel?: string | null
+  onUndo?: (formData: FormData) => Promise<void>
 }
 
 export function HomeworkItem({
@@ -51,24 +57,39 @@ export function HomeworkItem({
   dueLabel,
   bucket,
   onComplete,
+  done = false,
+  doneRelativeLabel,
+  onUndo,
 }: HomeworkItemProps) {
   const multiSelect = useMultiSelect()
   const isMultiActive = multiSelect?.active ?? false
   const isChecked = multiSelect?.selected.has(id) ?? false
   const [editOpen, setEditOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const toast = useToast()
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
   }
 
   async function handleDelete() {
-    // ItemActionsMenu.runAction already wraps in startTransition.
-    await deleteHomeworkItem(id)
+    setHidden(true)
+    toast.show({
+      label: `"${title}" 삭제`,
+      onUndo: () => { setHidden(false) },
+      onCommit: async () => { await deleteHomeworkItem(id) },
+    })
   }
+
+  if (hidden) return null
 
   const rowContent = (
     <div
-      className={cn('px-4 py-3 flex items-center gap-3', isMultiActive && isChecked && 'bg-accent/40')}
+      className={cn(
+        'px-4 py-3 pr-12 flex items-center gap-3',
+        isMultiActive && isChecked && 'bg-accent/40',
+        done && !isMultiActive && 'opacity-60 hover:opacity-100 transition-opacity',
+      )}
       onClick={isMultiActive ? () => multiSelect?.toggle(id) : undefined}
       role={isMultiActive ? 'checkbox' : undefined}
       aria-checked={isMultiActive ? isChecked : undefined}
@@ -87,6 +108,19 @@ export function HomeworkItem({
         >
           {isChecked && <Check className="h-3 w-3" strokeWidth={3} aria-hidden />}
         </button>
+      ) : done ? (
+        <form action={onUndo} className="flex-shrink-0">
+          <input type="hidden" name="id" value={id} />
+          <button
+            type="submit"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
+            aria-label="완료 취소"
+          >
+            <span className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all">
+              <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
+            </span>
+          </button>
+        </form>
       ) : (
         <form action={onComplete} className="flex-shrink-0">
           <input type="hidden" name="id" value={id} />
@@ -105,17 +139,26 @@ export function HomeworkItem({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
+        <div className={cn(
+          'font-medium text-[15px] break-words leading-snug',
+          done && 'line-through decoration-muted-foreground/40',
+        )}>{title}</div>
         <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">
           <span>{academyName}</span>
-          {dueLabel && (
+          {done && doneRelativeLabel && (
+            <>
+              <span>·</span>
+              <span>{doneRelativeLabel} 완료</span>
+            </>
+          )}
+          {!done && dueLabel && (
             <>
               <span>·</span>
               <DuePill label={dueLabel} bucket={bucket} />
             </>
           )}
         </div>
-        {notes && (
+        {notes && !done && (
           <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2">
             {notes}
           </div>

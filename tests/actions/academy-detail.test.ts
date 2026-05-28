@@ -1,12 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { eq } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
-import { getAcademyDetail } from '@/server/actions/academy-detail'
+import { getAcademyDetail, deleteBatch } from '@/server/actions/academy-detail'
+
+// next/cache의 revalidatePath는 production 빌드 외 환경에선 noop처럼 동작.
+// 우리 테스트는 cache 동작 검증이 아니라 DB cascade + file unlink만 확인.
 
 function makeDb() {
   const path = join(mkdtempSync(join(tmpdir(), 'fs-ad-')), 'app.db')
@@ -67,5 +71,61 @@ describe('getAcademyDetail', () => {
     expect(res?.batches[0].photoCount).toBe(1)
     expect(res?.batches[1].photoCount).toBe(2)
     expect(res?.batches[1].itemCount).toBe(2)
+  })
+})
+
+describe('deleteBatch', () => {
+  it('removes the batch, cascades items + photo rows, and unlinks photo files', async () => {
+    const db = makeDb()
+    const tmp = mkdtempSync(join(tmpdir(), 'fs-batch-photos-'))
+    const aPath = join(tmp, 'a.jpg')
+    const bPath = join(tmp, 'b.jpg')
+    writeFileSync(aPath, 'photo-a')
+    writeFileSync(bPath, 'photo-b')
+    expect(existsSync(aPath)).toBe(true)
+    expect(existsSync(bPath)).toBe(true)
+
+    const [a] = db.insert(schema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = db.insert(schema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    db.insert(schema.homeworkPhotos).values([
+      { batchId: batch.id, originalPath: aPath, resizedPath: aPath, width: 1, height: 1, bytes: 1 },
+      { batchId: batch.id, originalPath: bPath, resizedPath: bPath, width: 1, height: 1, bytes: 1 },
+    ]).run()
+    db.insert(schema.homeworkItems).values([
+      { batchId: batch.id, academyId: a.id, title: 'i1', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: batch.id, academyId: a.id, title: 'i2', source: 'ai', isCommitted: true, dueDate: null },
+    ]).run()
+
+    await deleteBatch(batch.id, { appDb: db })
+
+    // batch row 사라짐
+    expect(db.select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, batch.id)).all()).toEqual([])
+    // items / photos cascade로 함께 삭제
+    expect(db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batch.id)).all()).toEqual([])
+    expect(db.select().from(schema.homeworkPhotos).where(eq(schema.homeworkPhotos.batchId, batch.id)).all()).toEqual([])
+    // photo 파일 unlink
+    expect(existsSync(aPath)).toBe(false)
+    expect(existsSync(bPath)).toBe(false)
+  })
+
+  it('is a no-op for a missing batch id', async () => {
+    const db = makeDb()
+    await expect(deleteBatch(99999, { appDb: db })).resolves.toBeUndefined()
+  })
+
+  it('leaves other batches in the same academy intact', async () => {
+    const db = makeDb()
+    const [a] = db.insert(schema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [b1] = db.insert(schema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    const [b2] = db.insert(schema.homeworkBatches).values({ academyId: a.id, status: 'committed' }).returning().all()
+    db.insert(schema.homeworkItems).values([
+      { batchId: b1.id, academyId: a.id, title: 'b1-item', source: 'ai', isCommitted: true, dueDate: null },
+      { batchId: b2.id, academyId: a.id, title: 'b2-item', source: 'ai', isCommitted: true, dueDate: null },
+    ]).run()
+
+    await deleteBatch(b1.id, { appDb: db })
+
+    expect(db.select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, b2.id)).all()).toHaveLength(1)
+    expect(db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, b2.id)).all().map((x) => x.title)).toEqual(['b2-item'])
   })
 })

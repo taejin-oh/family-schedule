@@ -3,6 +3,9 @@ import type { NextConfig } from 'next'
 const config: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '20mb' },
+    // React 19 <ViewTransition> 활성화. M8 — 페이지 전환 짧은 fade.
+    // swipe-nav의 transform 슬라이드와 충돌 안 하도록 fade만 도입.
+    viewTransition: true,
   },
   // Allow cross-origin requests during dev (Server Actions + HMR WebSocket).
   // Without LAN IP / .local entries, PC clients hitting the host directly are

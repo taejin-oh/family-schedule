@@ -2,17 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, CalendarDays, Camera, GraduationCap, Repeat, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const TABS = [
-  { href: '/',                  icon: Home,           label: '홈' },
-  { href: '/timetable',         icon: CalendarDays,   label: '시간표' },
-  { href: '/homework/upload',   icon: Camera,         label: '업로드' },
-  { href: '/academies',         icon: GraduationCap,  label: '학원' },
-  { href: '/recurring',         icon: Repeat,         label: '매일' },
-  { href: '/admin/settings',    icon: Settings,       label: '설정' },
-] as const
+import { TABS } from '@/lib/tabs'
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -30,6 +21,7 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              prefetch={true}
               className={cn(
                 'flex h-full w-full flex-col items-center justify-center gap-1 text-xs transition-colors touch-manipulation',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'

@@ -129,3 +129,27 @@
     @apply font-sans;
   }
 }
+
+/* M11 — 별 분출 모션은 WAAPI(JS)로 구현됨 (`star-fly.tsx`). 별도 CSS keyframes 없음. */
+
+/* M8 — 페이지 전환 짧은 fade. swipe-nav transform 슬라이드와 별개 layer라 충돌 X. */
+::view-transition-old(root) {
+  animation: ft-fade-out 180ms ease-out forwards;
+}
+::view-transition-new(root) {
+  animation: ft-fade-in 180ms ease-out forwards;
+}
+@keyframes ft-fade-out {
+  to { opacity: 0; }
+}
+@keyframes ft-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+

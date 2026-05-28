@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { FileText, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { updateDraftItem, addDraftItem, deleteDraftItem, commitBatch, rerunBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { LoadingDots } from '@/components/loading-dots'
 import { cn } from '@/lib/utils'
 
 type SimilarMatch = {
@@ -23,12 +24,22 @@ type Item = {
   dueDate: string | null
   source: 'ai' | 'manual'
   confidence?: number | null
+  confidenceReason?: string | null
   sourcePhotoId?: number | null
   similar?: SimilarMatch | null
 }
 type Photo = { id: number; isPdf: boolean }
 
-export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, isReadOnly = false }: { batchId: number; todayIso: string; initial: Item[]; photos: Photo[]; currentHint: string | null; isReadOnly?: boolean }) {
+export function ReviewForm({
+  batchId, todayIso, initial, photos, currentHint, isReadOnly = false,
+}: {
+  batchId: number
+  todayIso: string
+  initial: Item[]
+  photos: Photo[]
+  currentHint: string | null
+  isReadOnly?: boolean
+}) {
   const router = useRouter()
   const [items, setItems] = useState<Item[]>(initial)
   const [busy, setBusy] = useState(false)
@@ -38,6 +49,29 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
   const [newHint, setNewHint] = useState(currentHint ?? '')
   const [rerunError, setRerunError] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+
+  // 검토 페이지 collapsed-by-default. 사용자 주의가 필요한 항목(유사 경고 / 확신 낮음 /
+  // 빈 제목)은 자동으로 펼친 상태로 시작 — 즉시 결정/수정해야 하니까.
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => {
+    const s = new Set<number>()
+    for (const it of initial) {
+      if (it.similar) s.add(it.id)
+      if (it.confidence != null && it.confidence < 0.6) s.add(it.id)
+      if (!it.title.trim()) s.add(it.id)
+    }
+    return s
+  })
+  function toggleExpand(id: number) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Lookup photo metadata by id (so we can decide thumbnail vs PDF icon per item).
+  const photoMap = new Map(photos.map((p) => [p.id, p]))
 
   function patchLocal(id: number, p: Partial<Item>) {
     setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...p } : x)))
@@ -60,8 +94,6 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
       dueDate: newDue || null,
     })
     if (res.ok) {
-      // Append to local state immediately so the UI updates without a full
-      // server refresh (which doesn't reset useState here).
       setItems((cur) => [
         ...cur,
         {
@@ -89,7 +121,16 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
         setBusy(false)
         return
       }
+      // 정상 commit 후 홈으로. router.refresh로 server cache flush + push로 navigate.
+      router.refresh()
       router.push('/')
+      // 5초 안에 페이지가 떠나지 않으면 hard fallback. (드물지만 router.push가
+      // 어떤 이유로 navigation을 시작 못 하는 경우 사용자가 영원히 갇히지 않게.)
+      window.setTimeout(() => {
+        if (window.location.pathname.startsWith('/homework/batches/')) {
+          window.location.href = '/'
+        }
+      }, 5000)
     } catch (e) {
       setCommitError(e instanceof Error ? e.message : '확정 실패')
       setBusy(false)
@@ -110,247 +151,377 @@ export function ReviewForm({ batchId, todayIso, initial, photos, currentHint, is
 
   return (
     <div className="grid md:grid-cols-3 gap-4">
-      <div className="md:col-span-2 space-y-3">
+      <div className="md:col-span-2 space-y-4">
         {isReadOnly && (
-          <div className="rounded-xl bg-muted px-3 py-2.5 text-sm text-muted-foreground">
-            🔒 이미 확정된 batch입니다. 항목은 읽기 전용. 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
+          <div className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+            🔒 이미 확정된 batch입니다. 항목은 읽기 전용 — 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
           </div>
         )}
-        {items.length === 0 ? (
-          <Card className="p-6 text-center text-muted-foreground">
-            추출된 항목이 없습니다. 아래에서 수동으로 추가하세요.
-          </Card>
-        ) : (
-          items.map((it) => (
-            <Card key={it.id} className={cn('p-4 space-y-3', it.similar && 'ring-2 ring-amber-300/60')}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span
+
+        {/* Section: 추출 항목 */}
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            추출 항목 {items.length > 0 && `· ${items.length}`}
+          </h2>
+
+          {items.length === 0 ? (
+            <Card className="p-6 text-center text-muted-foreground text-sm border-dashed">
+              추출된 항목이 없습니다. 아래에서 수동으로 추가하세요.
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {items.map((it) => {
+                const photo = it.sourcePhotoId != null ? photoMap.get(it.sourcePhotoId) : null
+                const isExpanded = expandedIds.has(it.id)
+
+                // Collapsed: 한 줄 — AI/수동, 경고 배지, 제목, 마감, 펼침 화살표.
+                if (!isExpanded) {
+                  return (
+                    <Card
+                      key={it.id}
+                      className={cn(
+                        'p-3 cursor-pointer hover:bg-accent/30 transition-colors',
+                        it.similar && 'ring-2 ring-amber-300/60',
+                      )}
+                      onClick={() => toggleExpand(it.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
+                              it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {it.source === 'ai' ? 'AI' : '수동'}
+                          </span>
+                          {it.confidence != null && it.confidence < 0.6 && (
+                            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800">
+                              {Math.round(it.confidence * 100)}%
+                            </span>
+                          )}
+                          {it.similar && (
+                            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800">
+                              ⚠️
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={cn(
+                            'text-sm font-medium truncate',
+                            !it.title.trim() && 'text-muted-foreground italic',
+                          )}>
+                            {it.title.trim() || '(빈 제목)'}
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground tabular-nums flex-shrink-0">
+                          {it.dueDate ?? '날짜 X'}
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                      </div>
+                    </Card>
+                  )
+                }
+
+                // Expanded: 모든 편집 UI.
+                return (
+                  <Card
+                    key={it.id}
                     className={cn(
-                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground',
+                      'p-4 gap-3',
+                      it.similar && 'ring-2 ring-amber-300/60',
                     )}
                   >
-                    {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
-                  </span>
-                  {it.confidence != null && it.confidence < 0.6 && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800">
-                      확신 낮음 {Math.round(it.confidence * 100)}%
-                    </span>
-                  )}
-                  {!isReadOnly && (it.dueDate == null || it.dueDate < todayIso) && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600">
-                      날짜 의심
-                    </span>
-                  )}
-                  {it.similar && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800">
-                      ⚠️ 유사 {Math.round(it.similar.score * 100)}%
-                    </span>
-                  )}
-                  {it.sourcePhotoId != null && (
-                    <a
-                      href={`/api/photo?id=${it.sourcePhotoId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="shrink-0"
-                      title="출처 사진 보기"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/photo?id=${it.sourcePhotoId}`}
-                        alt="출처 사진"
-                        className="w-12 h-12 object-cover rounded-lg ring-1 ring-foreground/10"
-                      />
-                    </a>
-                  )}
+                    {/* Badges row + collapse + delete */}
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                            it.source === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {it.source === 'ai' ? 'AI 추출' : '수동 추가'}
+                        </span>
+                        {it.confidence != null && it.confidence < 0.6 && (
+                          <span
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800"
+                            title={it.confidenceReason ?? undefined}
+                          >
+                            확신 낮음 {Math.round(it.confidence * 100)}%
+                            {it.confidenceReason && <span className="ml-1 font-normal opacity-80">· {it.confidenceReason}</span>}
+                          </span>
+                        )}
+                        {!isReadOnly && (it.dueDate == null || it.dueDate < todayIso) && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+                            날짜 의심
+                          </span>
+                        )}
+                        {it.similar && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800">
+                            ⚠️ 유사 {Math.round(it.similar.score * 100)}%
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(it.id)}
+                        aria-label="접기"
+                        className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        <ChevronUp className="h-4 w-4" aria-hidden />
+                      </button>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => remove(it.id)}
+                          aria-label="삭제"
+                          className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Similar item warning */}
+                    {it.similar && (
+                      <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2.5 space-y-2">
+                        <div>
+                          <div className="font-medium">이미 등록된 비슷한 항목</div>
+                          <div className="break-words mt-0.5">
+                            “{it.similar.title}”
+                            {it.similar.dueDate && <span className="text-muted-foreground"> · ~{it.similar.dueDate}</span>}
+                            {it.similar.doneAt && <span className="text-green-700"> · ✓ 완료됨</span>}
+                          </div>
+                        </div>
+                        {!isReadOnly && (
+                          <div className="flex gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => patchLocal(it.id, { similar: null })}
+                              className="px-2.5 py-1 rounded text-[11px] font-medium bg-white text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors"
+                            >
+                              다른 항목이에요
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => remove(it.id)}
+                              className="px-2.5 py-1 rounded text-[11px] font-medium bg-amber-700 text-white hover:bg-amber-800 transition-colors"
+                            >
+                              이거랑 같아요 (삭제)
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Content row: thumbnail + main */}
+                    <div className="flex gap-3">
+                      {/* Source thumbnail (only for image photos — PDFs get an icon) */}
+                      {photo && (
+                        <a
+                          href={`/api/photo?id=${photo.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0"
+                          title={photo.isPdf ? 'PDF 원본 열기' : '원본 사진 보기'}
+                        >
+                          {photo.isPdf ? (
+                            <div className="w-16 h-16 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
+                              <FileText className="h-7 w-7" aria-hidden />
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={`/api/photo?id=${photo.id}`}
+                              alt="원본 사진"
+                              loading="lazy"
+                              decoding="async"
+                              className="w-16 h-16 object-cover rounded-lg ring-1 ring-foreground/10"
+                            />
+                          )}
+                        </a>
+                      )}
+
+                      {/* Main content */}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <Textarea
+                          value={it.title}
+                          placeholder="숙제 내용"
+                          onChange={(e) => !isReadOnly && patchLocal(it.id, { title: e.target.value })}
+                          onBlur={(e) => !isReadOnly && persist(it.id, { title: e.target.value })}
+                          rows={1}
+                          className="resize-y text-[15px] font-medium leading-snug min-h-[36px] py-1.5"
+                          disabled={isReadOnly}
+                        />
+                        <Textarea
+                          value={it.notes ?? ''}
+                          placeholder="상세 메모 (책 이름, 단원, 페이지 등)"
+                          onChange={(e) => !isReadOnly && patchLocal(it.id, { notes: e.target.value })}
+                          onBlur={(e) => !isReadOnly && persist(it.id, { notes: e.target.value || null })}
+                          rows={2}
+                          className="resize-y text-sm text-muted-foreground leading-snug min-h-[48px]"
+                          disabled={isReadOnly}
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">마감일</span>
+                          <Input
+                            type="date"
+                            value={it.dueDate ?? ''}
+                            onChange={(e) => {
+                              if (isReadOnly) return
+                              const v = e.target.value || null
+                              patchLocal(it.id, { dueDate: v })
+                              persist(it.id, { dueDate: v })
+                            }}
+                            className="h-8 w-auto text-sm"
+                            disabled={isReadOnly}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Section: 수동 추가 */}
+        {!isReadOnly && (
+          <section className="space-y-2">
+            <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+              수동 추가
+            </h2>
+            <Card className="p-4 gap-3 border-dashed">
+              <Textarea
+                placeholder="숙제 내용 (예: 수학익힘책 p.20-30)"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                rows={1}
+                className="resize-y text-[15px] font-medium leading-snug min-h-[36px] py-1.5"
+              />
+              <Textarea
+                placeholder="상세 메모 (선택)"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                rows={2}
+                className="resize-y text-sm text-muted-foreground leading-snug min-h-[48px]"
+              />
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-xs text-muted-foreground">마감일</span>
+                  <Input
+                    type="date"
+                    value={newDue}
+                    onChange={(e) => setNewDue(e.target.value)}
+                    className="h-8 w-auto text-sm"
+                  />
                 </div>
-                {!isReadOnly && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => remove(it.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    삭제
-                  </Button>
-                )}
-              </div>
-
-              {it.similar && (
-                <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2 space-y-0.5">
-                  <div className="font-medium">이미 등록된 비슷한 항목:</div>
-                  <div className="break-words">
-                    “{it.similar.title}”
-                    {it.similar.dueDate && <span className="text-muted-foreground"> · ~{it.similar.dueDate}</span>}
-                    {it.similar.doneAt && <span className="text-green-700"> · ✓ 완료됨</span>}
-                  </div>
-                  <div className="text-muted-foreground/80">중복이면 삭제, 다른 거면 그대로 두세요.</div>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor={`title-${it.id}`} className="text-xs text-muted-foreground">
-                  숙제 내용
-                </Label>
-                <Textarea
-                  id={`title-${it.id}`}
-                  value={it.title}
-                  onChange={(e) => !isReadOnly && patchLocal(it.id, { title: e.target.value })}
-                  onBlur={(e) => !isReadOnly && persist(it.id, { title: e.target.value })}
-                  rows={2}
-                  className="resize-y"
-                  disabled={isReadOnly}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor={`notes-${it.id}`} className="text-xs text-muted-foreground">
-                  상세 메모 <span className="text-muted-foreground/60">(책 이름, 단원, 페이지, 분량 등)</span>
-                </Label>
-                <Textarea
-                  id={`notes-${it.id}`}
-                  value={it.notes ?? ''}
-                  placeholder="예: 수학익힘책 7단원, p.45-52, 30문제, 오답노트 정리"
-                  onChange={(e) => !isReadOnly && patchLocal(it.id, { notes: e.target.value })}
-                  onBlur={(e) => !isReadOnly && persist(it.id, { notes: e.target.value || null })}
-                  rows={3}
-                  className="resize-y"
-                  disabled={isReadOnly}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor={`due-${it.id}`} className="text-xs text-muted-foreground">
-                  마감일
-                </Label>
-                <Input
-                  id={`due-${it.id}`}
-                  type="date"
-                  value={it.dueDate ?? ''}
-                  onChange={(e) => {
-                    if (isReadOnly) return
-                    const v = e.target.value || null
-                    patchLocal(it.id, { dueDate: v })
-                    persist(it.id, { dueDate: v })
-                  }}
-                  className="w-44"
-                  disabled={isReadOnly}
-                />
+                <Button
+                  type="button"
+                  onClick={add}
+                  variant="secondary"
+                  size="sm"
+                  disabled={!newTitle.trim()}
+                >
+                  + 추가
+                </Button>
               </div>
             </Card>
-          ))
+          </section>
         )}
 
-        {!isReadOnly && <Card className="p-4 space-y-3 border-dashed">
-          <div className="text-xs font-medium text-muted-foreground">+ 수동 추가</div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-title" className="text-xs text-muted-foreground">숙제 내용</Label>
-            <Textarea
-              id="new-title"
-              placeholder="예: 수학익힘책 p.20-30 풀기"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              rows={2}
-              className="resize-y"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-notes" className="text-xs text-muted-foreground">상세 메모 (선택)</Label>
-            <Textarea
-              id="new-notes"
-              placeholder="책 이름, 단원, 분량 등"
-              value={newNotes}
-              onChange={(e) => setNewNotes(e.target.value)}
-              rows={2}
-              className="resize-y"
-            />
-          </div>
-          <div className="flex items-end gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-due" className="text-xs text-muted-foreground">마감일</Label>
-              <Input
-                id="new-due"
-                type="date"
-                value={newDue}
-                onChange={(e) => setNewDue(e.target.value)}
-                className="w-44"
-              />
-            </div>
-            <Button type="button" onClick={add} variant="secondary" disabled={!newTitle.trim()}>
-              추가
-            </Button>
-          </div>
-        </Card>}
-
+        {/* Section: 다시 추출 */}
         {!isReadOnly && (
-          <>
+          <details className="group">
+            <summary className="cursor-pointer select-none px-1 text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1.5 pt-2">
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+              <span>추출 결과가 이상한가요?</span>
+              <span className="ml-auto text-xs group-open:hidden">펼치기</span>
+              <span className="ml-auto text-xs hidden group-open:inline">접기</span>
+            </summary>
+            <Card className="mt-2 p-4 gap-3 border-dashed">
+              <p className="text-xs text-muted-foreground">
+                힌트를 수정해서 다시 추출할 수 있어요. 이전 batch는 그대로 보존됩니다.
+              </p>
+              <Textarea
+                placeholder="예: 수학 숙제 알림장, 날짜와 과목명 포함"
+                value={newHint}
+                onChange={(e) => setNewHint(e.target.value)}
+                rows={3}
+                className="resize-y text-sm"
+              />
+              <p className="text-xs text-muted-foreground">모델 변경은 설정 페이지에서</p>
+              {rerunError && <p className="text-xs text-destructive">{rerunError}</p>}
+              <Button type="button" onClick={rerun} disabled={busy} variant="secondary" className="w-full">
+                🔁 다시 추출
+              </Button>
+            </Card>
+          </details>
+        )}
+
+        {/* Bottom action — confirm */}
+        {!isReadOnly && (
+          <div className="space-y-2 pt-1">
             <Button
               onClick={commit}
               disabled={busy || items.length === 0}
               className="w-full h-12 text-base font-semibold rounded-xl"
             >
-              {busy ? '확정 중…' : `✅ ${items.length}개 항목 확정`}
+              {busy ? <>확정 중<LoadingDots /></> : `✅ ${items.length}개 항목 확정`}
             </Button>
-            {commitError && <p className="text-sm text-destructive whitespace-pre-wrap break-words">{commitError}</p>}
-          </>
+            {commitError && (
+              <p className="text-sm text-destructive whitespace-pre-wrap break-words px-1">
+                {commitError}
+              </p>
+            )}
+          </div>
         )}
-
-        <details className="group">
-          <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
-            <span className="group-open:hidden">▶</span>
-            <span className="hidden group-open:inline">▼</span>
-            추출 결과가 이상한가요?
-          </summary>
-          <Card className="mt-2 p-4 space-y-3 border-dashed">
-            <p className="text-xs text-muted-foreground">
-              힌트를 수정해서 다시 추출할 수 있어요. 이전 batch와 항목은 그대로 보존되고 새 batch가 생성됩니다.
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="rerun-hint" className="text-xs text-muted-foreground">AI 추출 힌트</Label>
-              <Textarea
-                id="rerun-hint"
-                placeholder="예: 수학 숙제 알림장, 날짜와 과목명 포함"
-                value={newHint}
-                onChange={(e) => setNewHint(e.target.value)}
-                rows={3}
-                className="resize-y"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">모델 변경은 설정 페이지에서</p>
-            {rerunError && <p className="text-xs text-destructive">{rerunError}</p>}
-            <Button type="button" onClick={rerun} disabled={busy} variant="secondary" className="w-full">
-              🔁 다시 추출
-            </Button>
-          </Card>
-        </details>
       </div>
 
-      <div className="space-y-2">
-        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
-          원본 파일
+      {/* Sidebar — 원본 파일 (desktop right / mobile bottom via column order) */}
+      <aside className="space-y-2">
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+          원본 파일 {photos.length > 0 && `· ${photos.length}`}
         </h2>
-        {photos.map((p, i) => {
-          const href = `/api/photo?id=${p.id}`
-          if (p.isPdf) {
-            return (
-              <Card key={p.id} className="p-3 gap-2">
-                <div className="text-xs text-muted-foreground">📄 PDF {i + 1}</div>
-                <a href={href} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-                  새 창에서 열기
+        <div className="space-y-2">
+          {photos.map((p, i) => {
+            const href = `/api/photo?id=${p.id}`
+            if (p.isPdf) {
+              return (
+                <a
+                  key={p.id}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
+                  <Card className="p-3 gap-2 hover:bg-accent/40 transition-colors">
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                      <span className="font-medium">PDF {i + 1}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">열기 ↗</span>
+                    </div>
+                  </Card>
                 </a>
-              </Card>
+              )
+            }
+            return (
+              <a key={p.id} href={href} target="_blank" rel="noreferrer" className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={href}
+                  alt={`사진 ${i + 1}`}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full rounded-xl ring-1 ring-foreground/10"
+                />
+              </a>
             )
-          }
-          return (
-            <a key={p.id} href={href} target="_blank" rel="noreferrer" className="block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={href} alt={`photo ${i + 1}`} className="w-full rounded-xl ring-1 ring-foreground/10" />
-            </a>
-          )
-        })}
-      </div>
+          })}
+        </div>
+      </aside>
     </div>
   )
 }

@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { ActiveAcademyItems, DoneAcademyItems } from './_components/academy-items'
+import { BatchesRollback } from './_components/batches-rollback'
+import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 
 const SUBJECT_KO: Record<string, string> = {
   math: '수학', english: '영어', korean: '국어', art: '미술',
@@ -26,7 +28,7 @@ export default async function AcademyDetailPage({
   const data = await getAcademyDetail(numId)
   if (!data) notFound()
 
-  const { academy, active: allActive, done: allDone } = data
+  const { academy, active: allActive, done: allDone, batches } = data
   const todayIso = localDateIso()
 
   // Optional date filter (from timetable slot drill-down)
@@ -35,7 +37,12 @@ export default async function AcademyDetailPage({
 
   const scheduleSlots = academy.scheduleRule?.slots ?? []
 
+  // 다중선택 일괄 처리용 ID 묶음. 학원 상세는 정책상 delete-only.
+  const activeIds = active.map((it) => it.id)
+  const doneIds = done.map((it) => it.id)
+
   return (
+    <MultiSelectProvider activeIds={activeIds} doneIds={doneIds} mode="delete-only">
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div className="min-w-0">
@@ -57,9 +64,12 @@ export default async function AcademyDetailPage({
             {SUBJECT_KO[academy.subject] ?? academy.subject}
           </p>
         </div>
-        <Link href={`/academies/${numId}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          편집
-        </Link>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <MultiSelectToggle />
+          <Link href={`/academies/${numId}/edit`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+            편집
+          </Link>
+        </div>
       </header>
 
       {dateFilter && (
@@ -130,6 +140,9 @@ export default async function AcademyDetailPage({
       {/* Completed homework — collapsible, with undo */}
       {/* eslint-disable-next-line react-hooks/purity -- server component renders per-request; Date.now() is intentional */}
       <DoneAcademyItems items={done} now={Date.now()} />
+
+      <BatchesRollback batches={batches} />
     </div>
+    </MultiSelectProvider>
   )
 }

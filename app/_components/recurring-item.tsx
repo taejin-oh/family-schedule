@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { archiveRecurringTask } from '@/server/actions/recurring'
+import { archiveRecurringTask, unarchiveRecurringTask } from '@/server/actions/recurring'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
-import { EditRecurringDialog } from '@/components/edit-recurring-dialog'
+import { EditRecurringDialog } from '@/components/edit-recurring-dialog-lazy'
+import { useToast } from '@/components/toast'
 
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
@@ -30,10 +32,16 @@ export function RecurringItem({
   onComplete,
 }: RecurringItemProps) {
   const [editOpen, setEditOpen] = useState(false)
+  const router = useRouter()
+  const toast = useToast()
 
   async function handleArchive() {
     // ItemActionsMenu.runAction already wraps in startTransition + catches errors.
     await archiveRecurringTask(id)
+    toast.show({
+      label: `"${title}" 보관됨`,
+      onUndo: async () => { await unarchiveRecurringTask(id); router.refresh() },
+    })
   }
 
   const badgeClass = cadence === 'weekly'
@@ -41,7 +49,7 @@ export function RecurringItem({
     : 'bg-muted text-muted-foreground'
 
   const rowContent = (
-    <div className="px-4 py-3 flex items-center gap-3">
+    <div className="px-4 py-3 pr-12 flex items-center gap-3">
       <form action={onComplete} className="flex-shrink-0">
         <input type="hidden" name="taskId" value={id} />
         <input type="hidden" name="dateIso" value={dateIso} />

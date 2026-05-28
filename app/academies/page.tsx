@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { listAcademies, listArchivedAcademies, archiveAcademy } from '@/server/actions/academies'
+import { listAcademies, listArchivedAcademies, archiveAcademy, unarchiveAcademy } from '@/server/actions/academies'
 import { revalidatePath } from 'next/cache'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { AcademyRow } from './_components/academy-row'
 
 const SUBJECT_KO: Record<string, string> = {
   math: '수학', english: '영어', korean: '국어', art: '미술',
@@ -13,14 +14,6 @@ const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu
 
 export default async function AcademiesPage() {
   const [rows, archivedRows] = await Promise.all([listAcademies(), listArchivedAcademies()])
-  async function onArchive(formData: FormData) {
-    'use server'
-    const id = Number(formData.get('id'))
-    await archiveAcademy(id)
-    revalidatePath('/academies')
-    revalidatePath('/academies/archived')
-    revalidatePath('/')
-  }
   return (
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
@@ -48,41 +41,32 @@ export default async function AcademiesPage() {
               const sched = r.scheduleRule?.slots && r.scheduleRule.slots.length > 0
                 ? r.scheduleRule.slots.map((s) => `${DAY_KO[s.day] ?? s.day} ${s.start}–${s.end}`).join(' · ')
                 : null
+              const academyId = r.id
+              const onArchiveOne = async () => {
+                'use server'
+                await archiveAcademy(academyId)
+                revalidatePath('/academies')
+                revalidatePath('/academies/archived')
+                revalidatePath('/')
+              }
+              const onUnarchiveOne = async () => {
+                'use server'
+                await unarchiveAcademy(academyId)
+                revalidatePath('/academies')
+                revalidatePath('/academies/archived')
+                revalidatePath('/')
+              }
               return (
-                <div key={r.id} className="px-4 py-3 flex items-center gap-3">
-                  <span
-                    className="w-[5px] h-9 rounded-full flex-shrink-0"
-                    style={{ background: r.color }}
-                    aria-hidden
-                  />
-                  <Link
-                    href={`/academies/${r.id}`}
-                    className="flex-1 min-w-0 -m-1 p-1 rounded-md hover:bg-accent transition-colors"
-                  >
-                    <div className="font-medium text-[15px]">{r.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {sub}{sched && ` · ${sched}`}
-                    </div>
-                  </Link>
-                  <Link
-                    href={`/academies/${r.id}/edit`}
-                    className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
-                  >
-                    편집
-                  </Link>
-                  <form action={onArchive}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      title="보관함에서 나중에 복원할 수 있어요"
-                    >
-                      보관
-                    </Button>
-                  </form>
-                </div>
+                <AcademyRow
+                  key={r.id}
+                  id={r.id}
+                  name={r.name}
+                  color={r.color}
+                  subjectLabel={sub}
+                  scheduleLabel={sched}
+                  onArchive={onArchiveOne}
+                  onUnarchive={onUnarchiveOne}
+                />
               )
             })}
           </Card>

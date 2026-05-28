@@ -12,7 +12,7 @@ import {
   getActiveReward,
   getStickerState,
   addManualStamp,
-  removeManualStamp,
+  removeStamp,
   redeem,
   tryStampToday,
   listRedemptions,
@@ -62,25 +62,44 @@ describe('setActiveReward / getActiveReward', () => {
   })
 })
 
-describe('addManualStamp / removeManualStamp', () => {
+describe('addManualStamp / removeStamp', () => {
   it('adds a manual stamp and removes it', async () => {
     const { db } = makeDb()
     await addManualStamp('보너스', { db })
     const before = await getStickerState({ db })
     expect(before.count).toBe(1)
     expect(before.stamps[0].kind).toBe('manual')
-    const r = await removeManualStamp(before.stamps[0].id, { db })
+    const r = await removeStamp(before.stamps[0].id, { db })
     expect(r.ok).toBe(true)
     expect((await getStickerState({ db })).count).toBe(0)
   })
 
-  it('refuses to remove an auto stamp through the manual route', async () => {
+  it('removes an auto stamp too (admin force-remove)', async () => {
+    // 정책 변경: 설정 화면에서 부모가 자동 적립 스티커도 강제로 지울 수 있어야 함.
     const { db } = makeDb()
     db.insert(schema.stamps).values({ forDate: '2026-05-26', kind: 'auto' }).run()
     const stamp = db.select().from(schema.stamps).get()!
-    const r = await removeManualStamp(stamp.id, { db })
-    expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.error).toMatch(/자동/)
+    const r = await removeStamp(stamp.id, { db })
+    expect(r.ok).toBe(true)
+    expect(db.select().from(schema.stamps).all()).toHaveLength(0)
+  })
+
+  it('still refuses to remove a stamp already used in a redemption', async () => {
+    const { db } = makeDb()
+    const [reward] = db.insert(schema.rewardSettings).values({
+      name: 'test', emoji: '🏆', targetCount: 3,
+    }).returning().all()
+    const [red] = db.insert(schema.redemptions).values({
+      rewardSettingsId: reward.id,
+      rewardName: 'test',
+      rewardEmoji: '🏆',
+      targetCount: 3,
+    }).returning().all()
+    db.insert(schema.stamps).values({ forDate: null, kind: 'manual', redemptionId: red.id }).run()
+    const stamp = db.select().from(schema.stamps).get()!
+    const res = await removeStamp(stamp.id, { db })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/보상에 사용/)
   })
 })
 

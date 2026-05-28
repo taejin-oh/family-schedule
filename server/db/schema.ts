@@ -64,6 +64,7 @@ export const homeworkItems = sqliteTable('homework_items', {
   source: text('source', { enum: ['ai','manual'] }).notNull(),
   aiOriginalTitle: text('ai_original_title'),
   confidence: real('confidence'),
+  confidenceReason: text('confidence_reason'),   // confidence < 0.7일 때 AI가 짧게 적은 이유. 리뷰 화면 보조 정보.
   sourcePhotoId: integer('source_photo_id').references(() => homeworkPhotos.id, { onDelete: 'set null' }),
   isCommitted: integer('is_committed', { mode: 'boolean' }).notNull().default(false),
   doneAt: integer('done_at', { mode: 'timestamp' }),
@@ -81,6 +82,11 @@ export const appSettings = sqliteTable('app_settings', {
   telegramEveningTime: text('telegram_evening_time').notNull().default('21:00'),
   telegramMiddayEnabled: integer('telegram_midday_enabled', { mode: 'boolean' }).notNull().default(true),
   telegramMiddayTime: text('telegram_midday_time').notNull().default('12:00'),
+  // 학원 시작/종료 ±N분 전 알림. minutes는 5~30 권장.
+  telegramAcademyReminderEnabled: integer('telegram_academy_reminder_enabled', { mode: 'boolean' }).notNull().default(true),
+  telegramAcademyReminderMinutes: integer('telegram_academy_reminder_minutes').notNull().default(10),
+  // 아이 홈 빈 상태 카피 (null이면 DEFAULT_EMPTY_STATES 사용)
+  emptyStateCopy: text('empty_state_copy', { mode: 'json' }).$type<Array<{ emoji: string; title: string; sub: string }>>(),
 })
 
 export const recurringTasks = sqliteTable('recurring_tasks', {

@@ -3,12 +3,13 @@ import {
   getStickerState,
   setActiveReward,
   addManualStamp,
-  removeManualStamp,
+  removeStamp as removeStampAction,
   listRedemptions,
 } from '@/server/actions/stickers'
 import { getCleanupStats, runManualCleanup } from '@/server/actions/cleanup'
 import { CLEANUP_CONFIG } from '@/server/util/batch-cleanup'
 import { revalidatePath } from 'next/cache'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { TelegramTestButton } from './_components/telegram-test-button'
 import { CleanupSection } from './_components/cleanup-section'
@@ -42,6 +43,8 @@ export default async function SettingsPage() {
       telegramEveningTime: String(formData.get('telegramEveningTime') || '21:00'),
       telegramMiddayEnabled: formData.get('telegramMiddayEnabled') === 'on',
       telegramMiddayTime: String(formData.get('telegramMiddayTime') || '12:00'),
+      telegramAcademyReminderEnabled: formData.get('telegramAcademyReminderEnabled') === 'on',
+      telegramAcademyReminderMinutes: Number(formData.get('telegramAcademyReminderMinutes') || 10),
     })
     if (!res.ok) throw new Error(res.error ?? '저장 실패')
     revalidatePath('/admin/settings')
@@ -69,7 +72,7 @@ export default async function SettingsPage() {
   async function removeStamp(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
-    const res = await removeManualStamp(id)
+    const res = await removeStampAction(id)
     if (!res.ok) throw new Error(res.error)
     revalidatePath('/admin/settings')
     revalidatePath('/')
@@ -135,29 +138,35 @@ export default async function SettingsPage() {
             )}
           </div>
           {stickers.stamps.length > 0 && (
-            <ul className="text-xs space-y-1 mt-2 mb-2 max-h-32 overflow-auto">
-              {stickers.stamps.map((st) => (
-                <li key={st.id} className="flex items-center gap-2">
-                  <span className="text-amber-500">★</span>
-                  <span className="text-muted-foreground">
-                    {st.kind === 'auto'
-                      ? `자동 · ${st.forDate}`
-                      : `보너스${st.notes ? ` · ${st.notes}` : ''}`}
-                  </span>
-                  {st.kind === 'manual' && (
-                    <form action={removeStamp} className="inline">
+            <>
+              <ul className="text-xs space-y-1 mt-2 mb-1">
+                {[...stickers.stamps].reverse().slice(0, 5).map((st) => (
+                  <li key={st.id} className="flex items-center gap-2">
+                    <span className="text-amber-500">★</span>
+                    <span className="text-muted-foreground">
+                      {st.kind === 'auto'
+                        ? `자동 · ${st.forDate}`
+                        : `보너스${st.notes ? ` · ${st.notes}` : ''}`}
+                    </span>
+                    <form action={removeStamp} className="inline ml-auto">
                       <input type="hidden" name="id" value={st.id} />
                       <button
                         type="submit"
-                        className="text-destructive hover:underline text-xs ml-auto"
+                        className="text-destructive hover:underline text-xs"
                       >
                         지우기
                       </button>
                     </form>
-                  )}
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/admin/stickers/history"
+                className="text-xs text-primary hover:underline mb-2 inline-block"
+              >
+                전체 보기 ({stickers.stamps.length}) →
+              </Link>
+            </>
           )}
           <form action={addBonus} className="flex gap-2 mt-2">
             <input
@@ -179,8 +188,8 @@ export default async function SettingsPage() {
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               받은 보상 이력
             </h3>
-            <ul className="text-sm space-y-1 max-h-40 overflow-auto">
-              {redemptions.map((r) => (
+            <ul className="text-sm space-y-1">
+              {redemptions.slice(0, 3).map((r) => (
                 <li key={r.id} className="flex items-baseline gap-2">
                   <span>{r.rewardEmoji}</span>
                   <span className="font-medium">{r.rewardName}</span>
@@ -190,8 +199,32 @@ export default async function SettingsPage() {
                 </li>
               ))}
             </ul>
+            {redemptions.length > 3 && (
+              <Link
+                href="/admin/stickers/history"
+                className="text-xs text-primary hover:underline mt-2 inline-block"
+              >
+                전체 보기 ({redemptions.length}) →
+              </Link>
+            )}
           </div>
         )}
+      </Card>
+
+      {/* 💬 오늘 끝 카피 — 별도 페이지로 진입 */}
+      <Card className="p-4 gap-2">
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          💬 오늘 끝 카피
+        </h2>
+        <p className="text-xs text-muted-foreground -mt-1 leading-relaxed">
+          아이 홈에서 “오늘 할 일이 없어요” 메시지가 매일 다른 카피로 보입니다. 직접 추가·수정하거나 기본값으로 복원할 수 있어요.
+        </p>
+        <Link
+          href="/admin/empty-states"
+          className="text-sm font-medium text-primary hover:underline self-start"
+        >
+          카피 관리하기 →
+        </Link>
       </Card>
 
       {/* 📦 업로드 정리 */}
@@ -232,11 +265,8 @@ export default async function SettingsPage() {
           <hr className="border-foreground/10" />
 
           <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            📱 텔레그램 다이제스트
+            📱 텔레그램 알림
           </h2>
-          <p className="text-xs text-muted-foreground -mt-1">
-            TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID 환경변수가 설정되어 있어야 발송됩니다.
-          </p>
 
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -245,33 +275,75 @@ export default async function SettingsPage() {
               defaultChecked={s.telegramEnabled ?? false}
               className="h-4 w-4 accent-foreground"
             />
-            <span className="font-medium">다이제스트 발송 사용</span>
+            <span className="font-medium">알림 전체 켜기</span>
+            <span className="text-xs text-muted-foreground">— 휴가 등 일시 정지용. 끄면 아래 다이제스트·학원 알림 모두 발송 안 됨.</span>
           </label>
 
-          <div className="space-y-2 pl-2">
-            {[
-              { key: 'Morning', label: '아침', timeKey: 'telegramMorningTime', defTime: '07:00', enabledKey: 'telegramMorningEnabled', enabledVal: s.telegramMorningEnabled ?? true },
-              { key: 'Midday',  label: '점심', timeKey: 'telegramMiddayTime',  defTime: '12:00', enabledKey: 'telegramMiddayEnabled',  enabledVal: s.telegramMiddayEnabled ?? true },
-              { key: 'Evening', label: '저녁', timeKey: 'telegramEveningTime', defTime: '21:00', enabledKey: 'telegramEveningEnabled', enabledVal: s.telegramEveningEnabled ?? true },
-            ].map((row) => (
-              <div key={row.key} className="flex items-center gap-3">
-                <label className="flex items-center gap-2 min-w-[80px] text-sm">
+          {/* === 다이제스트 (예약 시각에 자동 발송) === */}
+          <div className="border-t border-foreground/10 pt-3 space-y-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              ⏰ 예약 다이제스트
+            </h3>
+            <p className="text-xs text-muted-foreground -mt-1 leading-relaxed">
+              <b>아침</b>: 어제까지 마감 + 오늘까지 끝낼 거 (내일 마감 포함) + 이번 주 진행률 + 오늘 학원<br />
+              <b>저녁 (브리핑)</b>: 오늘 다녀온 학원 + 완료/미완료 + 제안 + 내일 마감
+            </p>
+            <div className="space-y-2 pl-2">
+              {[
+                { key: 'Morning', label: '아침', timeKey: 'telegramMorningTime', defTime: '07:00', enabledKey: 'telegramMorningEnabled', enabledVal: s.telegramMorningEnabled ?? true },
+                { key: 'Evening', label: '저녁', timeKey: 'telegramEveningTime', defTime: '21:00', enabledKey: 'telegramEveningEnabled', enabledVal: s.telegramEveningEnabled ?? true },
+              ].map((row) => (
+                <div key={row.key} className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 min-w-[80px] text-sm">
+                    <input
+                      type="checkbox"
+                      name={row.enabledKey}
+                      defaultChecked={row.enabledVal}
+                      className="h-4 w-4 accent-foreground"
+                    />
+                    <span>{row.label}</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    name={row.enabledKey}
-                    defaultChecked={row.enabledVal}
-                    className="h-4 w-4 accent-foreground"
+                    type="time"
+                    name={row.timeKey}
+                    defaultValue={(s[row.timeKey as keyof typeof s] as string | null) ?? row.defTime}
+                    className={smallFieldCls}
                   />
-                  <span>{row.label}</span>
-                </label>
-                <input
-                  type="time"
-                  name={row.timeKey}
-                  defaultValue={(s[row.timeKey as keyof typeof s] as string | null) ?? row.defTime}
-                  className={smallFieldCls}
-                />
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* === 학원 ±N분 알림 === */}
+          <div className="border-t border-foreground/10 pt-3 space-y-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              🔔 학원 시작/종료 알림
+            </h3>
+            <p className="text-xs text-muted-foreground -mt-1 leading-relaxed">
+              학원 시간표(`/timetable`)에 등록된 모든 학원의 <b>시작 N분 전</b>과 <b>종료 N분 전</b>에 자동 발송.
+              학교처럼 매일 일과는 빼고 싶으면 해당 학원을 보관하거나 schedule rule을 비워주세요.
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="telegramAcademyReminderEnabled"
+                defaultChecked={s.telegramAcademyReminderEnabled ?? true}
+                className="h-4 w-4 accent-foreground"
+              />
+              <span className="font-medium">학원 알림 사용</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm pl-2">
+              <span className="min-w-[80px]">몇 분 전</span>
+              <input
+                type="number"
+                name="telegramAcademyReminderMinutes"
+                defaultValue={s.telegramAcademyReminderMinutes ?? 10}
+                min={1}
+                max={60}
+                className={smallFieldCls}
+              />
+              <span className="text-xs text-muted-foreground">분 (1~60)</span>
+            </label>
           </div>
 
           <button

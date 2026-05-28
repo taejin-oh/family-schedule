@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, Pencil } from 'lucide-react'
+import { Camera, FileText, ImageIcon, RefreshCw, Pencil, X } from 'lucide-react'
 import { uploadHomework, rerunBatch, deleteBatch, createEmptyBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
+import { LoadingDots } from '@/components/loading-dots'
 import { BatchCard } from './batch-card'
 
 type Academy = { id: number; name: string; color: string; extractionHint: string | null }
@@ -100,6 +102,31 @@ export function UploadForm({
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isCoarsePointer = useMediaQuery('(pointer: coarse)')
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  // 이미지 파일은 미리보기 URL을 만들어두고, files 배열이 바뀌면 정리. PDF는 null.
+  const fileUrls = useMemo(
+    () => files.map((f) => (f.type.startsWith('image/') ? URL.createObjectURL(f) : null)),
+    [files],
+  )
+  useEffect(() => {
+    return () => {
+      fileUrls.forEach((u) => { if (u) URL.revokeObjectURL(u) })
+    }
+  }, [fileUrls])
+
+  function appendFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const incoming = Array.from(e.target.files ?? [])
+    if (incoming.length === 0) return
+    setFiles((prev) => [...prev, ...incoming])
+    // input value를 비워서 같은 파일을 다시 선택할 수 있게.
+    e.target.value = ''
+  }
+  function removeFileAt(idx: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== idx))
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -124,11 +151,6 @@ export function UploadForm({
   function formatSize(bytes: number): string {
     if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`
     return `${Math.round(bytes / 1024)}KB`
-  }
-
-  function iconFor(file: File): string {
-    if (file.type === 'application/pdf') return '📄'
-    return '🖼️'
   }
 
   async function startManual() {
@@ -356,43 +378,87 @@ export function UploadForm({
 
         {/* File input (hidden in reuse mode, and only shown in file mode) */}
         {showFileForm && !reuse && (
-          <div className="space-y-2">
-            <Label htmlFor="photos">파일 (사진 또는 PDF, 1개 이상)</Label>
-            <label
-              htmlFor="photos"
-              className={cn(
-                'block cursor-pointer rounded-xl border-2 border-dashed transition-colors text-center px-4 py-6',
-                files.length > 0
-                  ? 'border-foreground/30 bg-muted'
-                  : 'border-muted-foreground/25 bg-card hover:bg-accent/40',
+          <div className="space-y-3">
+            <Label>파일 (사진 또는 PDF, 1개 이상)</Label>
+
+            {/* 카메라 / 갤러리 진입점 분리. 카메라는 모바일 전용. 두 입력 모두 같은
+                files 배열에 누적된다 (iOS Mail의 "Add" 패턴). */}
+            <div className={cn('grid gap-2', isCoarsePointer ? 'grid-cols-2' : 'grid-cols-1')}>
+              {isCoarsePointer && (
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-card hover:bg-accent/40 active:bg-accent/60 transition-colors py-5 px-3"
+                >
+                  <Camera className="h-7 w-7 text-muted-foreground" aria-hidden />
+                  <span className="text-sm font-semibold">📷 카메라로 찍기</span>
+                </button>
               )}
-            >
-              <div className="text-3xl leading-none">📷</div>
-              <div className="text-sm font-semibold mt-2">
-                {files.length > 0 ? `${files.length}개 선택됨` : '사진 또는 PDF 선택'}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {files.length > 0 ? '탭 해서 다시 선택' : '탭 해서 파일 선택 (사진/PDF, 여러 개 가능)'}
-              </div>
-            </label>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-card hover:bg-accent/40 active:bg-accent/60 transition-colors py-5 px-3"
+              >
+                <ImageIcon className="h-7 w-7 text-muted-foreground" aria-hidden />
+                <span className="text-sm font-semibold">🖼️ 파일에서 선택</span>
+              </button>
+            </div>
             <input
-              id="photos"
+              ref={cameraInputRef}
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/*"
               capture="environment"
-              multiple
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              onChange={appendFiles}
               className="sr-only"
             />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              onChange={appendFiles}
+              className="sr-only"
+            />
+
+            {/* 썸네일 그리드 — 이미지는 미리보기, PDF는 아이콘. 각 썸네일 ✕ 버튼으로 개별 제거. */}
             {files.length > 0 && (
-              <ul className="space-y-0.5 text-xs px-1 text-muted-foreground">
-                {files.slice(0, 5).map((f, i) => (
-                  <li key={i} className="truncate">
-                    {iconFor(f)} {f.name} <span className="text-muted-foreground/70">({formatSize(f.size)})</span>
-                  </li>
-                ))}
-                {files.length > 5 && <li>… 외 {files.length - 5}개</li>}
-              </ul>
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {files.map((f, i) => (
+                    <div
+                      key={i}
+                      className="relative aspect-square rounded-lg overflow-hidden bg-muted ring-1 ring-foreground/10"
+                    >
+                      {fileUrls[i] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={fileUrls[i]!}
+                          alt={f.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-2">
+                          <FileText className="h-7 w-7 shrink-0" aria-hidden />
+                          <span className="text-[10px] mt-1 line-clamp-2 text-center break-all">
+                            {f.name}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeFileAt(i)}
+                        aria-label={`${f.name} 제거`}
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-foreground/70 hover:bg-foreground text-background flex items-center justify-center shadow-sm transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground px-1">
+                  {files.length}개 선택됨 · 합계 {formatSize(files.reduce((s, f) => s + f.size, 0))}
+                </p>
+              </>
             )}
           </div>
         )}
@@ -468,9 +534,13 @@ export function UploadForm({
 
         {showFileForm && (
           <Button type="submit" disabled={busy} className="w-full h-11">
-            {busy
-              ? (reuse ? '재분석 중…' : '업로드 중…')
-              : (reuse ? '이 파일로 다시 분석' : '업로드 후 분석')}
+            {busy ? (
+              <>
+                {reuse ? '재분석 중' : '업로드 중'}<LoadingDots />
+              </>
+            ) : (
+              reuse ? '이 파일로 다시 분석' : '업로드 후 분석'
+            )}
           </Button>
         )}
       </form>

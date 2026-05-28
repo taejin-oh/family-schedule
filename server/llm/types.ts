@@ -3,6 +3,7 @@ export type DraftItem = {
   dueDate: string | null   // 'YYYY-MM-DD'
   notes?: string
   confidence?: number       // 0~1, optional
+  confidenceReason?: string // confidence < 0.7일 때 짧은 이유 (한국어 1줄)
   sourcePhotoIndex?: number // 0-based index into the imagePaths array
 }
 

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check } from 'lucide-react'
-import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
+import { listCommittedItems, listDoneToday, listDoneThisWeek, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
 import { buttonVariants } from '@/components/ui/button'
@@ -144,9 +144,10 @@ export default async function HomePage({
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
   const academyFilter = sp.academy ? Number(sp.academy) : null
 
-  const [active, doneToday, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
+  const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
+    listDoneThisWeek(),
     listTodayRecurring(),
     listDayRecurring(1),
     listThisWeekRecurring(),
@@ -248,12 +249,52 @@ export default async function HomePage({
 
   const totalActive = active.length + recurringActive.length
   const totalDone = doneToday.length + recurringDoneToday.length
-  const totalToday = totalActive + totalDone
-  const completionPct = totalToday === 0 ? 0 : Math.round((totalDone / totalToday) * 100)
 
-  // Decide which buckets to render based on time filter
+  // REMAINING은 화면 상단 필터 범위에 따라 분모/분자를 다르게 계산.
+  // tomorrow / nextweek는 미래 시점이라 완료 섹션 자체가 비표시 → progress bar 숨김.
+  type ProgressScope = 'today' | 'thisweek' | 'all' | null
+  const progressScope: ProgressScope =
+    filter === 'today'    ? 'today'
+  : filter === 'thisweek' ? 'thisweek'
+  : filter === 'all'      ? 'all'
+  :                         null
+
+  const scopeActive =
+    progressScope === 'today'
+      // 사용자 정의 "오늘 = 내일까지 마감" 적용 — overdue + today + tomorrow.
+      ? filteredBuckets.overdue.length + filteredBuckets.today.length + filteredBuckets.tomorrow.length + recurringActive.length
+    : progressScope === 'thisweek'
+      ? filteredBuckets.overdue.length + filteredBuckets.today.length
+        + filteredBuckets.tomorrow.length + filteredBuckets.thisweek.length
+        + recurringActive.length + weeklyActive.length
+    : progressScope === 'all'
+      ? (academyFilter
+          ? Object.values(filteredBuckets).reduce((s, arr) => s + arr.length, 0)
+          : active.length)
+        + recurringActive.length + weeklyActive.length
+    : totalActive  // tomorrow / nextweek — progress bar 숨길 거지만 큰 숫자엔 사용
+
+  const scopeDone =
+    progressScope === 'today'    ? doneToday.length + recurringDoneToday.length
+  : progressScope === 'thisweek' ? doneThisWeek.length + recurringDoneToday.length
+  : progressScope === 'all'      ? doneThisWeek.length + recurringDoneToday.length
+  :                                 0
+
+  const scopeTotal = scopeActive + scopeDone
+  const completionPct = scopeTotal === 0 ? 0 : Math.round((scopeDone / scopeTotal) * 100)
+
+  const scopeLabel =
+    progressScope === 'today'    ? '오늘'
+  : progressScope === 'thisweek' ? '이번 주'
+  : progressScope === 'all'      ? '전체'
+  :                                 null
+
+  // Decide which buckets to render based on time filter.
+  // 사용자 정의 "오늘 = 내일까지 마감": filter='today'엔 tomorrow도 포함.
+  // filter='tomorrow'는 "내일만 단독 보기" 별도 옵션으로 유지.
+  // '전체' 필터에서도 tomorrow는 today와 인지 겹쳐 노이즈 — '내일' 필터로 따로.
   const visibleBuckets: BucketKey[] =
-    filter === 'today'    ? ['overdue', 'today']
+    filter === 'today'    ? ['overdue', 'today', 'tomorrow']
   : filter === 'tomorrow' ? ['tomorrow']
   : filter === 'thisweek' ? ['overdue', 'today', 'tomorrow', 'thisweek']
   : filter === 'nextweek' ? ['nextweek']
@@ -328,11 +369,16 @@ export default async function HomePage({
 
   const hasAnything = totalActive > 0 || totalDone > 0
 
-  // Collect all selectable IDs for multi-select (active committed items across all visible buckets)
-  const allSelectableIds = active.map((it) => it.id)
+  // 다중 선택 대상 — active + 완료된 homework (오늘 + 이번 주). recurring은 ID 체계가
+  // 다르고 사용 빈도 낮아서 일단 제외. doneIds는 dedup (이번 주에는 오늘도 포함되므로).
+  const activeIds = active.map((it) => it.id)
+  const doneIdsSet = new Set<number>()
+  for (const it of doneToday) doneIdsSet.add(it.id)
+  for (const it of doneThisWeek) doneIdsSet.add(it.id)
+  const doneIds = [...doneIdsSet]
 
   return (
-    <MultiSelectProvider selectableIds={allSelectableIds}>
+    <MultiSelectProvider activeIds={activeIds} doneIds={doneIds}>
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div>
@@ -355,24 +401,30 @@ export default async function HomePage({
       {hasAnything && (
         <Card className="p-4 gap-2">
           <div className="flex items-center gap-4">
-            <div className="text-[36px] leading-none font-bold tabular-nums">{totalActive}</div>
+            <div className="text-[36px] leading-none font-bold tabular-nums">{scopeActive}</div>
             <div className="flex-1 min-w-0">
               <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 REMAINING
               </div>
               <div className="text-sm font-medium mt-0.5">
-                오늘 ✓ {totalDone} · {completionPct}% 완료
+                {scopeLabel
+                  ? <>{scopeLabel} ✓ {scopeDone} · {completionPct}% 완료</>
+                  : <>남은 {scopeActive}개</>}
               </div>
             </div>
-            <div className="text-sm text-muted-foreground tabular-nums shrink-0">{completionPct}%</div>
+            {scopeLabel && (
+              <div className="text-sm text-muted-foreground tabular-nums shrink-0">{completionPct}%</div>
+            )}
           </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-foreground transition-all"
-              style={{ width: `${completionPct}%` }}
-              aria-hidden
-            />
-          </div>
+          {scopeLabel && (
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-foreground transition-all"
+                style={{ width: `${completionPct}%` }}
+                aria-hidden
+              />
+            </div>
+          )}
         </Card>
       )}
 
@@ -386,12 +438,12 @@ export default async function HomePage({
           />
           <FilterChip
             label="오늘"
-            count={buckets.overdue.length + buckets.today.length + recurringActive.length + weeklyActive.length}
+            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + recurringActive.length + weeklyActive.length}
             href={timeHref('today')}
             active={filter === 'today'}
           />
           <FilterChip
-            label="내일"
+            label="내일만"
             count={buckets.tomorrow.length + tomorrowRecurringActive.length + weeklyActive.length}
             href={timeHref('tomorrow')}
             active={filter === 'tomorrow'}
@@ -555,8 +607,8 @@ export default async function HomePage({
         </div>
       )}
 
-      {/* 오늘 한 일 — collapsible */}
-      {(doneToday.length > 0 || recurringDoneToday.length > 0) && (
+      {/* 오늘 한 일 — today/all 필터에서만. tomorrow/nextweek/thisweek에선 표시 X. */}
+      {(filter === 'today' || filter === 'all') && (doneToday.length > 0 || recurringDoneToday.length > 0) && (
         <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
@@ -568,32 +620,20 @@ export default async function HomePage({
           </summary>
           <div className="divide-y divide-foreground/10 border-t border-foreground/10">
             {doneToday.map((it) => (
-              <div key={it.id} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
-                <form action={onUndo} className="flex-shrink-0">
-                  <input type="hidden" name="id" value={it.id} />
-                  <button
-                    type="submit"
-                    className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
-                    aria-label="완료 취소"
-                  >
-                    <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
-                  </button>
-                </form>
-                <span
-                  className="w-[5px] h-9 rounded-full flex-shrink-0"
-                  style={{ background: it.academyColor }}
-                  aria-hidden
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">
-                    {it.title}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {it.academyName}
-                    {it.doneAt && <> · {formatRelative(it.doneAt, now)} 완료</>}
-                  </div>
-                </div>
-              </div>
+              <HomeworkItem
+                key={it.id}
+                id={it.id}
+                title={it.title}
+                notes={it.notes}
+                dueDate={it.dueDate}
+                academyName={it.academyName}
+                academyColor={it.academyColor}
+                dueLabel={null}
+                bucket="other"
+                done
+                doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
+                onUndo={onUndo}
+              />
             ))}
             {recurringDoneToday.map((rt) => (
               <div key={`r-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
@@ -630,8 +670,40 @@ export default async function HomePage({
         </details>
       )}
 
-      {/* 완료한 이번 주 할일 — weekly recurring done (collapsible, not shown in nextweek view) */}
-      {filter !== 'nextweek' && weeklyDone.length > 0 && (
+      {/* 이번 주 완료한 숙제 — thisweek/all 필터에서만 표시. */}
+      {(filter === 'thisweek' || filter === 'all') && doneThisWeek.length > 0 && (
+        <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+          <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
+            <span className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-green-600" aria-hidden />
+              이번 주 완료한 숙제 ({doneThisWeek.length})
+            </span>
+            <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+            <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+          </summary>
+          <div className="divide-y divide-foreground/10 border-t border-foreground/10">
+            {doneThisWeek.map((it) => (
+              <HomeworkItem
+                key={it.id}
+                id={it.id}
+                title={it.title}
+                notes={it.notes}
+                dueDate={it.dueDate}
+                academyName={it.academyName}
+                academyColor={it.academyColor}
+                dueLabel={null}
+                bucket="other"
+                done
+                doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
+                onUndo={onUndo}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* 완료한 이번 주 할일 (매주 recurring) — thisweek/all 필터에서만 표시. */}
+      {(filter === 'thisweek' || filter === 'all') && weeklyDone.length > 0 && (
         <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">

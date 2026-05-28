@@ -9,6 +9,7 @@ const ResponseSchema = z.object({
     dueDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]),
     notes: z.string().optional(),
     confidence: z.number().min(0).max(1).optional(),
+    confidenceReason: z.string().optional(),
     sourcePhotoIndex: z.number().int().nonnegative().optional(),
   })),
 })

@@ -116,6 +116,7 @@ export async function processExtractHomework(
             source: 'ai' as const,
             aiOriginalTitle: it.title,
             confidence: it.confidence ?? null,
+            confidenceReason: it.confidenceReason ?? null,
             sourcePhotoId: photoId,
             isCommitted: false,
           }

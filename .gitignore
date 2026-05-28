@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Family-schedule
 /data/
+/data-backup-*/
 /storage/
 .env
 .env.local
