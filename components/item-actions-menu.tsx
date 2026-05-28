@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { MiniCalendar } from '@/components/mini-calendar-lazy'
+import { track } from '@/lib/log/client'
 
 function localDateIsoClient(d: Date = new Date()): string {
   const y = d.getFullYear()
@@ -110,6 +111,7 @@ export function ItemActionsMenu(props: Props) {
     window.dispatchEvent(new CustomEvent('iam:close-others', { detail: instanceId }))
     armTransientCloseGuard()
     setOpen(true)
+    track('interaction', 'longpress_menu_open', { itemKind: props.itemKind })
   })
   const today = localDateIsoClient()
   const deferOptions = [
@@ -191,7 +193,7 @@ export function ItemActionsMenu(props: Props) {
         <Menu.Portal>
           <Menu.Positioner align="start" sideOffset={4} side="left">
             <Menu.Popup className={POPUP_CLASS}>
-              <Menu.Item className={ITEM_CLASS} onClick={() => { setOpen(false); onEdit() }}>
+              <Menu.Item className={ITEM_CLASS} onClick={() => { setOpen(false); track('interaction', 'edit_open', { itemKind: props.itemKind }); onEdit() }}>
                 수정
               </Menu.Item>
 

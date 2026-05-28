@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { TABS, currentTabIndex } from '@/lib/tabs'
+import { track as trackEvent } from '@/lib/log/client'
 
 const SWIPE_THRESHOLD_PX = 60
 const SWIPE_VERTICAL_RATIO = 0.6
@@ -276,6 +277,13 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     //      pending timeout will use the latest target when it fires.
     //   C) Timeout already fired (router.push in flight, RSC pending) — chain
     //      a new router.push immediately. React supersedes the in-flight one.
+    trackEvent('interaction', 'swipe_nav', {
+      direction,
+      from: TABS[idx]?.href,
+      to: TABS[proposedTarget]?.href,
+      chained: inFlightDirRef.current !== null,
+    })
+
     if (inFlightDirRef.current === null) {
       // Phase A
       const cur = currentSlotRef.current

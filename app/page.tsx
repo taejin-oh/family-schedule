@@ -6,6 +6,7 @@ import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecur
 import { getStickerState, redeem } from '@/server/actions/stickers'
 import { getEmptyStates } from '@/server/actions/empty-states'
 import { pickEmptyState } from '@/lib/empty-states'
+import { EmptyStateTracker } from '@/components/empty-state-tracker'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
@@ -208,11 +209,14 @@ export default async function KidsHome() {
       ) : (() => {
         const empty = pickEmptyState(emptyStates, todayIso)
         return (
-          <Card className="p-8 text-center space-y-2">
-            <div className="text-6xl leading-none">{empty.emoji}</div>
-            <div className="text-xl font-bold">{empty.title}</div>
-            <div className="text-base text-muted-foreground">{empty.sub}</div>
-          </Card>
+          <>
+            <EmptyStateTracker where="kid_home" which={empty.title.slice(0, 12)} />
+            <Card className="p-8 text-center space-y-2">
+              <div className="text-6xl leading-none">{empty.emoji}</div>
+              <div className="text-xl font-bold">{empty.title}</div>
+              <div className="text-base text-muted-foreground">{empty.sub}</div>
+            </Card>
+          </>
         )
       })()}
 

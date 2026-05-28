@@ -165,6 +165,7 @@ export function UploadForm({
   async function startManual() {
     setError(null)
     if (!academyId) { setError('학원을 선택하세요.'); return }
+    track('feature', 'upload_mode_chosen', { mode: 'manual' })
     setBusy(true)
     const t0 = performance.now()
     const res = await createEmptyBatch(academyId)
@@ -265,6 +266,7 @@ export function UploadForm({
           <div className="grid grid-cols-2 gap-2.5">
             <Link
               href={`/homework/upload?mode=file&academy=${academyId}`}
+              onClick={() => track('feature', 'upload_mode_chosen', { mode: 'file' })}
               className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left"
             >
               <div className="text-2xl mb-1.5">📷</div>
