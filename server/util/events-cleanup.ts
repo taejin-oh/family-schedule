@@ -5,10 +5,11 @@ import * as schema from '@/server/db/schema'
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
 /**
- * Analytics events 보존 정책: 30일.
+ * Analytics events 보존 정책: 1년 (365일).
+ * 분석은 월 단위로 group by (local_date의 'YYYY-MM' 부분)하면 12개 버킷.
  * local_date 기준이라 day 단위 cut-off가 정확함 (epoch 변환 안 필요).
  */
-export const EVENTS_RETENTION_DAYS = 30
+export const EVENTS_RETENTION_DAYS = 365
 
 /**
  * 30일 초과된 events 삭제. 함께 VACUUM은 안 함 (운영 중 file lock).

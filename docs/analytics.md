@@ -165,15 +165,35 @@ sqlite3 data/app.db "SELECT category, event, count(*) FROM events GROUP BY categ
 | props_json cap 변경 | `server/log/events.ts`의 `PROPS_CAP_BYTES` |
 | body size cap 변경 | `app/api/log/route.ts`의 `MAX_BODY_BYTES` |
 
-## 보존 정책
+## 보존 + 분석 단위
 
-**30일.** 매일 04:00 Seoul daily tick (`server/worker/run.ts`)에서 `runEventsCleanup`이 자동 실행 — `local_date < today - 30days` row를 삭제.
+- **보존: 1년 (365일).** 매일 04:00 Seoul daily tick (`server/worker/run.ts`)에서 `runEventsCleanup`이 자동 실행 — `local_date < today - 365days` row를 삭제.
+- **분석 단위: 1개월.** `local_date`의 앞 7자(`YYYY-MM`)로 group by → 최근 12개 버킷.
 
 상수 변경: `server/util/events-cleanup.ts`의 `EVENTS_RETENTION_DAYS`.
 
+월별 분석 SQL 예시:
+```sql
+-- 월별 이벤트 양
+SELECT substr(local_date, 1, 7) AS month, count(*) AS n
+FROM events
+GROUP BY month ORDER BY month DESC;
+
+-- 월별 mutation 분포
+SELECT substr(local_date, 1, 7) AS month, event, count(*) AS n
+FROM events WHERE category='mutation'
+GROUP BY month, event ORDER BY month DESC, n DESC;
+
+-- 월별 평균 perf
+SELECT substr(local_date, 1, 7) AS month, event,
+       avg(json_extract(props_json,'$.ms')) AS avg_ms
+FROM events WHERE category='perf'
+GROUP BY month, event ORDER BY month DESC;
+```
+
 수동 정리(긴급 시):
 ```sql
-DELETE FROM events WHERE local_date < date('now', '-30 days');
+DELETE FROM events WHERE local_date < date('now', '-365 days');
 VACUUM;
 ```
 
