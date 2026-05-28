@@ -59,42 +59,52 @@ export async function processExtractHomework(
       model: payload.model,
     })
 
-    // Deduplicate against existing committed items in the same academy
-    // (any state — active or done). Key = normalized title + dueDate string.
-    // Prevents re-uploading the same file from re-creating items the user
-    // already has (especially already-done ones).
-    const existingCommitted = db
-      .select({
-        title: schema.homeworkItems.title,
-        dueDate: schema.homeworkItems.dueDate,
-      })
-      .from(schema.homeworkItems)
-      .where(
-        and(
-          eq(schema.homeworkItems.academyId, batch.academyId),
-          eq(schema.homeworkItems.isCommitted, true),
-        ),
-      )
-      .all()
-    const existingKeys = new Set(
-      existingCommitted.map((e) => `${normalizeTitle(e.title)}|${e.dueDate ?? ''}`),
-    )
-    const dedupedItems = result.items.filter((it) => {
-      const key = `${normalizeTitle(it.title)}|${it.dueDate ?? ''}`
-      return !existingKeys.has(key)
-    })
-    const skippedCount = result.items.length - dedupedItems.length
-
     // Auto-fill missing dueDate with next academy session date (Phase 0 spec).
     // AI가 dueDate를 못 찾으면 학원 schedule rule을 보고 다음 세션 일자로 채움.
     // schedule rule이 없는 학원은 dueDate null 유지 — review에서 수동 입력.
     const nextSession = computeNextSession(academy.scheduleRule, new Date())
-    const filledItems = dedupedItems.map((it) => {
-      if (it.dueDate || !nextSession) return it
-      return { ...it, dueDate: localDateIso(nextSession) }
-    })
 
+    // dedup + batch update + items insert를 한 transaction에서 수행한다.
+    // (1) 기존 academy의 committed items에 대한 SELECT를 트랜잭션 안에서 다시
+    //     읽어 SELECT-then-INSERT 사이 다른 호출자가 같은 (normalized title +
+    //     dueDate)를 commit한 경우(TOCTOU)도 일관되게 차단.
+    // (2) AI가 같은 batch 안에서 같은 항목을 변형(대소문자/공백)으로 두 번 뱉는
+    //     경우도 seenInThisBatch Set으로 dedup.
     db.transaction((tx) => {
+      const existingCommitted = tx
+        .select({
+          title: schema.homeworkItems.title,
+          dueDate: schema.homeworkItems.dueDate,
+        })
+        .from(schema.homeworkItems)
+        .where(
+          and(
+            eq(schema.homeworkItems.academyId, batch.academyId),
+            eq(schema.homeworkItems.isCommitted, true),
+          ),
+        )
+        .all()
+      const existingKeys = new Set(
+        existingCommitted.map((e) => `${normalizeTitle(e.title)}|${e.dueDate ?? ''}`),
+      )
+
+      const seenInThisBatch = new Set<string>()
+      const dedupedItems = result.items.filter((it) => {
+        const key = `${normalizeTitle(it.title)}|${it.dueDate ?? ''}`
+        if (existingKeys.has(key) || seenInThisBatch.has(key)) return false
+        seenInThisBatch.add(key)
+        return true
+      })
+      const skippedCount = result.items.length - dedupedItems.length
+      if (skippedCount > 0) {
+        console.log(`[runner] batch#${batch.id} deduped ${skippedCount} item(s) (existing+same-batch)`)
+      }
+
+      const filledItems = dedupedItems.map((it) => {
+        if (it.dueDate || !nextSession) return it
+        return { ...it, dueDate: localDateIso(nextSession) }
+      })
+
       tx.update(schema.homeworkBatches).set({
         status: 'ready',
         rawResponse: result.rawResponse,
@@ -123,7 +133,6 @@ export async function processExtractHomework(
         })).run()
       }
     })
-    void skippedCount   // available for future UI surface; currently silent
   } catch (e: unknown) {
     db.update(schema.homeworkBatches).set({
       status: 'failed',

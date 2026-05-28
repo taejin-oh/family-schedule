@@ -212,6 +212,45 @@ describe('processExtractHomework', () => {
     expect(items).toHaveLength(0)
   })
 
+  it('dedupes duplicates within the same batch (AI returned variants with different case/whitespace)', async () => {
+    const db = makeAppDb()
+    const [academy] = db.insert(schema.academies).values({
+      name: 'X', subject: 'math', color: '#000',
+    }).returning().all()
+    const [batch] = db.insert(schema.homeworkBatches).values({
+      academyId: academy.id, status: 'pending',
+    }).returning().all()
+    db.insert(schema.homeworkPhotos).values({
+      batchId: batch.id, originalPath: '/x/a.jpg', resizedPath: '/x/a-1600.jpg',
+      width: 1, height: 1, bytes: 1,
+    }).run()
+
+    const dupProvider: VisionProvider = {
+      ...fakeProvider,
+      async extractHomework() {
+        return {
+          items: [
+            { title: 'foo', dueDate: '2026-05-27' },
+            { title: 'FOO', dueDate: '2026-05-27' },   // case 변형 — normalizeTitle 후 동일
+            { title: ' foo ', dueDate: '2026-05-27' },  // 공백 변형 — normalize 후 동일
+            { title: 'bar', dueDate: null },
+          ],
+          rawResponse: '{}',
+          modelUsed: 'claude-sonnet-4-6',
+        }
+      },
+    }
+
+    await processExtractHomework(db, dupProvider, { batchId: batch.id })
+
+    const items = db.select().from(schema.homeworkItems).where(eq(schema.homeworkItems.batchId, batch.id)).all()
+    expect(items).toHaveLength(2)  // foo 첫 변형 1개 + bar 1개
+    const titles = items.map((i) => i.title)
+    expect(titles).toContain('bar')
+    // foo의 첫 번째 변형(원본 title 'foo')이 살아남아야 함 — 이후 변형은 dedup
+    expect(titles).toContain('foo')
+  })
+
   it('skips items already committed in the same academy (by normalized title + dueDate)', async () => {
     const db = makeAppDb()
     const [academy] = db.insert(schema.academies).values({
