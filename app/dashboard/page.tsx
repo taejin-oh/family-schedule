@@ -11,6 +11,8 @@ import { localDateIso } from '@/server/util/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
 import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
+import { FilterChipGroup } from './_components/filter-chip'
+import { logServerEvent } from '@/server/log/server-event'
 
 type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -157,6 +159,8 @@ export default async function HomePage({
   type RecType = Awaited<ReturnType<typeof listTodayRecurring>>
   type DayRecType = Awaited<ReturnType<typeof listDayRecurring>>
 
+  // eslint-disable-next-line react-hooks/purity -- server component perf measurement
+  const tFetch0 = performance.now()
   const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
     needsDoneToday ? listDoneToday() : Promise.resolve<DoneType>([]),
@@ -166,6 +170,17 @@ export default async function HomePage({
     needsWeekRec ? listThisWeekRecurring() : Promise.resolve<RecType>([]),
     listAcademies(),
   ])
+  await logServerEvent({
+    category: 'perf',
+    event: 'dashboard.fetch',
+    props: {
+      filter,
+      // eslint-disable-next-line react-hooks/purity -- server component perf measurement
+      ms: Math.round(performance.now() - tFetch0),
+      active: active.length,
+      academies: academies.length,
+    },
+  })
   const todayIso = localDateIso()
   const tomorrowIso = tomorrowRecurring[0]?.targetDateIso ?? (() => {
     const t = new Date(); t.setDate(t.getDate() + 1); return localDateIso(t)
@@ -443,35 +458,16 @@ export default async function HomePage({
 
       {active.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
-          <FilterChip
-            label="전체"
-            count={active.length}
-            href={timeHref('all')}
-            active={filter === 'all'}
-          />
-          <FilterChip
-            label="오늘"
-            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + recurringActive.length + weeklyActive.length}
-            href={timeHref('today')}
-            active={filter === 'today'}
-          />
-          <FilterChip
-            label="내일만"
-            count={buckets.tomorrow.length + tomorrowRecurringActive.length + weeklyActive.length}
-            href={timeHref('tomorrow')}
-            active={filter === 'tomorrow'}
-          />
-          <FilterChip
-            label="이번 주"
-            count={buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + weeklyActive.length}
-            href={timeHref('thisweek')}
-            active={filter === 'thisweek'}
-          />
-          <FilterChip
-            label="다음 주"
-            count={buckets.nextweek.length + weekRecur.length}
-            href={timeHref('nextweek')}
-            active={filter === 'nextweek'}
+          <FilterChipGroup
+            key={filter}
+            current={filter}
+            chips={[
+              { key: 'all', label: '전체', count: active.length, href: timeHref('all') },
+              { key: 'today', label: '오늘', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + recurringActive.length + weeklyActive.length, href: timeHref('today') },
+              { key: 'tomorrow', label: '내일만', count: buckets.tomorrow.length + tomorrowRecurringActive.length + weeklyActive.length, href: timeHref('tomorrow') },
+              { key: 'thisweek', label: '이번 주', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + weeklyActive.length, href: timeHref('thisweek') },
+              { key: 'nextweek', label: '다음 주', count: buckets.nextweek.length + weekRecur.length, href: timeHref('nextweek') },
+            ]}
           />
           <MultiSelectToggle />
         </div>
