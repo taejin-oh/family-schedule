@@ -146,28 +146,19 @@ export default async function HomePage({
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
   const academyFilter = sp.academy ? Number(sp.academy) : null
 
-  // 필터별 불필요 fetch 제거. better-sqlite3는 sync라 안 부르면 그만큼 즉시 절약.
-  // - done*: 미래 filter(tomorrow/nextweek)에선 표시 안 함
-  // - tomorrowRecurring: today filter엔 표시 안 함
-  // - weekRecurring: today/tomorrow filter엔 일부만 — thisweek/nextweek/all 만 fetch
-  const needsDoneToday = filter === 'today' || filter === 'thisweek' || filter === 'all'
-  const needsDoneThisWeek = filter === 'thisweek' || filter === 'all'
-  const needsTomorrowRec = filter === 'tomorrow' || filter === 'thisweek' || filter === 'all'
-  const needsWeekRec = filter === 'nextweek' || filter === 'thisweek' || filter === 'all'
-
-  type DoneType = Awaited<ReturnType<typeof listDoneToday>>
-  type RecType = Awaited<ReturnType<typeof listTodayRecurring>>
-  type DayRecType = Awaited<ReturnType<typeof listDayRecurring>>
-
+  // 모든 데이터를 항상 fetch — chip count들이 서로 다른 데이터셋을 참조하기 때문에
+  // 조건부 fetch하면 filter 변경에 따라 count가 stale로 보임 (예: "오늘" chip count에
+  // weeklyActive가 들어가는데 filter=today일 때 weekRecurring=[]로 떨어지면 count 줄어듦).
+  // sqlite sync 호출이라 7개 query 합쳐도 ms 단위. 데이터 일관성 우선.
   // eslint-disable-next-line react-hooks/purity -- server component perf measurement
   const tFetch0 = performance.now()
   const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
-    needsDoneToday ? listDoneToday() : Promise.resolve<DoneType>([]),
-    needsDoneThisWeek ? listDoneThisWeek() : Promise.resolve<DoneType>([]),
+    listDoneToday(),
+    listDoneThisWeek(),
     listTodayRecurring(),
-    needsTomorrowRec ? listDayRecurring(1) : Promise.resolve<DayRecType>([]),
-    needsWeekRec ? listThisWeekRecurring() : Promise.resolve<RecType>([]),
+    listDayRecurring(1),
+    listThisWeekRecurring(),
     listAcademies(),
   ])
   await logServerEvent({
