@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Camera, FileText, ImageIcon, RefreshCw, Pencil, X } from 'lucide-react'
+import { Camera, FileText, ImageIcon, RefreshCw, Pencil, X, Loader2 } from 'lucide-react'
 import { uploadHomework, rerunBatch, deleteBatch, createEmptyBatch } from '@/server/actions/homework'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -117,6 +117,14 @@ export function UploadForm({
     }
   }, [fileUrls])
 
+  // 학원 선택 직후 review 페이지 client chunk을 즉시 받아둠. 양쪽 mode 모두
+  // review 페이지로 도달하므로 양쪽에 도움. 즉시 시작해서 빠른 사용자도 chunk
+  // 받을 시간 확보.
+  useEffect(() => {
+    if (academyId === null) return
+    import('@/app/homework/batches/[id]/review/review-form').catch(() => {})
+  }, [academyId])
+
   function appendFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(e.target.files ?? [])
     if (incoming.length === 0) return
@@ -157,9 +165,15 @@ export function UploadForm({
     setError(null)
     if (!academyId) { setError('학원을 선택하세요.'); return }
     setBusy(true)
+    const t0 = performance.now()
     const res = await createEmptyBatch(academyId)
+    const tAction = performance.now() - t0
     if (!res.ok) { setError(res.error); setBusy(false); return }
-    router.push(`/homework/batches/${res.data.batchId}/review`)
+    const url = `/homework/batches/${res.data.batchId}/review`
+    router.prefetch(url)
+    const tPush = performance.now()
+    router.push(url)
+    console.log(`[perf] startManual: createEmptyBatch=${tAction.toFixed(0)}ms, push=${(performance.now() - tPush).toFixed(0)}ms`)
   }
 
   function handleDeleteBatch(b: BatchSummary, e: React.MouseEvent) {
@@ -259,12 +273,14 @@ export function UploadForm({
               type="button"
               onClick={startManual}
               disabled={busy}
-              className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left disabled:opacity-50"
+              className="p-4 rounded-xl bg-muted hover:bg-accent transition-colors text-left disabled:opacity-70 disabled:cursor-wait"
             >
-              <div className="text-2xl mb-1.5"><Pencil className="h-6 w-6 inline" aria-hidden /></div>
-              <div className="text-sm font-bold">수동 추가</div>
+              <div className="text-2xl mb-1.5">
+                {busy ? <Loader2 className="h-6 w-6 inline animate-spin" aria-hidden /> : <Pencil className="h-6 w-6 inline" aria-hidden />}
+              </div>
+              <div className="text-sm font-bold">{busy ? '이동 중…' : '수동 추가'}</div>
               <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                파일 없이 직접 입력하기
+                {busy ? '잠시만요' : '파일 없이 직접 입력하기'}
               </p>
             </button>
           </div>

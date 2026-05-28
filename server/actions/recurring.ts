@@ -53,6 +53,7 @@ export async function createRecurringTask(input: RecurringTaskInput, ctx: Ctx = 
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true, data: { id: row.id } }
 }
 
@@ -71,6 +72,7 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput,
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -80,6 +82,7 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -89,6 +92,7 @@ export async function unarchiveRecurringTask(id: number, ctx: Ctx = {}): Promise
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -116,6 +120,7 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -135,6 +140,7 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
   revalidatePath('/recurring')
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 

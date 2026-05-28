@@ -218,6 +218,7 @@ export function Timetable({
                 <Link
                   key={p.academyId}
                   href={`/academies/${p.academyId}`}
+                  prefetch
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card text-sm transition-colors hover:bg-accent',
                     done && 'ring-1 ring-green-500/40',
@@ -331,6 +332,7 @@ export function Timetable({
                       {slotDate ? (
                         <Link
                           href={`/academies/${cell.academyId}?date=${slotDate}`}
+                          prefetch
                           className="block h-full hover:opacity-90 transition-opacity"
                           title={`${cell.academyName} · ${slotDate}`}
                         >

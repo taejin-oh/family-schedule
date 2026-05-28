@@ -62,6 +62,7 @@ export async function createEmptyBatch(
   academyId: number,
   ctx: Ctx = {},
 ): Promise<UploadResult> {
+  const t0 = performance.now()
   const appDb = ctx.appDb ?? getDb()
   const academy = appDb.select().from(appSchema.academies).where(eq(appSchema.academies.id, academyId)).get()
   if (!academy) return { ok: false, error: '학원을 찾을 수 없습니다.' }
@@ -69,9 +70,10 @@ export async function createEmptyBatch(
     academyId,
     status: 'ready',
   }).returning().all()
-  revalidatePath('/')
-  revalidatePath('/dashboard')
+  // 빈 batch — committed item 없음 → 아이 홈/대시보드/시간표 진행률은 영향 없음.
+  // 업로드 페이지의 batch 목록만 revalidate.
   revalidatePath('/homework/upload')
+  console.log(`[perf] createEmptyBatch academyId=${academyId} batchId=${batch.id} ${(performance.now() - t0).toFixed(1)}ms`)
   return { ok: true, data: { batchId: batch.id } }
 }
 
@@ -126,6 +128,7 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
 
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: batch.id } }
 }
@@ -146,6 +149,7 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -176,6 +180,7 @@ export async function addDraftItem(
   }).returning({ id: appSchema.homeworkItems.id }).all()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true, data: { id: row.id } }
 }
@@ -188,6 +193,7 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -220,6 +226,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   })
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -230,6 +237,7 @@ export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): 
   await tryStampToday({ db: appDb })
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -256,6 +264,69 @@ export async function listCommittedItems(ctx: Ctx = {}) {
     sql`CASE WHEN ${appSchema.homeworkItems.dueDate} IS NULL THEN 1 ELSE 0 END`,
     appSchema.homeworkItems.dueDate,
   )
+  .all()
+}
+
+/**
+ * 미완료 committed item 중 dueDate가 [today+maxDaysFromToday] 이하 + dueDate IS NOT NULL.
+ * 아이 홈처럼 작은 결과셋만 필요한 페이지에서 listCommittedItems 전체 fetch 대신 사용.
+ */
+export async function listTodoByDueWithin(
+  todayIso: string,
+  maxDaysFromToday: number,
+  ctx: Ctx = {},
+) {
+  const appDb = ctx.appDb ?? getDb()
+  const end = new Date(todayIso + 'T00:00:00')
+  end.setDate(end.getDate() + maxDaysFromToday)
+  const endIso = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+
+  return appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    notes: appSchema.homeworkItems.notes,
+    dueDate: appSchema.homeworkItems.dueDate,
+    academyId: appSchema.homeworkItems.academyId,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    isNull(appSchema.homeworkItems.doneAt),
+    sql`${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} <= ${endIso}`,
+  ))
+  .orderBy(appSchema.homeworkItems.dueDate)
+  .all()
+}
+
+/**
+ * 미완료 committed item 중 dueDate가 [from, to] 사이. 아이 홈 "이번 주 남은" 영역용.
+ */
+export async function listTodoByDueBetween(
+  fromIso: string,
+  toIso: string,
+  ctx: Ctx = {},
+) {
+  const appDb = ctx.appDb ?? getDb()
+  return appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    notes: appSchema.homeworkItems.notes,
+    dueDate: appSchema.homeworkItems.dueDate,
+    academyId: appSchema.homeworkItems.academyId,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    isNull(appSchema.homeworkItems.doneAt),
+    sql`${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} BETWEEN ${fromIso} AND ${toIso}`,
+  ))
+  .orderBy(appSchema.homeworkItems.dueDate)
   .all()
 }
 
@@ -431,6 +502,7 @@ export async function rerunBatch(
   await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true, data: { batchId: newBatch.id } }
 }
@@ -448,6 +520,7 @@ export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: bool
   appDb.delete(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   return { ok: true }
 }
@@ -522,6 +595,7 @@ export async function deleteHomeworkItem(
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
   return { ok: true }
 }
@@ -553,6 +627,7 @@ export async function updateHomeworkItem(
   appDb.update(appSchema.homeworkItems).set(update).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
   return { ok: true }
 }
@@ -575,6 +650,7 @@ export async function deferHomework(
   appDb.update(appSchema.homeworkItems).set({ dueDate: newDueDate }).where(eq(appSchema.homeworkItems.id, itemId)).run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   revalidatePath('/academies')
   const academyId = item.academyId
   revalidatePath(`/academies/${academyId}`, 'page')
@@ -598,6 +674,7 @@ export async function bulkToggleItemsDone(
     .run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }
 
@@ -617,5 +694,6 @@ export async function bulkDeleteItems(
     .run()
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
   return { ok: true }
 }

@@ -1,7 +1,7 @@
 'use server'
 
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, desc, sql, inArray } from 'drizzle-orm'
 import { existsSync, unlinkSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { revalidatePath } from 'next/cache'
@@ -19,9 +19,13 @@ export async function getAcademyDetail(academyId: number, ctx: Ctx = {}) {
   // Archived academies are not viewable as a detail page (treat like not-found).
   if (academy.archivedAt !== null) return null
 
-  // All items for this academy (any batch state)
+  // committed item만 SQL-side로 filter. draft까지 transfer 안 함.
+  // 학년 누적될수록 transfer/JS filter 부담 ↓.
   const items = appDb.select().from(appSchema.homeworkItems)
-    .where(eq(appSchema.homeworkItems.academyId, academyId))
+    .where(and(
+      eq(appSchema.homeworkItems.academyId, academyId),
+      eq(appSchema.homeworkItems.isCommitted, true),
+    ))
     .orderBy(desc(appSchema.homeworkItems.createdAt))
     .all()
 
@@ -56,8 +60,9 @@ export async function getAcademyDetail(academyId: number, ctx: Ctx = {}) {
     itemCount: itemMap.get(b.id) ?? 0,
   }))
 
-  const active = items.filter((it) => it.isCommitted && it.doneAt === null)
-  const done = items.filter((it) => it.isCommitted && it.doneAt !== null)
+  // items가 이미 SQL-side에서 isCommitted=true filter됨 — JS 측은 doneAt만 분기.
+  const active = items.filter((it) => it.doneAt === null)
+  const done = items.filter((it) => it.doneAt !== null)
 
   return { academy, active, done, batches: enrichedBatches }
 }
@@ -98,4 +103,5 @@ export async function deleteBatch(batchId: number, ctx: Ctx = {}) {
   revalidatePath(`/academies/${batch.academyId}`)
   revalidatePath('/')
   revalidatePath('/dashboard')
+  revalidatePath('/timetable')
 }

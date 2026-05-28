@@ -8,7 +8,7 @@ import { shouldIgnoreTransientLongPressClose } from '@/lib/menu-close-policy'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { MiniCalendar } from '@/components/mini-calendar'
+import { MiniCalendar } from '@/components/mini-calendar-lazy'
 
 function localDateIsoClient(d: Date = new Date()): string {
   const y = d.getFullYear()

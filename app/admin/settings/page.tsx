@@ -20,11 +20,14 @@ const smallFieldCls =
   'bg-muted rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
 
 export default async function SettingsPage() {
-  const s = await getSettings()
-  const providers = await listProviderOptions()
-  const stickers = await getStickerState()
-  const redemptions = await listRedemptions()
-  const cleanupStats = await getCleanupStats()
+  // 5개 독립 fetch를 병렬화. sequential await 시 RTT가 5배 누적됐음.
+  const [s, providers, stickers, redemptions, cleanupStats] = await Promise.all([
+    getSettings(),
+    listProviderOptions(),
+    getStickerState(),
+    listRedemptions(),
+    getCleanupStats(),
+  ])
 
   async function runCleanup() {
     'use server'

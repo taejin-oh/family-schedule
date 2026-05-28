@@ -144,13 +144,26 @@ export default async function HomePage({
   const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
   const academyFilter = sp.academy ? Number(sp.academy) : null
 
+  // 필터별 불필요 fetch 제거. better-sqlite3는 sync라 안 부르면 그만큼 즉시 절약.
+  // - done*: 미래 filter(tomorrow/nextweek)에선 표시 안 함
+  // - tomorrowRecurring: today filter엔 표시 안 함
+  // - weekRecurring: today/tomorrow filter엔 일부만 — thisweek/nextweek/all 만 fetch
+  const needsDoneToday = filter === 'today' || filter === 'thisweek' || filter === 'all'
+  const needsDoneThisWeek = filter === 'thisweek' || filter === 'all'
+  const needsTomorrowRec = filter === 'tomorrow' || filter === 'thisweek' || filter === 'all'
+  const needsWeekRec = filter === 'nextweek' || filter === 'thisweek' || filter === 'all'
+
+  type DoneType = Awaited<ReturnType<typeof listDoneToday>>
+  type RecType = Awaited<ReturnType<typeof listTodayRecurring>>
+  type DayRecType = Awaited<ReturnType<typeof listDayRecurring>>
+
   const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
     listCommittedItems(),
-    listDoneToday(),
-    listDoneThisWeek(),
+    needsDoneToday ? listDoneToday() : Promise.resolve<DoneType>([]),
+    needsDoneThisWeek ? listDoneThisWeek() : Promise.resolve<DoneType>([]),
     listTodayRecurring(),
-    listDayRecurring(1),
-    listThisWeekRecurring(),
+    needsTomorrowRec ? listDayRecurring(1) : Promise.resolve<DayRecType>([]),
+    needsWeekRec ? listThisWeekRecurring() : Promise.resolve<RecType>([]),
     listAcademies(),
   ])
   const todayIso = localDateIso()

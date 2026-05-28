@@ -223,6 +223,9 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     if (!wasHorizontal) return
     if (e.changedTouches.length === 0) return
 
+    // 매칭 없는 page에서는 스와이프 무효 (전엔 idx=-1 → proposedTarget=0(홈)으로 떨어졌음).
+    if (idx === -1) return
+
     const t = e.changedTouches[0]
     const dx = t.clientX - startX.current
     const dy = t.clientY - startY.current

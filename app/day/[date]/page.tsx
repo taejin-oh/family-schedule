@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { listCommittedItems } from '@/server/actions/homework'
+import { listTodoByDueBetween } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
@@ -19,11 +19,9 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound()
   const todayIso = localDateIso()
 
-  const all = await listCommittedItems()
-  // listCommittedItems excludes done items (SQL WHERE doneAt IS NULL),
-  // so this page only shows "남은 (active) only" — matching the "이번 주
-  // 남은 숙제" entry. Completed-on-this-day is intentionally out of scope.
-  const active = all.filter((it) => it.dueDate === date)
+  // dueDate가 정확히 그 날짜인 active(committed + 미완료)만 SQL-side로. 전체 active
+  // fetch 후 JS filter하던 패턴 제거 — 학년 누적될수록 transfer/메모리 이득.
+  const active = await listTodoByDueBetween(date, date)
 
   const [y, m, d] = date.split('-').map(Number)
   const dt = new Date(y, m - 1, d)

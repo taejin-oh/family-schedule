@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check, ArrowRight } from 'lucide-react'
-import { listCommittedItems, listDoneToday, toggleItemDone } from '@/server/actions/homework'
+import { listTodoByDueWithin, listTodoByDueBetween, listDoneToday, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { getStickerState, redeem } from '@/server/actions/stickers'
 import { getEmptyStates } from '@/server/actions/empty-states'
@@ -15,35 +15,44 @@ import { StickersRow } from '@/app/_components/stickers-row'
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
-function diffDays(due: string, todayIso: string): number {
-  const t = new Date(todayIso + 'T00:00:00')
-  const d = new Date(due + 'T00:00:00')
-  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
-}
-
 function weekdayLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return `${DAY_KO[new Date(y, m - 1, d).getDay()]}요일`
 }
 
 export default async function KidsHome() {
-  const [active, doneToday, todayRec, weekRec, sticker, emptyStates] = await Promise.all([
-    listCommittedItems(),
+  const todayIso = localDateIso()
+
+  // 아이 홈은 "오늘 = 내일까지(+1)" + "이번 주 남은(+2..일요일)" 두 작은 결과셋만 필요.
+  // 학원 누적될수록 listCommittedItems 전체 fetch가 무거워서 SQL-side 범위 필터로 교체.
+  const todayDate = new Date(todayIso + 'T00:00:00')
+  const dow = todayDate.getDay()
+  const daysUntilThisSunday = (7 - dow) % 7  // today=Sunday → 0
+
+  const sunday = new Date(todayDate)
+  sunday.setDate(sunday.getDate() + daysUntilThisSunday)
+  const sundayIso = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
+  const dayAfterTomorrow = new Date(todayDate)
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2)
+  const datIso = `${dayAfterTomorrow.getFullYear()}-${String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0')}-${String(dayAfterTomorrow.getDate()).padStart(2, '0')}`
+
+  // 큰 Promise.all([...]) 7개는 TS tuple inference 한계라 두 그룹으로 나눔.
+  // sqlite는 sync라 어차피 serialized — 분리해도 latency 동일.
+  const upcomingPromise = daysUntilThisSunday >= 2
+    ? listTodoByDueBetween(datIso, sundayIso)
+    : Promise.resolve<Awaited<ReturnType<typeof listTodoByDueBetween>>>([])
+
+  const [todayList, upcoming] = await Promise.all([
+    listTodoByDueWithin(todayIso, 1),  // overdue + 오늘 + 내일
+    upcomingPromise,                   // 모레~일요일
+  ])
+  const [doneToday, todayRec, weekRec, sticker, emptyStates] = await Promise.all([
     listDoneToday(),
     listTodayRecurring(),
     listThisWeekRecurring(),
     getStickerState(),
     getEmptyStates(),
   ])
-  const todayIso = localDateIso()
-
-  // "오늘 할 숙제 = 내일까지 끝내야 하는 숙제" (사용자 정의).
-  // overdue + 오늘 마감 + 내일 마감을 한 묶음으로 본다. 학원에서 오늘 받은 숙제는
-  // 다음 학원 가는 날(=내일)까지 끝내야 하므로 시각적으로 같이 묶어 보여줌.
-  const todayList = active.filter((it) => {
-    if (!it.dueDate) return false
-    return diffDays(it.dueDate, todayIso) <= 1
-  })
 
   // 매일 recurring (오늘 due) — 스티커 평가에 포함
   const dailyTodayActive = todayRec.filter((r) => r.doneAt === null)
@@ -53,17 +62,6 @@ export default async function KidsHome() {
   const weeklyActive = weekRec.filter((r) => r.doneAt === null)
   const weeklyDone = weekRec.filter((r) => r.doneAt !== null)
   const weeklyTotal = weeklyActive.length + weeklyDone.length
-
-  // 이번 주 남은 (오늘 이후 ~ 이번 주 일요일까지 마감 homework)
-  const todayDate = new Date(todayIso + 'T00:00:00')
-  const dow = todayDate.getDay()
-  const daysUntilThisSunday = (7 - dow) % 7  // today=Sunday → 0
-  // "이번 주 남은" 카드는 오늘 묶음(내일 포함)에 이미 안 들어간 dd >= 2부터.
-  const upcoming = active.filter((it) => {
-    if (!it.dueDate) return false
-    const dd = diffDays(it.dueDate, todayIso)
-    return dd >= 2 && dd <= daysUntilThisSunday
-  })
   const upcomingByDay = new Map<string, typeof upcoming>()
   for (const it of upcoming) {
     if (!it.dueDate) continue

@@ -41,6 +41,7 @@ export function AcademyRow({
         />
         <Link
           href={`/academies/${id}`}
+          prefetch
           className="flex-1 min-w-0 -m-1 p-1 rounded-md hover:bg-accent transition-colors"
         >
           <div className="font-medium text-[15px]">{name}</div>

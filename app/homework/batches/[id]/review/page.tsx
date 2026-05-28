@@ -60,6 +60,7 @@ function findSimilar(draftTitle: string, draftDueDate: string | null, existing: 
 }
 
 export default async function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
+  const t0 = performance.now()
   const { id } = await params
   const batchId = Number(id)
   const batch = getDb().select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, batchId)).get()
@@ -77,7 +78,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   // in the review UI. The strict (normalized title + dueDate) dedup at extraction time
   // already prevents obvious duplicates from reaching this screen; this catches the
   // softer "LLM phrased it slightly differently" cases.
-  const existingCommitted = getDb()
+  // items가 비어있으면 findSimilar 호출 자체가 안 됨 → 쿼리 skip (수동 추가 batch 진입 시 절약).
+  const existingCommitted: ExistingItem[] = items.length === 0 ? [] : getDb()
     .select({
       id: schema.homeworkItems.id,
       title: schema.homeworkItems.title,
@@ -93,6 +95,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       ),
     )
     .all()
+
+  console.log(`[perf] /review batchId=${batchId} items=${items.length} photos=${photos.length} existing=${existingCommitted.length} fetch=${(performance.now() - t0).toFixed(1)}ms`)
 
   return (
     <div className="space-y-4">
