@@ -97,28 +97,42 @@ export async function removeStamp(id: number, ctx: Ctx = {}): Promise<Result> {
 
 export async function redeem(notes?: string, ctx: Ctx = {}): Promise<Result<{ redemptionId: number; consumed: number }>> {
   const db = ctx.db ?? getDb()
-  const reward = activeRewardRow(db)
-  if (!reward) return { ok: false, error: '활성 보상이 없습니다' }
-  const free = db.select().from(schema.stamps)
-    .where(isNull(schema.stamps.redemptionId))
-    .orderBy(asc(schema.stamps.awardedAt))
-    .all()
-  if (free.length < reward.targetCount) {
-    return { ok: false, error: `스티커가 부족합니다 (${free.length}/${reward.targetCount})` }
+  // 활성 보상 read → free stamps read → 부족 검사 → redemption insert →
+  // stamps redemptionId UPDATE 까지 한 트랜잭션에서 처리해 부분 실패에 대한
+  // atomic rollback과 reader-writer 의도(보상 1건 = stamps N개 소비)를 보장.
+  // 단일 process 동기 코드라 race 가능성은 현재 매우 낮지만, 미래에 중간에
+  // await가 끼거나 IO 에러로 partial update가 남는 시나리오를 막는 방어선.
+  const result = db.transaction((tx): Result<{ redemptionId: number; consumed: number }> => {
+    const reward = tx.select().from(schema.rewardSettings)
+      .where(isNull(schema.rewardSettings.archivedAt))
+      .orderBy(desc(schema.rewardSettings.createdAt))
+      .limit(1)
+      .get() ?? null
+    if (!reward) return { ok: false, error: '활성 보상이 없습니다' }
+    const free = tx.select().from(schema.stamps)
+      .where(isNull(schema.stamps.redemptionId))
+      .orderBy(asc(schema.stamps.awardedAt))
+      .all()
+    if (free.length < reward.targetCount) {
+      return { ok: false, error: `스티커가 부족합니다 (${free.length}/${reward.targetCount})` }
+    }
+    const inserted = tx.insert(schema.redemptions).values({
+      rewardSettingsId: reward.id,
+      rewardName: reward.name,
+      rewardEmoji: reward.emoji,
+      targetCount: reward.targetCount,
+      notes: notes?.trim() || null,
+    }).returning({ id: schema.redemptions.id }).get()
+    const consumed = free.slice(0, reward.targetCount)
+    for (const s of consumed) {
+      tx.update(schema.stamps).set({ redemptionId: inserted!.id }).where(eq(schema.stamps.id, s.id)).run()
+    }
+    return { ok: true, data: { redemptionId: inserted!.id, consumed: consumed.length } }
+  })
+  if (result.ok && result.data) {
+    await logServerEvent({ category: 'mutation', event: 'sticker.redeem', props: { redemptionId: result.data.redemptionId, consumed: result.data.consumed } })
   }
-  const inserted = db.insert(schema.redemptions).values({
-    rewardSettingsId: reward.id,
-    rewardName: reward.name,
-    rewardEmoji: reward.emoji,
-    targetCount: reward.targetCount,
-    notes: notes?.trim() || null,
-  }).returning({ id: schema.redemptions.id }).get()
-  const consumed = free.slice(0, reward.targetCount)
-  for (const s of consumed) {
-    db.update(schema.stamps).set({ redemptionId: inserted!.id }).where(eq(schema.stamps.id, s.id)).run()
-  }
-  await logServerEvent({ category: 'mutation', event: 'sticker.redeem', props: { redemptionId: inserted!.id, consumed: consumed.length } })
-  return { ok: true, data: { redemptionId: inserted!.id, consumed: consumed.length } }
+  return result
 }
 
 /**
