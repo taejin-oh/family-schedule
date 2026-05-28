@@ -1,16 +1,11 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
+import { escTelegramHtml as esc } from './escape'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
-
-/** Escape user-controlled strings for Telegram HTML parse_mode.
- *  Telegram requires &, <, > escaped; quotes are safe outside attribute context. */
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function dayKo(dateIso: string): string {
   const [y, m, d] = dateIso.split('-').map(Number)

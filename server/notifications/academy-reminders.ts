@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { isNull } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
+import { escTelegramHtml as escHtml } from './escape'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 
@@ -93,10 +94,6 @@ export function findUpcomingAcademyEvents(
     }
   }
   return events
-}
-
-function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 // HH:MM helpers exported for tests / future use
