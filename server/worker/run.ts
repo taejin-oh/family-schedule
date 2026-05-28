@@ -208,22 +208,35 @@ export async function runWorker(): Promise<void> {
                 settings.telegramAcademyReminderMinutes,
               )
               for (const ev of events) {
-                // Race-safe claim — academy_reminder_log에 INSERT 시도.
-                // (date_iso, slot_key) UNIQUE이므로 다른 worker/이전 process가
-                // 이미 발송했으면 changes=0으로 skip. (이전 in-memory Set 방식은
-                // process restart 시 dedupe 정보가 사라져 동일 슬롯 중복 발송 위험.)
-                let claimed = false
+                // Race-safe claim — academy_reminder_log에 nonce(고유 sentAt)로
+                // INSERT OR IGNORE 후 SELECT해서 우리 nonce가 박혔는지 검증.
+                // drizzle .run()의 changes 값이 onConflictDoNothing에서도 truthy로
+                // 떨어지는 사례를 우회 (maybeFireDigest와 동일 패턴).
+                const ourNonce = Date.now() * 1000 + Math.floor(Math.random() * 1000)
                 try {
-                  const res = jobsDb.insert(jobsSchema.academyReminderLog)
-                    .values({ dateIso, slotKey: ev.slotKey, sentAt: Date.now() })
+                  jobsDb.insert(jobsSchema.academyReminderLog)
+                    .values({ dateIso, slotKey: ev.slotKey, sentAt: ourNonce })
                     .onConflictDoNothing()
                     .run()
-                  claimed = (res as { changes?: number }).changes !== 0
                 } catch (e) {
-                  console.error(`[academy-reminder] claim failed for ${ev.slotKey}:`, e)
+                  console.error(`[academy-reminder] claim insert failed for ${ev.slotKey}:`, e)
                   continue
                 }
-                if (!claimed) continue  // 이미 발송됨
+                let claimed = false
+                try {
+                  const row = jobsDb.select({ sentAt: jobsSchema.academyReminderLog.sentAt })
+                    .from(jobsSchema.academyReminderLog)
+                    .where(and(
+                      eq(jobsSchema.academyReminderLog.dateIso, dateIso),
+                      eq(jobsSchema.academyReminderLog.slotKey, ev.slotKey),
+                    ))
+                    .get()
+                  claimed = row?.sentAt === ourNonce
+                } catch (e) {
+                  console.error(`[academy-reminder] claim verify failed for ${ev.slotKey}:`, e)
+                  continue
+                }
+                if (!claimed) continue  // 이미 발송됨 (다른 호출자가 잡음)
 
                 const result = await sendTelegram(ev.message)
                 if (!result.ok) {
