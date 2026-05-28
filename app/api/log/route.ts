@@ -11,6 +11,7 @@ import { logEvent, ALLOWED_CATEGORIES, type EventCategory } from '@/server/log/e
  */
 
 const MAX_BODY_BYTES = 16 * 1024
+const MAX_EVENT_LEN = 128       // event 이름은 한 문자열 안에서 짧게 (e.g. "homework.create")
 const ALLOWED = new Set<string>(ALLOWED_CATEGORIES)
 
 export async function POST(req: Request) {
@@ -31,7 +32,9 @@ export async function POST(req: Request) {
     const d = data as Record<string, unknown>
     const category = typeof d.category === 'string' ? d.category : ''
     const event = typeof d.event === 'string' ? d.event : ''
-    if (!ALLOWED.has(category) || !event) {
+    // category 화이트리스트 + event 길이 제한.
+    // LAN 손님 기기가 임의 event 문자열 폭주로 events 테이블 폴루션하는 표면 방어.
+    if (!ALLOWED.has(category) || !event || event.length > MAX_EVENT_LEN) {
       return NextResponse.json({ ok: false }, { status: 400 })
     }
 

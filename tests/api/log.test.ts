@@ -83,4 +83,18 @@ describe('POST /api/log', () => {
     expect(call.sessionId).toBe('s-1')
     expect(call.path).toBe('/x')
   })
+
+  it('400 when event name exceeds 128 chars', async () => {
+    const longEvent = 'a'.repeat(129)
+    const res = await POST(makeReq({ category: 'mutation', event: longEvent }))
+    expect(res.status).toBe(400)
+    expect(logEventMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts event name at exactly 128 chars (boundary)', async () => {
+    const exact = 'a'.repeat(128)
+    const res = await POST(makeReq({ category: 'mutation', event: exact }))
+    expect(res.status).toBe(200)
+    expect(logEventMock).toHaveBeenCalledOnce()
+  })
 })
