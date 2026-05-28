@@ -58,6 +58,13 @@ describe('createRecurringTask', () => {
     if (!res.ok) expect(res.error).toMatch(/제목/)
   })
 
+  it('rejects title over 500 chars', async () => {
+    const { db } = makeDb()
+    const res = await createRecurringTask({ title: 'x'.repeat(501), daysOfWeek: ['mon'] }, { db })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/깁니다|너무/)
+  })
+
   it('rejects empty daysOfWeek', async () => {
     const { db } = makeDb()
     const res = await createRecurringTask({ title: '숙제', daysOfWeek: [] }, { db })

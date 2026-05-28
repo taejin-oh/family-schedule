@@ -15,8 +15,8 @@ type Ctx = { db?: AppDb }
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
 const TaskInput = z.object({
-  title: z.string().min(1, '제목이 필요합니다'),
-  notes: z.string().nullable().optional(),
+  title: z.string().min(1, '제목이 필요합니다').max(500, '제목이 너무 깁니다'),
+  notes: z.string().max(5000, '메모가 너무 깁니다').nullable().optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '색상은 #RRGGBB').optional(),
   cadence: z.enum(['daily', 'weekly']).default('daily'),
   daysOfWeek: z.array(z.enum(['mon','tue','wed','thu','fri','sat','sun'])).default([]),

@@ -20,7 +20,7 @@ type Ctx = { db?: AppDb }
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
 const InputSchema = z.object({
-  name: z.string().min(1, '학원 이름이 필요합니다'),
+  name: z.string().min(1, '학원 이름이 필요합니다').max(100, '학원 이름이 너무 깁니다'),
   subject: z.enum(['math','english','korean','art','music','pe','science','other']),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '색상은 #RRGGBB 형식'),
   scheduleRule: z.union([
@@ -43,9 +43,9 @@ const InputSchema = z.object({
     }),
     z.null(),
   ]),
-  location: z.string().nullable(),
-  notes: z.string().nullable(),
-  extractionHint: z.string().nullable().optional(),
+  location: z.string().max(200, '위치 텍스트가 너무 깁니다').nullable(),
+  notes: z.string().max(5000, '메모가 너무 깁니다').nullable(),
+  extractionHint: z.string().max(5000, '추출 힌트가 너무 깁니다').nullable().optional(),
 })
 
 export type AcademyInput = z.infer<typeof InputSchema>

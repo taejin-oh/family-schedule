@@ -82,6 +82,26 @@ describe('academy actions', () => {
     expect(res.error).toMatch(/이름|name/i)
   })
 
+  it('createAcademy rejects name over 100 chars', async () => {
+    const db = makeDb()
+    const res = await createAcademy({
+      name: 'x'.repeat(101), subject: 'math', color: '#ef4444',
+      scheduleRule: null, location: null, notes: null,
+    }, { db })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected failure')
+    expect(res.error).toMatch(/깁니다|너무/)
+  })
+
+  it('createAcademy rejects notes over 5000 chars', async () => {
+    const db = makeDb()
+    const res = await createAcademy({
+      name: 'OK', subject: 'math', color: '#ef4444',
+      scheduleRule: null, location: null, notes: 'x'.repeat(5001),
+    }, { db })
+    expect(res.ok).toBe(false)
+  })
+
   it('listAcademies omits archived by default', async () => {
     const db = makeDb()
     const a = await createAcademy({ name: 'A', subject: 'math', color: '#000000', scheduleRule: null, location: null, notes: null }, { db })

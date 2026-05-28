@@ -137,8 +137,8 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
 }
 
 const UpdateInput = z.object({
-  title: z.string().min(1).optional(),
-  notes: z.union([z.string(), z.null()]).optional(),
+  title: z.string().min(1).max(500, '제목이 너무 깁니다').optional(),
+  notes: z.union([z.string().max(5000, '메모가 너무 깁니다'), z.null()]).optional(),
   dueDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
 })
 
@@ -161,8 +161,8 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
 }
 
 const AddDraftInput = z.object({
-  title: z.string().min(1, '제목이 필요합니다'),
-  notes: z.string().nullable().optional(),
+  title: z.string().min(1, '제목이 필요합니다').max(500, '제목이 너무 깁니다'),
+  notes: z.string().max(5000, '메모가 너무 깁니다').nullable().optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 형식의 날짜').nullable(),
 })
 

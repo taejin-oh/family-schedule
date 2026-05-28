@@ -179,6 +179,15 @@ describe('reviewBatch actions', () => {
     expect(got?.dueDate).toBe('2026-06-01')
   })
 
+  it('addDraftItem rejects title over 500 chars', async () => {
+    const { appDb } = makeDbs()
+    const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
+    const [batch] = appDb.insert(appSchema.homeworkBatches).values({ academyId: academy.id, status: 'ready' }).returning().all()
+    const res = await addDraftItem(batch.id, { title: 'x'.repeat(501), dueDate: null }, { appDb })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toMatch(/깁니다|너무/)
+  })
+
   it('addDraftItem inserts a manual draft', async () => {
     const { appDb } = makeDbs()
     const [academy] = appDb.insert(appSchema.academies).values({ name: 'X', subject: 'math', color: '#000000' }).returning().all()
