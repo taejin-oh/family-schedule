@@ -7,6 +7,7 @@ import { dirname } from 'node:path'
 import { revalidatePath } from 'next/cache'
 import * as appSchema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
 type Ctx = { appDb?: AppDb }
@@ -104,4 +105,5 @@ export async function deleteBatch(batchId: number, ctx: Ctx = {}) {
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'homework.batch_delete', props: { batchId, academyId: batch.academyId, photoCount: photos.length, via: 'academy_detail' } })
 }

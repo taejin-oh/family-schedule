@@ -15,6 +15,7 @@ import { enqueue } from '@/server/jobs/queue'
 import { saveOriginal, makeResized } from '@/server/storage/photos'
 import { localDayWindow, localWeekWindow } from '@/server/util/date'
 import { tryStampToday } from '@/server/actions/stickers'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof appSchema>>
 type JobsDb = ReturnType<typeof drizzle<typeof jobsSchema>>
@@ -73,7 +74,8 @@ export async function createEmptyBatch(
   // 빈 batch — committed item 없음 → 아이 홈/대시보드/시간표 진행률은 영향 없음.
   // 업로드 페이지의 batch 목록만 revalidate.
   revalidatePath('/homework/upload')
-  console.log(`[perf] createEmptyBatch academyId=${academyId} batchId=${batch.id} ${(performance.now() - t0).toFixed(1)}ms`)
+  await logServerEvent({ category: 'perf', event: 'createEmptyBatch', props: { academyId, batchId: batch.id, ms: Math.round(performance.now() - t0) } })
+  await logServerEvent({ category: 'mutation', event: 'homework.empty_batch', props: { batchId: batch.id, academyId } })
   return { ok: true, data: { batchId: batch.id } }
 }
 
@@ -130,6 +132,7 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.upload', props: { batchId: batch.id, academyId: academy.id, fileCount: input.files.length, hasHint: !!input.userHint?.trim() } })
   return { ok: true, data: { batchId: batch.id } }
 }
 
@@ -151,6 +154,7 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.draft_update', props: { itemId, fields: Object.keys(parsed.data) } })
   return { ok: true }
 }
 
@@ -182,6 +186,7 @@ export async function addDraftItem(
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.draft_add', props: { itemId: row.id, batchId, academyId: batch.academyId, hasDue: !!data.dueDate, hasNotes: !!data.notes } })
   return { ok: true, data: { id: row.id } }
 }
 
@@ -195,6 +200,7 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.draft_delete', props: { itemId, source: item.source, ageMs: Date.now() - new Date(item.createdAt).getTime() } })
   return { ok: true }
 }
 
@@ -220,6 +226,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
     }
   }
 
+  const itemCount = appDb.select({ id: appSchema.homeworkItems.id }).from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.batchId, batchId)).all().length
   appDb.transaction((tx) => {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
@@ -228,6 +235,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.commit', props: { batchId, itemCount } })
   return { ok: true }
 }
 
@@ -238,6 +246,7 @@ export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): 
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: done ? 'homework.done' : 'homework.undone', props: { itemId: id } })
   return { ok: true }
 }
 
@@ -504,6 +513,7 @@ export async function rerunBatch(
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.rerun', props: { originalBatchId, newBatchId: newBatch.id, hintChanged: opts.userHint !== undefined } })
   return { ok: true, data: { batchId: newBatch.id } }
 }
 
@@ -522,6 +532,7 @@ export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: bool
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
+  await logServerEvent({ category: 'mutation', event: 'homework.batch_delete', props: { batchId: id } })
   return { ok: true }
 }
 
@@ -597,6 +608,7 @@ export async function deleteHomeworkItem(
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
+  await logServerEvent({ category: 'mutation', event: 'homework.item_delete', props: { itemId, source: item.source, ageMs: Date.now() - new Date(item.createdAt).getTime(), wasDone: !!item.doneAt } })
   return { ok: true }
 }
 
@@ -629,6 +641,7 @@ export async function updateHomeworkItem(
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
+  await logServerEvent({ category: 'mutation', event: 'homework.item_update', props: { itemId, fields: Object.keys(update) } })
   return { ok: true }
 }
 
@@ -654,6 +667,7 @@ export async function deferHomework(
   revalidatePath('/academies')
   const academyId = item.academyId
   revalidatePath(`/academies/${academyId}`, 'page')
+  await logServerEvent({ category: 'mutation', event: 'homework.defer', props: { itemId, fromDue: item.dueDate, toDue: newDueDate } })
   return { ok: true }
 }
 
@@ -675,6 +689,7 @@ export async function bulkToggleItemsDone(
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: done ? 'homework.bulk_done' : 'homework.bulk_undone', props: { count: ids.length } })
   return { ok: true }
 }
 
@@ -695,5 +710,6 @@ export async function bulkDeleteItems(
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'homework.bulk_delete', props: { count: ids.length } })
   return { ok: true }
 }

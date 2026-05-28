@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/bottom-nav'
 import { SwipeNav } from '@/components/swipe-nav'
 import { ToastProvider } from '@/components/toast'
 import { ServiceWorkerRegister } from '@/components/sw-register'
+import { AnalyticsTracker } from '@/components/analytics-tracker'
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
         <ServiceWorkerRegister />
+        <AnalyticsTracker />
         <ToastProvider>
           <header className="border-b bg-card hidden md:block sticky top-0 z-40">
             <div className="mx-auto max-w-3xl flex items-center gap-6 p-4">

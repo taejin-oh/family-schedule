@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
 import { DEFAULT_EMPTY_STATES, type EmptyState } from '@/lib/empty-states'
+import { logServerEvent } from '@/server/log/server-event'
 
 const MAX_ITEMS = 200
 const MAX_EMOJI = 8
@@ -51,6 +52,7 @@ export async function updateEmptyStates(
     .run()
   revalidatePath('/')
   revalidatePath('/admin/empty-states')
+  await logServerEvent({ category: 'mutation', event: 'empty_states.update', props: { count: clean.length } })
   return { ok: true }
 }
 
@@ -62,5 +64,6 @@ export async function resetEmptyStatesToDefault(): Promise<{ ok: true }> {
     .run()
   revalidatePath('/')
   revalidatePath('/admin/empty-states')
+  await logServerEvent({ category: 'mutation', event: 'empty_states.reset' })
   return { ok: true }
 }

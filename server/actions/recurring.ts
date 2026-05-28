@@ -8,6 +8,7 @@ import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { localDateIso, mondayOfWeekIso } from '@/server/util/date'
 import { tryStampToday } from '@/server/actions/stickers'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -54,6 +55,7 @@ export async function createRecurringTask(input: RecurringTaskInput, ctx: Ctx = 
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.create', props: { id: row.id, cadence: data.cadence, days: data.daysOfWeek.length } })
   return { ok: true, data: { id: row.id } }
 }
 
@@ -73,6 +75,7 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput,
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.update', props: { id, cadence: data.cadence, days: data.daysOfWeek.length } })
   return { ok: true }
 }
 
@@ -83,6 +86,7 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.archive', props: { id } })
   return { ok: true }
 }
 
@@ -93,6 +97,7 @@ export async function unarchiveRecurringTask(id: number, ctx: Ctx = {}): Promise
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.unarchive', props: { id } })
   return { ok: true }
 }
 
@@ -121,6 +126,7 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.done', props: { taskId, dateIso, cadence: task.cadence, already: !!existing } })
   return { ok: true }
 }
 
@@ -141,6 +147,7 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  await logServerEvent({ category: 'mutation', event: 'recurring.undone', props: { taskId, dateIso, cadence: task.cadence } })
   return { ok: true }
 }
 

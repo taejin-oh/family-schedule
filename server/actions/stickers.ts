@@ -6,6 +6,7 @@ import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { evaluateToday } from '@/server/util/sticker-rules'
 import { localDateIso } from '@/server/util/date'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -40,6 +41,7 @@ export async function setActiveReward(
     .values({ name, emoji, targetCount: target })
     .returning({ id: schema.rewardSettings.id })
     .get()
+  await logServerEvent({ category: 'mutation', event: 'reward.set', props: { id: row!.id, target } })
   return { ok: true, data: { id: row!.id } }
 }
 
@@ -74,6 +76,7 @@ export async function addManualStamp(notes?: string, ctx: Ctx = {}): Promise<Res
     kind: 'manual',
     notes: notes?.trim() || null,
   }).run()
+  await logServerEvent({ category: 'mutation', event: 'sticker.manual_add', props: { hasNotes: !!notes?.trim() } })
   return { ok: true }
 }
 
@@ -87,6 +90,7 @@ export async function removeStamp(id: number, ctx: Ctx = {}): Promise<Result> {
   if (!row) return { ok: false, error: '스티커를 찾을 수 없습니다' }
   if (row.redemptionId !== null) return { ok: false, error: '이미 보상에 사용한 스티커' }
   db.delete(schema.stamps).where(eq(schema.stamps.id, id)).run()
+  await logServerEvent({ category: 'mutation', event: 'sticker.remove', props: { id, kind: row.kind } })
   return { ok: true }
 }
 
@@ -113,6 +117,7 @@ export async function redeem(notes?: string, ctx: Ctx = {}): Promise<Result<{ re
   for (const s of consumed) {
     db.update(schema.stamps).set({ redemptionId: inserted!.id }).where(eq(schema.stamps.id, s.id)).run()
   }
+  await logServerEvent({ category: 'mutation', event: 'sticker.redeem', props: { redemptionId: inserted!.id, consumed: consumed.length } })
   return { ok: true, data: { redemptionId: inserted!.id, consumed: consumed.length } }
 }
 

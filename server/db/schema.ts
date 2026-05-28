@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, uniqueIndex, real, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, index, real, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export type Day = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
@@ -132,6 +132,27 @@ export const redemptions = sqliteTable('redemptions', {
   redeemedAt: integer('redeemed_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   notes: text('notes'),
 })
+
+// === Analytics / usage events ===
+//
+// 가족 사용 패턴 추적용. 외부 송신 없이 로컬 sqlite만. props_json엔 메타데이터만
+// (실제 텍스트 X). local_date는 Seoul TZ 기준 YYYY-MM-DD로 미리 계산해 둠 — 분석
+// 쿼리에서 date(ts/1000, 'unixepoch', 'localtime') 매번 변환 회피.
+export const events = sqliteTable('events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  ts: integer('ts').notNull(),                            // unix ms
+  localDate: text('local_date').notNull(),                // 'YYYY-MM-DD' (Seoul TZ)
+  sessionId: text('session_id'),                          // client cookie/localStorage id
+  category: text('category').notNull(),                   // navigation|interaction|mutation|error|perf|feature
+  event: text('event').notNull(),                         // 'page_enter', 'homework.create', ...
+  propsJson: text('props_json'),                          // optional metadata JSON
+  path: text('path'),                                     // pathname when relevant
+  userAgent: text('user_agent'),                          // desktop/mobile 식별만
+}, (t) => [
+  index('events_local_date_idx').on(t.localDate),
+  index('events_category_idx').on(t.category),
+  index('events_event_idx').on(t.event),
+])
 
 // 적립된 스티커. auto=오늘 active 0 도달 시 자동, manual=부모 수동 추가.
 // auto 스티커는 forDate UNIQUE (한 날짜에 하나). manual은 forDate NULL.

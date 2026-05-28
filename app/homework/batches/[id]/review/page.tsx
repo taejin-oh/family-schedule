@@ -4,6 +4,7 @@ import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
 import { localDateIso } from '@/server/util/date'
 import { ReviewForm } from './review-form'
+import { logServerEvent } from '@/server/log/server-event'
 
 const SIM_THRESHOLD = 0.4
 
@@ -60,6 +61,7 @@ function findSimilar(draftTitle: string, draftDueDate: string | null, existing: 
 }
 
 export default async function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
+  // eslint-disable-next-line react-hooks/purity -- intentional perf measurement
   const t0 = performance.now()
   const { id } = await params
   const batchId = Number(id)
@@ -96,7 +98,18 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     )
     .all()
 
-  console.log(`[perf] /review batchId=${batchId} items=${items.length} photos=${photos.length} existing=${existingCommitted.length} fetch=${(performance.now() - t0).toFixed(1)}ms`)
+  await logServerEvent({
+    category: 'perf',
+    event: 'review.fetch',
+    props: {
+      batchId,
+      items: items.length,
+      photos: photos.length,
+      existing: existingCommitted.length,
+      // eslint-disable-next-line react-hooks/purity -- intentional perf measurement
+      ms: Math.round(performance.now() - t0),
+    },
+  })
 
   return (
     <div className="space-y-4">

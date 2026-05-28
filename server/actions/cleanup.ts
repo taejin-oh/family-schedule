@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { runBatchCleanup, CLEANUP_CONFIG, type CleanupResult } from '@/server/util/batch-cleanup'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { db?: AppDb }
@@ -15,6 +16,7 @@ export async function runManualCleanup(ctx: Ctx = {}): Promise<CleanupResult> {
   const res = runBatchCleanup(db)
   revalidatePath('/homework/upload')
   revalidatePath('/admin/settings')
+  await logServerEvent({ category: 'mutation', event: 'cleanup.manual_run', props: { archived: res.archivedBatchIds.length, photosCleaned: res.photosCleanedBatchIds.length, failedDeleted: res.deletedFailedBatchIds.length } })
   return res
 }
 

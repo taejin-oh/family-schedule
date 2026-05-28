@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import { LoadingDots } from '@/components/loading-dots'
+import { track } from '@/lib/log/client'
 import { BatchCard } from './batch-card'
 
 type Academy = { id: number; name: string; color: string; extractionHint: string | null }
@@ -173,7 +174,10 @@ export function UploadForm({
     router.prefetch(url)
     const tPush = performance.now()
     router.push(url)
-    console.log(`[perf] startManual: createEmptyBatch=${tAction.toFixed(0)}ms, push=${(performance.now() - tPush).toFixed(0)}ms`)
+    track('perf', 'startManual', {
+      createEmptyBatch_ms: Math.round(tAction),
+      push_ms: Math.round(performance.now() - tPush),
+    })
   }
 
   function handleDeleteBatch(b: BatchSummary, e: React.MouseEvent) {

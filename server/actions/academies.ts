@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { isValidScheduleTime, isValidTimeRange } from '@/lib/time-slots'
+import { logServerEvent } from '@/server/log/server-event'
 
 function revalidateAcademyPages() {
   revalidatePath('/')
@@ -51,19 +52,27 @@ export type AcademyInput = z.infer<typeof InputSchema>
 
 export async function createAcademy(input: AcademyInput, ctx: Ctx = {}): Promise<Result<{ id: number }>> {
   const parsed = InputSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
+  if (!parsed.success) {
+    await logServerEvent({ category: 'error', event: 'validation_fail', props: { action: 'academy.create', issue: parsed.error.issues[0]?.message } })
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
+  }
   const db = ctx.db ?? getDb()
   const [row] = db.insert(schema.academies).values(parsed.data).returning({ id: schema.academies.id }).all()
   revalidateAcademyPages()
+  await logServerEvent({ category: 'mutation', event: 'academy.create', props: { id: row.id, subject: parsed.data.subject, has_schedule: parsed.data.scheduleRule !== null, slot_count: parsed.data.scheduleRule?.slots.length ?? 0 } })
   return { ok: true, data: { id: row.id } }
 }
 
 export async function updateAcademy(id: number, input: AcademyInput, ctx: Ctx = {}): Promise<Result> {
   const parsed = InputSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
+  if (!parsed.success) {
+    await logServerEvent({ category: 'error', event: 'validation_fail', props: { action: 'academy.update', id, issue: parsed.error.issues[0]?.message } })
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }
+  }
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set(parsed.data).where(eq(schema.academies.id, id)).run()
   revalidateAcademyPages()
+  await logServerEvent({ category: 'mutation', event: 'academy.update', props: { id, subject: parsed.data.subject, slot_count: parsed.data.scheduleRule?.slots.length ?? 0 } })
   return { ok: true }
 }
 
@@ -71,8 +80,10 @@ export async function archiveAcademy(id: number, ctx: Ctx = {}): Promise<Result>
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set({ archivedAt: new Date() }).where(eq(schema.academies.id, id)).run()
   revalidateAcademyPages()
+  await logServerEvent({ category: 'mutation', event: 'academy.archive', props: { id } })
   return { ok: true }
 }
+
 
 export async function listAcademies(ctx: Ctx = {}) {
   const db = ctx.db ?? getDb()
@@ -90,6 +101,7 @@ export async function unarchiveAcademy(id: number, ctx: Ctx = {}): Promise<Resul
   const db = ctx.db ?? getDb()
   db.update(schema.academies).set({ archivedAt: null }).where(eq(schema.academies.id, id)).run()
   revalidateAcademyPages()
+  await logServerEvent({ category: 'mutation', event: 'academy.unarchive', props: { id } })
   return { ok: true }
 }
 
@@ -107,5 +119,6 @@ export async function deleteAcademyPermanently(id: number, ctx: Ctx = {}): Promi
     tx.delete(schema.academies).where(eq(schema.academies.id, id)).run()
   })
   revalidateAcademyPages()
+  await logServerEvent({ category: 'mutation', event: 'academy.delete_permanent', props: { id } })
   return { ok: true }
 }

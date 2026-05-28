@@ -8,6 +8,7 @@ import { getDb } from '@/server/db/client'
 import { availableProviderNames, getProvider } from '@/server/llm/registry'
 import { revalidatePath } from 'next/cache'
 import { sendTelegram } from '@/server/notifications/telegram'
+import { logServerEvent } from '@/server/log/server-event'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
 type Ctx = { appDb?: AppDb }
@@ -60,6 +61,7 @@ export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}
   const db = ctx.appDb ?? getDb()
   db.update(schema.appSettings).set(parsed.data).where(eq(schema.appSettings.id, 1)).run()
   revalidatePath('/admin/settings')
+  await logServerEvent({ category: 'mutation', event: 'settings.update', props: { provider: parsed.data.visionProvider, model: parsed.data.visionModel, fields: Object.keys(parsed.data) } })
   return { ok: true }
 }
 
@@ -71,5 +73,7 @@ export async function listProviderOptions() {
 }
 
 export async function sendTestTelegram(): Promise<{ ok: boolean; reason?: string }> {
-  return sendTelegram('🔧 family-schedule 테스트 메시지')
+  const res = await sendTelegram('🔧 family-schedule 테스트 메시지')
+  await logServerEvent({ category: 'feature', event: 'telegram.test_sent', props: { ok: res.ok, reason: res.reason } })
+  return res
 }
