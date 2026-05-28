@@ -383,7 +383,7 @@ export default async function HomePage({
   const visibleCount =
     visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
     (visibleBuckets.includes('today') ? recurringActive.length : 0) +
-    (visibleBuckets.includes('tomorrow') ? tomorrowRecurringActive.length : 0) +
+    (visibleBuckets.includes('tomorrow') && filter !== 'today' ? tomorrowRecurringActive.length : 0) +
     (filter === 'nextweek' ? weekRecur.length : weeklyActive.length)
 
   const hasAnything = totalActive > 0 || totalDone > 0
@@ -556,7 +556,9 @@ export default async function HomePage({
             const hwList = filteredBuckets[bk]
             const recurList: RecurringItem[] =
               bk === 'today' ? recurringActive :
-              bk === 'tomorrow' ? tomorrowRecurringActive :
+              // filter='today' 덱에선 내일 daily recurring 숨김 (사용자 요청).
+              // 내일 매일 할일은 filter='tomorrow' (내일만) 또는 thisweek/all에서만.
+              bk === 'tomorrow' && filter !== 'today' ? tomorrowRecurringActive :
               []
             if (hwList.length === 0 && recurList.length === 0) return null
             const meta = BUCKET_META[bk]
