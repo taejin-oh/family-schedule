@@ -72,6 +72,18 @@ TELEGRAM_CHAT_ID=-1001234567890
 ```
 `.env`에 두 값을 채운 뒤 worker 재시작. 이후 `/admin/settings` → 텔레그램 다이제스트 섹션에서 활성화.
 
+## Analytics / 사용 로그
+
+가족 사용 패턴 추적용 이벤트 로깅. **외부 송신 0**, 로컬 `data/app.db`의 `events`
+테이블에만 INSERT. 자녀 입력 텍스트는 저장 안 함 (메타데이터만).
+
+빠른 확인:
+```bash
+sqlite3 data/app.db "SELECT category, event, count(*) FROM events GROUP BY category, event ORDER BY count(*) DESC LIMIT 20;"
+```
+
+이벤트 추가 / 카테고리 가이드 / 분석 SQL 예시 / 변경 시 주의사항은 **`docs/analytics.md`** 참조.
+
 ## Out of scope (Phase 1.5+ candidates)
 - Authentication
 - Public exposure (Cloudflare Tunnel + Access)
@@ -87,5 +99,8 @@ TELEGRAM_CHAT_ID=-1001234567890
 - `server/storage/`     — photo/file save + sharp resize
 - `server/actions/`     — Server Actions (homework, academies, settings)
 - `worker.ts`           — background job loop
+- `server/log/`         — events 테이블 logEvent helper (analytics)
+- `lib/log/`            — client-side track helper
 - `data/`               — runtime SQLite + jobs queue (gitignored)
 - `storage/photos/`     — runtime files (gitignored)
+- `docs/`               — 추가 가이드 (`analytics.md` 등)
