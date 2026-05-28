@@ -74,20 +74,32 @@ export async function maybeFireDigest(
 ): Promise<DigestResult> {
   if (!enabled || scheduledTime !== currentHhmm) return 'skipped'
 
-  // Race-safe claim: digest_log에 먼저 insert 시도. unique(kind, date_iso)이라
-  // 다른 worker / 직전 process restart가 이미 잡았으면 changes=0으로 빠짐.
-  // (이전 패턴은 SELECT → send → INSERT라 SELECT~INSERT 사이 두 process가
-  //  모두 SELECT 통과 → 둘 다 send → 한 개만 INSERT 성공 = 중복 발송.)
-  let claimed = false
+  // Race-safe claim: digest_log에 nonce(고유 sentAt)로 INSERT OR IGNORE 후,
+  // 같은 (kind, dateIso) row를 SELECT해서 우리 nonce가 박혔는지 검증.
+  // drizzle .run()의 changes/lastInsertRowid 형태에 의존하지 않고 _저장된 값_으로
+  // 우리 INSERT가 성공했는지 판단 → process restart 중 동시 polling이 와도 안전.
+  // (이전 패턴은 changes !== 0 검사였는데 drizzle wrap에서 conflict 시에도 truthy
+  //  로 떨어져 같은 분에 send가 3번까지 호출되는 사례 발생.)
+  const ourNonce = Date.now() * 1000 + Math.floor(Math.random() * 1000)
   try {
-    const res = jobsDb.insert(jobsSchema.digestLog)
-      .values({ kind, sentAt: Date.now(), dateIso })
+    jobsDb.insert(jobsSchema.digestLog)
+      .values({ kind, sentAt: ourNonce, dateIso })
       .onConflictDoNothing()
       .run()
-    claimed = (res as { changes?: number }).changes !== 0
   } catch (e) {
     // DB 일시 오류는 재시도 가치 있음.
-    console.error(`[digest] ${kind} claim failed:`, e)
+    console.error(`[digest] ${kind} claim insert failed:`, e)
+    return 'retry'
+  }
+  let claimed = false
+  try {
+    const row = jobsDb.select({ sentAt: jobsSchema.digestLog.sentAt })
+      .from(jobsSchema.digestLog)
+      .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
+      .get()
+    claimed = row?.sentAt === ourNonce
+  } catch (e) {
+    console.error(`[digest] ${kind} claim verify failed:`, e)
     return 'retry'
   }
   if (!claimed) return 'skipped'  // 이미 다른 호출자가 claim/발송 완료
