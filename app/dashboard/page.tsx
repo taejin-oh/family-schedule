@@ -383,7 +383,7 @@ export default async function HomePage({
   const visibleCount =
     visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
     (visibleBuckets.includes('today') ? recurringActive.length : 0) +
-    (visibleBuckets.includes('tomorrow') && (filter === 'tomorrow' || filter === 'thisweek') ? tomorrowRecurringActive.length : 0) +
+    (visibleBuckets.includes('tomorrow') && (['tomorrow', 'thisweek'] as readonly string[]).includes(filter) ? tomorrowRecurringActive.length : 0) +
     (filter === 'nextweek' ? weekRecur.length : weeklyActive.length)
 
   const hasAnything = totalActive > 0 || totalDone > 0
@@ -554,11 +554,13 @@ export default async function HomePage({
           {filter === 'all' && weeklySection}
           {visibleBuckets.map((bk) => {
             const hwList = filteredBuckets[bk]
+            // 내일 daily recurring은 filter='tomorrow' (내일만) / 'thisweek' (이번 주)
+            // 에서만 노출. filter='today' / 'all' 덱에선 노이즈라 숨김.
+            // (FilterKey union narrow 회피 위해 string list로 includes)
+            const showTomorrowRecur: boolean = (['tomorrow', 'thisweek'] as readonly string[]).includes(filter)
             const recurList: RecurringItem[] =
               bk === 'today' ? recurringActive :
-              // 내일 daily recurring은 filter='tomorrow' (내일만) / 'thisweek' (이번 주)
-              // 에서만 노출. filter='today' / 'all' 덱에선 노이즈라 숨김.
-              bk === 'tomorrow' && (filter === 'tomorrow' || filter === 'thisweek') ? tomorrowRecurringActive :
+              bk === 'tomorrow' && showTomorrowRecur ? tomorrowRecurringActive :
               []
             if (hwList.length === 0 && recurList.length === 0) return null
             const meta = BUCKET_META[bk]
