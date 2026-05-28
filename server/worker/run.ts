@@ -156,10 +156,8 @@ export async function runWorker(): Promise<void> {
   let pollCount = 0
   let lastCheckedMinute = ''
   let lastCleanupDate = ''
-  // 학원 ±10분 알림 중복 방지. 형식: "YYYY-MM-DD|{academyId}|{day}|{start}|{start|end}"
-  // 매일 자정 넘어가면 초기화.
-  const sentAcademyReminders = new Set<string>()
-  let lastReminderDate = ''
+  // 학원 ±N분 알림 중복 방지는 jobsDb.academy_reminder_log(date_iso, slot_key)
+  // UNIQUE 인덱스로 영속화. process restart / 자정 경계에서도 중복 발송 안 됨.
 
   while (true) {
     pollCount++
@@ -170,12 +168,6 @@ export async function runWorker(): Promise<void> {
     const { hhmm, dateIso } = seoulNow()
     if (hhmm !== lastCheckedMinute) {
       lastCheckedMinute = hhmm
-
-      // 매일 자정 넘어가면 학원 알림 dedupe set 초기화
-      if (dateIso !== lastReminderDate) {
-        sentAcademyReminders.clear()
-        lastReminderDate = dateIso
-      }
 
       try {
         const settings = appDb.select().from(appSchema.appSettings).where(eq(appSchema.appSettings.id, 1)).get()
@@ -204,10 +196,32 @@ export async function runWorker(): Promise<void> {
                 settings.telegramAcademyReminderMinutes,
               )
               for (const ev of events) {
-                const dedupeKey = `${dateIso}|${ev.slotKey}`
-                if (sentAcademyReminders.has(dedupeKey)) continue
-                sentAcademyReminders.add(dedupeKey)
-                await sendTelegram(ev.message)
+                // Race-safe claim — academy_reminder_log에 INSERT 시도.
+                // (date_iso, slot_key) UNIQUE이므로 다른 worker/이전 process가
+                // 이미 발송했으면 changes=0으로 skip. (이전 in-memory Set 방식은
+                // process restart 시 dedupe 정보가 사라져 동일 슬롯 중복 발송 위험.)
+                let claimed = false
+                try {
+                  const res = jobsDb.insert(jobsSchema.academyReminderLog)
+                    .values({ dateIso, slotKey: ev.slotKey, sentAt: Date.now() })
+                    .onConflictDoNothing()
+                    .run()
+                  claimed = (res as { changes?: number }).changes !== 0
+                } catch (e) {
+                  console.error(`[academy-reminder] claim failed for ${ev.slotKey}:`, e)
+                  continue
+                }
+                if (!claimed) continue  // 이미 발송됨
+
+                const result = await sendTelegram(ev.message)
+                if (!result.ok) {
+                  // send 실패 시 row 삭제하면 같은 분 안 재시도 가능하지만, 분이
+                  // 바뀌면 slot match 조건(startBefore === nowMin)을 다시 만족하지
+                  // 못해 그날 손실. 운영상 일시 실패는 다음 슬롯에서 자연스럽게
+                  // 재발생하니 rollback 없이 silent log로 둠.
+                  console.log(`[academy-reminder] send failed for ${ev.slotKey}: ${result.reason}`)
+                  continue
+                }
                 console.log(`[academy-reminder] ${ev.type} ${ev.academyName} @${hhmm} (slot ${ev.slotStart})`)
               }
             } catch (e) {

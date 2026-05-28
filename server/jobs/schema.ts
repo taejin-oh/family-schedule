@@ -21,3 +21,15 @@ export const digestLog = sqliteTable('digest_log', {
 }, (t) => [
   uniqueIndex('digest_log_kind_date').on(t.kind, t.dateIso),
 ])
+
+// 학원 시작/종료 ±N분 알림 발송 영속 dedupe.
+// (date_iso, slot_key) UNIQUE — process restart/자정 경계에도 중복 발송 방지.
+// slot_key 형식: "{academyId}|{day}|{start}|{start|end}" (academy-reminders.ts 참조).
+export const academyReminderLog = sqliteTable('academy_reminder_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  dateIso: text('date_iso').notNull(),   // 'YYYY-MM-DD' (Asia/Seoul)
+  slotKey: text('slot_key').notNull(),
+  sentAt: integer('sent_at').notNull(),  // unix ms
+}, (t) => [
+  uniqueIndex('academy_reminder_log_date_slot').on(t.dateIso, t.slotKey),
+])
