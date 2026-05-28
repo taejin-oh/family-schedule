@@ -154,7 +154,9 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
-  await logServerEvent({ category: 'mutation', event: 'homework.draft_update', props: { itemId, fields: Object.keys(parsed.data) } })
+  // caller가 _실제로 보낸_ 필드만 추출 (zod optional이라 parsed.data는 undefined 키도 포함).
+  const changedFields = (Object.keys(patch) as Array<keyof typeof patch>).filter((k) => patch[k] !== undefined)
+  await logServerEvent({ category: 'mutation', event: 'homework.draft_update', props: { itemId, fields: changedFields } })
   return { ok: true }
 }
 

@@ -173,12 +173,9 @@ export function UploadForm({
     if (!res.ok) { setError(res.error); setBusy(false); return }
     const url = `/homework/batches/${res.data.batchId}/review`
     router.prefetch(url)
-    const tPush = performance.now()
     router.push(url)
-    track('perf', 'startManual', {
-      createEmptyBatch_ms: Math.round(tAction),
-      push_ms: Math.round(performance.now() - tPush),
-    })
+    // router.push는 동기라 자체 시간 측정은 의미 없음 — server action 시간만 기록.
+    track('perf', 'startManual', { createEmptyBatch_ms: Math.round(tAction) })
   }
 
   function handleDeleteBatch(b: BatchSummary, e: React.MouseEvent) {

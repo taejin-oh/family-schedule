@@ -61,7 +61,9 @@ export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}
   const db = ctx.appDb ?? getDb()
   db.update(schema.appSettings).set(parsed.data).where(eq(schema.appSettings.id, 1)).run()
   revalidatePath('/admin/settings')
-  await logServerEvent({ category: 'mutation', event: 'settings.update', props: { provider: parsed.data.visionProvider, model: parsed.data.visionModel, fields: Object.keys(parsed.data) } })
+  // caller가 _실제로 보낸_ 필드만 추출 (zod optional이라 parsed.data는 undefined 키도 포함).
+  const changedFields = (Object.keys(input) as Array<keyof typeof input>).filter((k) => input[k] !== undefined)
+  await logServerEvent({ category: 'mutation', event: 'settings.update', props: { provider: parsed.data.visionProvider, model: parsed.data.visionModel, fields: changedFields } })
   return { ok: true }
 }
 

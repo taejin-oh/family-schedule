@@ -31,8 +31,13 @@ function genId(): string {
   return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
+// Module-level cache — 매 track() 호출마다 cookie/localStorage write 반복하지 않도록.
+// 첫 호출에 발급/조회 후 lifetime 동안 in-memory reuse. 5년 max-age라 expiry refresh 불필요.
+let _cachedSessionId: string | null = null
+
 export function getSessionId(): string {
   if (typeof window === 'undefined') return ''
+  if (_cachedSessionId) return _cachedSessionId
   let id: string | null = null
   try {
     id = window.localStorage.getItem(STORAGE_KEY)
@@ -42,6 +47,7 @@ export function getSessionId(): string {
     try { window.localStorage.setItem(STORAGE_KEY, id) } catch {}
   }
   writeCookie(COOKIE_NAME, id, COOKIE_MAX_AGE)
+  _cachedSessionId = id
   return id
 }
 
