@@ -69,7 +69,13 @@ export const homeworkItems = sqliteTable('homework_items', {
   isCommitted: integer('is_committed', { mode: 'boolean' }).notNull().default(false),
   doneAt: integer('done_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-})
+}, (t) => [
+  // dashboard/timetable hot query 인덱스.
+  // - committed_done: WHERE is_committed=1 AND done_at IS NULL (listCommittedItems 등)
+  // - academy_due: WHERE academy_id=? AND due_date BETWEEN ? AND ? (학원별 일자 필터)
+  index('homework_items_committed_done').on(t.isCommitted, t.doneAt),
+  index('homework_items_academy_due').on(t.academyId, t.dueDate),
+])
 
 export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey().default(1),  // single-row table

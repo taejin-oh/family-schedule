@@ -1,0 +1,2 @@
+CREATE INDEX `homework_items_committed_done` ON `homework_items` (`is_committed`,`done_at`);--> statement-breakpoint
+CREATE INDEX `homework_items_academy_due` ON `homework_items` (`academy_id`,`due_date`);
