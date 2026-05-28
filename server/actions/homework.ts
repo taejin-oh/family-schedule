@@ -243,11 +243,20 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
 
 export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): Promise<{ ok: true } | { ok: false; error: string }> {
   const appDb = ctx.appDb ?? getDb()
+  // academy detail 페이지(`/academies/[id]`) revalidate에 academyId가 필요.
+  // defer/delete/update 같은 다른 mutation은 이미 academy revalidate를 하는데
+  // toggleItemDone만 빠져 있어 학원 상세에서 done 토글 후 stale 표시 발생.
+  // row가 없으면 이전 동작(ok:true) 보존 — update.run()은 id 없으면 changes=0.
+  const row = appDb.select({ academyId: appSchema.homeworkItems.academyId })
+    .from(appSchema.homeworkItems)
+    .where(eq(appSchema.homeworkItems.id, id))
+    .get()
   appDb.update(appSchema.homeworkItems).set({ doneAt: done ? new Date() : null }).where(eq(appSchema.homeworkItems.id, id)).run()
   await tryStampToday({ db: appDb })
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  if (row) revalidatePath(`/academies/${row.academyId}`)
   await logServerEvent({ category: 'mutation', event: done ? 'homework.done' : 'homework.undone', props: { itemId: id } })
   return { ok: true }
 }
