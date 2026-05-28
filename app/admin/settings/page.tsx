@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { TelegramTestButton } from './_components/telegram-test-button'
 import { CleanupSection } from './_components/cleanup-section'
+import { SaveForm } from './_components/save-form'
 
 const fieldCls =
   'w-full bg-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
@@ -97,7 +98,12 @@ export default async function SettingsPage() {
           매일 오늘 할일을 다 끝내면 스티커 1개. 목표 개수에 도달하면 보상.
         </p>
 
-        <form action={saveReward} className="space-y-2">
+        <SaveForm
+          action={saveReward}
+          submitLabel="보상 저장"
+          successMsg="보상이 저장됐어요"
+          className="space-y-2"
+        >
           <div className="flex gap-2">
             <input
               name="emoji"
@@ -124,13 +130,7 @@ export default async function SettingsPage() {
               className={`${smallFieldCls} w-20 text-right`}
             />
           </label>
-          <button
-            type="submit"
-            className="bg-foreground text-background text-sm font-semibold rounded-lg px-3 py-1.5 hover:opacity-90 transition-opacity"
-          >
-            보상 저장
-          </button>
-        </form>
+        </SaveForm>
 
         <div className="border-t border-foreground/10 pt-3">
           <div className="text-sm">
@@ -246,7 +246,13 @@ export default async function SettingsPage() {
 
       {/* AI provider + Telegram */}
       <Card className="p-4 gap-3">
-        <form action={save} className="contents">
+        <SaveForm
+          action={save}
+          submitLabel="저장"
+          successMsg="설정이 저장됐어요"
+          className="contents"
+          buttonClassName="bg-foreground text-background text-sm font-semibold rounded-lg px-3 py-2 hover:opacity-90 disabled:opacity-50 disabled:cursor-wait transition-opacity w-fit"
+        >
           <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
             🤖 AI 추출
           </h2>
@@ -349,13 +355,7 @@ export default async function SettingsPage() {
             </label>
           </div>
 
-          <button
-            type="submit"
-            className="bg-foreground text-background text-sm font-semibold rounded-lg px-3 py-2 hover:opacity-90 transition-opacity w-fit"
-          >
-            저장
-          </button>
-        </form>
+        </SaveForm>
       </Card>
 
       {/* Telegram test */}
