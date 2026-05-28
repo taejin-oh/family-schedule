@@ -72,14 +72,24 @@ async function maybeFireDigest(
 ): Promise<void> {
   if (!enabled || scheduledTime !== currentHhmm) return
 
-  // Already sent today? (unique index on kind+date_iso)
-  const existing = jobsDb.select({ id: jobsSchema.digestLog.id })
-    .from(jobsSchema.digestLog)
-    .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
-    .get()
+  // Race-safe claim: digest_log에 먼저 insert 시도. unique(kind, date_iso)이라
+  // 다른 worker / 직전 process restart가 이미 잡았으면 changes=0으로 빠짐.
+  // (이전 패턴은 SELECT → send → INSERT라 SELECT~INSERT 사이 두 process가
+  //  모두 SELECT 통과 → 둘 다 send → 한 개만 INSERT 성공 = 중복 발송.)
+  let claimed = false
+  try {
+    const res = jobsDb.insert(jobsSchema.digestLog)
+      .values({ kind, sentAt: Date.now(), dateIso })
+      .onConflictDoNothing()
+      .run()
+    claimed = (res as { changes?: number }).changes !== 0
+  } catch (e) {
+    console.error(`[digest] ${kind} claim failed:`, e)
+    return
+  }
+  if (!claimed) return  // 누가 이미 claim했음
 
-  if (existing) return
-
+  // Build digest text. 실패 시 claim rollback (다음 polling cycle이 다시 시도).
   let text: string
   try {
     if (kind === 'morning') text = buildMorningDigest(appDb, dateIso)
@@ -87,25 +97,21 @@ async function maybeFireDigest(
     else text = buildMiddayDigest(appDb, dateIso)
   } catch (e) {
     console.error(`[digest] ${kind} build failed:`, e)
+    jobsDb.delete(jobsSchema.digestLog)
+      .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
+      .run()
     return
   }
 
   const result = await sendTelegram(text)
   if (!result.ok) {
     console.log(`[digest] ${kind} send failed: ${result.reason}`)
+    jobsDb.delete(jobsSchema.digestLog)
+      .where(and(eq(jobsSchema.digestLog.kind, kind), eq(jobsSchema.digestLog.dateIso, dateIso)))
+      .run()
     return
   }
-
-  // Only log if send succeeded
-  try {
-    jobsDb.insert(jobsSchema.digestLog)
-      .values({ kind, sentAt: Date.now(), dateIso })
-      .onConflictDoNothing()
-      .run()
-    console.log(`[digest] ${kind} sent for ${dateIso}`)
-  } catch (e) {
-    console.error(`[digest] log insert failed:`, e)
-  }
+  console.log(`[digest] ${kind} sent for ${dateIso}`)
 }
 
 /**
