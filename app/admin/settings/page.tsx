@@ -101,7 +101,6 @@ export default async function SettingsPage() {
         <SaveForm
           action={saveReward}
           submitLabel="보상 저장"
-          successMsg="보상이 저장됐어요"
           className="space-y-2"
         >
           <div className="flex gap-2">
@@ -249,9 +248,8 @@ export default async function SettingsPage() {
         <SaveForm
           action={save}
           submitLabel="저장"
-          successMsg="설정이 저장됐어요"
           className="contents"
-          buttonClassName="bg-foreground text-background text-sm font-semibold rounded-lg px-3 py-2 hover:opacity-90 disabled:opacity-50 disabled:cursor-wait transition-opacity w-fit"
+          buttonBaseClassName="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2 transition-colors w-fit"
         >
           <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
             🤖 AI 추출

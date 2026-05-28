@@ -1,64 +1,106 @@
 'use client'
 
-import { useTransition, type ReactNode } from 'react'
-import { useToast } from '@/components/toast'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import { Check, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+type Status = 'idle' | 'pending' | 'success' | 'error'
 
 type Props = {
   action: (formData: FormData) => Promise<unknown>
   submitLabel: string
-  successMsg: string
+  successLabel?: string
   pendingLabel?: string
   className?: string
-  buttonClassName?: string
+  /** override base button class for layout 차이 (그 외 색·전환은 status별 자동) */
+  buttonBaseClassName?: string
   children: ReactNode
 }
 
 /**
- * Server action을 호출하는 form을 감싸서:
- * - 진행 중: 버튼 disabled + "저장 중…" 텍스트, fieldset 잠금
- * - 성공: toast로 successMsg 표시
- * - 실패: throw된 메시지 toast 표시
+ * Server action을 호출하는 form. 버튼 자체가 상태에 따라 morph:
+ *   idle    → submitLabel
+ *   pending → Loader2 spinner + pendingLabel
+ *   success → Check icon + successLabel (2초 후 idle)
+ *   error   → 원래 라벨 + 버튼 옆 inline 에러 메시지 (4초 후 idle)
  *
- * 사용처: 설정 페이지의 server action form 어디든.
+ * Toast 안 씀 — 버튼 위 상태가 결과 자체. input은 잠그지 않아서 즉시 다시 수정 가능.
  */
 export function SaveForm({
   action,
   submitLabel,
-  successMsg,
-  pendingLabel = '저장 중…',
+  successLabel = '저장됨',
+  pendingLabel = '저장 중',
   className,
-  buttonClassName,
+  buttonBaseClassName,
   children,
 }: Props) {
-  const { show } = useToast()
-  const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useState<Status>('idle')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+  const timerRef = useRef<number | null>(null)
+
+  function clearStatusTimer() {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+  useEffect(() => clearStatusTimer, [])
 
   function handle(formData: FormData) {
+    clearStatusTimer()
+    setErrorMsg(null)
+    setStatus('pending')
     startTransition(async () => {
       try {
         await action(formData)
-        show({ label: successMsg })
+        setStatus('success')
+        timerRef.current = window.setTimeout(() => setStatus('idle'), 2000)
       } catch (e) {
-        show({ label: e instanceof Error && e.message ? e.message : '저장 실패' })
+        const msg = e instanceof Error && e.message ? e.message : '저장 실패'
+        setErrorMsg(msg)
+        setStatus('error')
+        timerRef.current = window.setTimeout(() => {
+          setStatus('idle')
+          setErrorMsg(null)
+        }, 4000)
       }
     })
   }
 
+  const baseBtn =
+    buttonBaseClassName ??
+    'inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-1.5 transition-colors self-start'
+
   return (
     <form action={handle} className={className}>
-      <fieldset disabled={pending} className="contents">
-        {children}
+      {children}
+      <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={pending}
-          className={
-            buttonClassName ??
-            'bg-foreground text-background text-sm font-semibold rounded-lg px-3 py-1.5 hover:opacity-90 disabled:opacity-50 disabled:cursor-wait transition-opacity self-start'
-          }
+          disabled={status === 'pending'}
+          aria-busy={status === 'pending'}
+          className={cn(
+            baseBtn,
+            status === 'idle' && 'bg-foreground text-background hover:opacity-90',
+            status === 'pending' && 'bg-foreground/70 text-background cursor-wait',
+            status === 'success' && 'bg-emerald-600 text-white',
+            status === 'error' && 'bg-foreground text-background hover:opacity-90',
+          )}
         >
-          {pending ? pendingLabel : submitLabel}
+          {status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+          {status === 'success' && <Check className="h-4 w-4" aria-hidden />}
+          <span>
+            {status === 'pending' ? pendingLabel
+             : status === 'success' ? successLabel
+             : submitLabel}
+          </span>
         </button>
-      </fieldset>
+        {status === 'error' && errorMsg && (
+          <span className="text-xs text-destructive" role="alert">{errorMsg}</span>
+        )}
+      </div>
     </form>
   )
 }
