@@ -16,13 +16,29 @@ const ResponseSchema = z.object({
 
 const FENCE = /```(?:json)?\s*([\s\S]*?)```/
 
-function extractJson(text: string): string {
+/**
+ * 모델 응답에서 JSON 본문 추출. 우선순위:
+ * 1. ```json ... ``` 펜스 안 본문
+ * 2. `{` 와 `[` 중 더 먼저 나오는 쪽으로 outermost JSON 범위 결정
+ *    - `{` 가 먼저면 첫 `{` ~ 마지막 `}` (객체 wrapper, 가장 일반적)
+ *    - `[` 가 먼저면 첫 `[` ~ 마지막 `]` (items 배열만 뱉은 경우)
+ *    먼저 나오는 쪽을 채택하지 않으면 `[ {...}, {...} ]` 같은 입력에서
+ *    배열 안 객체를 잘못 잡아 wrapper `[ ]` 가 누락되는 버그가 생김.
+ * 3. 그래도 못 찾으면 trim 후 그대로 (JSON.parse에서 실패할 가능성 높음)
+ */
+export function extractJson(text: string): string {
   const m = text.match(FENCE)
   if (m) return m[1].trim()
-  // Try to find the outermost { ... }
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start >= 0 && end > start) return text.slice(start, end + 1)
+  const objStart = text.indexOf('{')
+  const arrStart = text.indexOf('[')
+  const useArray = arrStart >= 0 && (objStart < 0 || arrStart < objStart)
+  if (useArray) {
+    const arrEnd = text.lastIndexOf(']')
+    if (arrEnd > arrStart) return text.slice(arrStart, arrEnd + 1)
+  } else if (objStart >= 0) {
+    const objEnd = text.lastIndexOf('}')
+    if (objEnd > objStart) return text.slice(objStart, objEnd + 1)
+  }
   return text.trim()
 }
 
@@ -44,6 +60,10 @@ export class ClaudeCliProvider implements VisionProvider {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       throw new Error(`Claude response JSON parse failed: ${msg}; raw=${stdout.slice(0, 200)}`)
+    }
+    // 모델이 `{ items: [...] }` 대신 items 배열만 뱉은 경우 자동 wrap.
+    if (Array.isArray(parsed)) {
+      parsed = { items: parsed }
     }
     const validated = ResponseSchema.parse(parsed)
     const items: DraftItem[] = validated.items

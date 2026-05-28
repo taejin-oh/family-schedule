@@ -94,4 +94,39 @@ describe('ClaudeCliProvider', () => {
       academy: { name: 'X', subject: 'other', nextSessionAt: null },
     })).rejects.toThrow(/exit/i)
   })
+
+  it('extracts JSON object even when followed by trailing prose', async () => {
+    // 모델이 객체 뱉고 나서 한 줄 더 설명 붙이는 경우.
+    mockSpawnOnce('{"items":[{"title":"a","dueDate":null}]}\n참고: 위와 같이 정리했습니다.')
+    const p = new ClaudeCliProvider()
+    const out = await p.extractHomework({
+      imagePaths: ['/x/a.jpg'],
+      academy: { name: 'X', subject: 'other', nextSessionAt: null },
+    })
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0].title).toBe('a')
+  })
+
+  it('auto-wraps bare array response into { items: [...] }', async () => {
+    // 모델이 가끔 { items: [...] } 대신 items 배열만 뱉는 경우.
+    mockSpawnOnce('[{"title":"a","dueDate":null},{"title":"b","dueDate":"2026-05-29"}]')
+    const p = new ClaudeCliProvider()
+    const out = await p.extractHomework({
+      imagePaths: ['/x/a.jpg'],
+      academy: { name: 'X', subject: 'other', nextSessionAt: null },
+    })
+    expect(out.items).toHaveLength(2)
+    expect(out.items[1].dueDate).toBe('2026-05-29')
+  })
+
+  it('auto-wraps fenced bare array response', async () => {
+    mockSpawnOnce('```json\n[{"title":"x","dueDate":null}]\n```')
+    const p = new ClaudeCliProvider()
+    const out = await p.extractHomework({
+      imagePaths: ['/x/a.jpg'],
+      academy: { name: 'X', subject: 'other', nextSessionAt: null },
+    })
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0].title).toBe('x')
+  })
 })
