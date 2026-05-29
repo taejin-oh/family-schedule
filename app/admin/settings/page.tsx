@@ -15,10 +15,13 @@ import { TelegramTestButton } from './_components/telegram-test-button'
 import { CleanupSection } from './_components/cleanup-section'
 import { SaveForm } from './_components/save-form'
 
+// 모바일 16px(text-base)/데스크톱 14px(md:text-sm). Android Chrome은 16px 미만 입력
+// 포커스 시 화면을 auto-zoom하고 blur 후에도 복원하지 않음 → 키보드 닫아도 확대 유지 버그.
+// 앱의 다른 입력(ui/input, ui/textarea, academy-form)이 쓰는 동일 컨벤션으로 맞춤.
 const fieldCls =
-  'w-full bg-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
+  'w-full bg-muted rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
 const smallFieldCls =
-  'bg-muted rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
+  'bg-muted rounded-lg px-2.5 py-1.5 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20'
 
 export default async function SettingsPage() {
   // 5개 독립 fetch를 병렬화. sequential await 시 RTT가 5배 누적됐음.
