@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
-import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework } from '@/server/actions/homework'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
@@ -35,6 +35,8 @@ export type HomeworkItemProps = {
   title: string
   notes: string | null
   dueDate: string | null
+  // 미리 보기 핀 날짜. set 되어 있으면 카드에 📌 표시 + 메뉴 토글이 unpin 으로 전환.
+  pinnedDate?: string | null
   academyName: string
   academyColor: string
   dueLabel: string | null
@@ -52,6 +54,7 @@ export function HomeworkItem({
   title,
   notes,
   dueDate,
+  pinnedDate,
   academyName,
   academyColor,
   dueLabel,
@@ -70,6 +73,12 @@ export function HomeworkItem({
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
+  }
+  async function handlePin(dateIso: string) {
+    await pinHomeworkToDate(id, dateIso)
+  }
+  async function handleUnpin() {
+    await unpinHomework(id)
   }
 
   async function handleDelete() {
@@ -157,6 +166,12 @@ export function HomeworkItem({
               <DuePill label={dueLabel} bucket={bucket} />
             </>
           )}
+          {!done && pinnedDate && (
+            <>
+              <span>·</span>
+              <span className="text-xs" aria-label="미리 보기 핀">📌</span>
+            </>
+          )}
         </div>
         {notes && !done && (
           <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2">
@@ -176,9 +191,12 @@ export function HomeworkItem({
       <ItemActionsMenu
         itemKind="homework"
         currentDueDate={dueDate}
+        pinnedDate={pinnedDate ?? null}
         onEdit={() => setEditOpen(true)}
         onDefer={handleDefer}
         onDelete={handleDelete}
+        onPin={handlePin}
+        onUnpin={handleUnpin}
       >
         {rowContent}
       </ItemActionsMenu>

@@ -269,6 +269,7 @@ export async function listCommittedItems(ctx: Ctx = {}) {
     title: appSchema.homeworkItems.title,
     notes: appSchema.homeworkItems.notes,
     dueDate: appSchema.homeworkItems.dueDate,
+    pinnedDate: appSchema.homeworkItems.pinnedDate,
     doneAt: appSchema.homeworkItems.doneAt,
     academyId: appSchema.homeworkItems.academyId,
     academyName: appSchema.academies.name,
@@ -288,8 +289,9 @@ export async function listCommittedItems(ctx: Ctx = {}) {
 }
 
 /**
- * 미완료 committed item 중 dueDate가 [today+maxDaysFromToday] 이하 + dueDate IS NOT NULL.
+ * 미완료 committed item 중 dueDate 또는 pinnedDate가 [today+maxDaysFromToday] 이하.
  * 아이 홈처럼 작은 결과셋만 필요한 페이지에서 listCommittedItems 전체 fetch 대신 사용.
+ * pinnedDate가 있는 항목은 dueDate가 미래여도 아이 홈에 미리 노출하기 위함.
  */
 export async function listTodoByDueWithin(
   todayIso: string,
@@ -306,6 +308,7 @@ export async function listTodoByDueWithin(
     title: appSchema.homeworkItems.title,
     notes: appSchema.homeworkItems.notes,
     dueDate: appSchema.homeworkItems.dueDate,
+    pinnedDate: appSchema.homeworkItems.pinnedDate,
     academyId: appSchema.homeworkItems.academyId,
     academyName: appSchema.academies.name,
     academyColor: appSchema.academies.color,
@@ -315,14 +318,19 @@ export async function listTodoByDueWithin(
   .where(and(
     eq(appSchema.homeworkItems.isCommitted, true),
     isNull(appSchema.homeworkItems.doneAt),
-    sql`${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} <= ${endIso}`,
+    // dueDate가 범위 안이거나, pinnedDate가 범위 안인 항목 포함.
+    sql`(${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} <= ${endIso})
+        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} <= ${endIso})`,
   ))
-  .orderBy(appSchema.homeworkItems.dueDate)
+  // 정렬은 "아이가 실제로 봐야 하는 날짜" 기준 — pinnedDate가 있으면 그게 먼저.
+  .orderBy(sql`COALESCE(${appSchema.homeworkItems.pinnedDate}, ${appSchema.homeworkItems.dueDate})`)
   .all()
 }
 
 /**
- * 미완료 committed item 중 dueDate가 [from, to] 사이. 아이 홈 "이번 주 남은" 영역용.
+ * 미완료 committed item 중 dueDate 또는 pinnedDate가 [from, to] 사이.
+ * 아이 홈 "이번 주 남은" 영역, day 페이지 등에서 사용.
+ * pinnedDate가 있는 항목도 같은 범위에 포함 — 미리 시작하는 숙제를 그날 화면에서 보이게.
  */
 export async function listTodoByDueBetween(
   fromIso: string,
@@ -335,6 +343,7 @@ export async function listTodoByDueBetween(
     title: appSchema.homeworkItems.title,
     notes: appSchema.homeworkItems.notes,
     dueDate: appSchema.homeworkItems.dueDate,
+    pinnedDate: appSchema.homeworkItems.pinnedDate,
     academyId: appSchema.homeworkItems.academyId,
     academyName: appSchema.academies.name,
     academyColor: appSchema.academies.color,
@@ -344,9 +353,11 @@ export async function listTodoByDueBetween(
   .where(and(
     eq(appSchema.homeworkItems.isCommitted, true),
     isNull(appSchema.homeworkItems.doneAt),
-    sql`${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} BETWEEN ${fromIso} AND ${toIso}`,
+    sql`(${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} BETWEEN ${fromIso} AND ${toIso})
+        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} BETWEEN ${fromIso} AND ${toIso})`,
   ))
-  .orderBy(appSchema.homeworkItems.dueDate)
+  // pinnedDate 있으면 그 날짜 기준으로 정렬 — 같은 날 묶기 위해.
+  .orderBy(sql`COALESCE(${appSchema.homeworkItems.pinnedDate}, ${appSchema.homeworkItems.dueDate})`)
   .all()
 }
 
@@ -679,6 +690,51 @@ export async function deferHomework(
   const academyId = item.academyId
   revalidatePath(`/academies/${academyId}`, 'page')
   await logServerEvent({ category: 'mutation', event: 'homework.defer', props: { itemId, fromDue: item.dueDate, toDue: newDueDate } })
+  return { ok: true }
+}
+
+/**
+ * 숙제 미리 보기 핀 — dueDate는 그대로 두고 pinnedDate를 set.
+ * dateIso는 'YYYY-MM-DD' (보통 오늘 또는 내일).
+ * isCommitted=false인 draft에는 적용 불가.
+ */
+export async function pinHomeworkToDate(
+  itemId: number,
+  dateIso: string,
+  opts?: { appDb?: AppDb },
+): Promise<{ ok: boolean; error?: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    return { ok: false, error: '잘못된 날짜' }
+  }
+  const appDb = opts?.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  if (!item.isCommitted) return { ok: false, error: '확정된 항목만 미리 보이기 가능' }
+  appDb.update(appSchema.homeworkItems).set({ pinnedDate: dateIso }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  revalidatePath('/timetable')
+  revalidatePath(`/academies/${item.academyId}`)
+  await logServerEvent({ category: 'mutation', event: 'homework.pin', props: { itemId, dateIso } })
+  return { ok: true }
+}
+
+/**
+ * 미리 보기 핀 해제 — pinnedDate=null.
+ */
+export async function unpinHomework(
+  itemId: number,
+  opts?: { appDb?: AppDb },
+): Promise<{ ok: boolean; error?: string }> {
+  const appDb = opts?.appDb ?? getDb()
+  const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
+  if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
+  appDb.update(appSchema.homeworkItems).set({ pinnedDate: null }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  revalidatePath('/timetable')
+  revalidatePath(`/academies/${item.academyId}`)
+  await logServerEvent({ category: 'mutation', event: 'homework.unpin', props: { itemId } })
   return { ok: true }
 }
 

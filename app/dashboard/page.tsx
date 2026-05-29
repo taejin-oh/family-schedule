@@ -542,6 +542,7 @@ export default async function HomePage({
                         title={it.title}
                         notes={it.notes}
                         dueDate={it.dueDate}
+                        pinnedDate={it.pinnedDate}
                         academyName={it.academyName}
                         academyColor={it.academyColor}
                         dueLabel={dueLabel}

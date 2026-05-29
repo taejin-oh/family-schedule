@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
-import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework } from '@/server/actions/homework'
 import { StarFly } from './star-fly'
 
 function diffDays(due: string, todayIso: string): number {
@@ -24,13 +24,15 @@ function dueLabelOf(due: string | null, todayIso: string): string | null {
 }
 
 export function KidsTodoCard({
-  id, title, academyName, academyColor, dueDate, todayIso, onComplete,
+  id, title, academyName, academyColor, dueDate, pinnedDate, todayIso, onComplete,
 }: {
   id: number
   title: string
   academyName: string
   academyColor: string
   dueDate: string | null
+  // 미리 보기 핀 — 있으면 카드에 📌 노출, 메뉴에 unpin 옵션.
+  pinnedDate?: string | null
   todayIso: string
   /**
    * 완료 토글 핸들러. 아이홈/대시보드에서만 전달; 다른 페이지(예: day/[date])는
@@ -49,6 +51,12 @@ export function KidsTodoCard({
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
+  }
+  async function handlePin(dateIso: string) {
+    await pinHomeworkToDate(id, dateIso)
+  }
+  async function handleUnpin() {
+    await unpinHomework(id)
   }
   // 5초 지연 패턴: 클릭하면 카드 즉시 숨김 + 토스트. 토스트 만료 또는
   // 페이지 이동 시 onCommit에서 진짜 server 삭제. 취소하면 카드 복귀.
@@ -72,7 +80,10 @@ export function KidsTodoCard({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-[17px] break-words leading-snug">{title}</div>
+        <div className="font-medium text-[17px] break-words leading-snug">
+          {title}
+          {pinnedDate && <span className="ml-1.5 text-[15px]" aria-label="미리 보기 핀">📌</span>}
+        </div>
         <div className="text-[13px] text-muted-foreground mt-0.5">
           {academyName}
           {due && (
@@ -141,9 +152,12 @@ export function KidsTodoCard({
       <ItemActionsMenu
         itemKind="homework"
         currentDueDate={dueDate}
+        pinnedDate={pinnedDate ?? null}
         onEdit={() => setEditOpen(true)}
         onDefer={handleDefer}
         onDelete={handleDelete}
+        onPin={handlePin}
+        onUnpin={handleUnpin}
       >
         {inner}
       </ItemActionsMenu>
