@@ -15,9 +15,24 @@ export async function register() {
     return
   }
 
-  const g = globalThis as { __familyScheduleWorkerStarted?: boolean }
+  const g = globalThis as { __familyScheduleWorkerStarted?: boolean; __familyScheduleSignalsBound?: boolean }
   if (g.__familyScheduleWorkerStarted) return
   g.__familyScheduleWorkerStarted = true
+
+  // launchctl kickstart -k가 SIGTERM 보낼 때 process가 즉시 종료되도록.
+  // worker의 무한 polling loop + Next.js HTTP server가 default로 signal을 잡아
+  // graceful shutdown을 시도하지만 worker는 자체적으로 빠져나갈 길이 없어 orphan
+  // process가 누적되고, 누적된 worker들이 각자 alert/digest를 쏘는 사례 발생.
+  // (한 번만 등록해서 HMR 사이클에서 중복 등록 방지.)
+  if (!g.__familyScheduleSignalsBound) {
+    g.__familyScheduleSignalsBound = true
+    for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+      process.once(sig, () => {
+        console.log(`[instrumentation] ${sig} received, exiting`)
+        process.exit(0)
+      })
+    }
+  }
 
   console.log('[instrumentation] starting in-process worker')
   const { runWorker } = await import('@/server/worker/run')
