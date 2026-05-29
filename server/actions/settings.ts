@@ -19,7 +19,7 @@ export async function getSettings(ctx: Ctx = {}) {
   return row ?? {
     id: 1,
     visionProvider: 'claude',
-    visionModel: 'claude-opus-4-7',
+    visionModel: 'claude-opus-4-8',
     telegramEnabled: false,
     telegramMorningEnabled: true,
     telegramMorningTime: '07:00',

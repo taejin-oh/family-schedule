@@ -22,20 +22,20 @@ describe('settings', () => {
     const db = makeDb()
     const s = await getSettings({ appDb: db })
     expect(s.visionProvider).toBe('claude')
-    expect(s.visionModel).toBe('claude-opus-4-7')
+    expect(s.visionModel).toBe('claude-opus-4-8')
   })
 
   it('updateSettings persists provider+model', async () => {
     const db = makeDb()
-    const res = await updateSettings({ visionProvider: 'claude', visionModel: 'claude-opus-4-7' }, { appDb: db })
+    const res = await updateSettings({ visionProvider: 'claude', visionModel: 'claude-opus-4-8' }, { appDb: db })
     expect(res.ok).toBe(true)
     const s = await getSettings({ appDb: db })
-    expect(s.visionModel).toBe('claude-opus-4-7')
+    expect(s.visionModel).toBe('claude-opus-4-8')
   })
 
   it('updateSettings rejects unknown provider', async () => {
     const db = makeDb()
-    const res = await updateSettings({ visionProvider: 'xyz', visionModel: 'claude-opus-4-7' }, { appDb: db })
+    const res = await updateSettings({ visionProvider: 'xyz', visionModel: 'claude-opus-4-8' }, { appDb: db })
     expect(res.ok).toBe(false)
   })
 
@@ -43,7 +43,7 @@ describe('settings', () => {
     const db = makeDb()
     const res = await updateSettings({
       visionProvider: 'claude',
-      visionModel: 'claude-opus-4-7',
+      visionModel: 'claude-opus-4-8',
       telegramEnabled: true,
       telegramMorningEnabled: false,
       telegramMorningTime: '08:30',
@@ -67,7 +67,7 @@ describe('settings', () => {
     const db = makeDb()
     const res = await updateSettings({
       visionProvider: 'claude',
-      visionModel: 'claude-opus-4-7',
+      visionModel: 'claude-opus-4-8',
       telegramMorningTime: '25:00',
     }, { appDb: db })
     expect(res.ok).toBe(false)
@@ -79,7 +79,7 @@ describe('settings', () => {
     const db = makeDb()
     const res = await updateSettings({
       visionProvider: 'claude',
-      visionModel: 'claude-opus-4-7',
+      visionModel: 'claude-opus-4-8',
       telegramMorningTime: '07:60',
     }, { appDb: db })
     expect(res.ok).toBe(false)
@@ -88,10 +88,10 @@ describe('settings', () => {
   it('updateSettings accepts boundary times (00:00, 23:59)', async () => {
     const db = makeDb()
     const a = await updateSettings({
-      visionProvider: 'claude', visionModel: 'claude-opus-4-7', telegramMorningTime: '00:00',
+      visionProvider: 'claude', visionModel: 'claude-opus-4-8', telegramMorningTime: '00:00',
     }, { appDb: db })
     const b = await updateSettings({
-      visionProvider: 'claude', visionModel: 'claude-opus-4-7', telegramEveningTime: '23:59',
+      visionProvider: 'claude', visionModel: 'claude-opus-4-8', telegramEveningTime: '23:59',
     }, { appDb: db })
     expect(a.ok).toBe(true)
     expect(b.ok).toBe(true)

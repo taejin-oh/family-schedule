@@ -44,8 +44,8 @@ export function extractJson(text: string): string {
 
 export class ClaudeCliProvider implements VisionProvider {
   readonly name = 'claude' as const
-  readonly defaultModel = 'claude-opus-4-7'  // 교차 셀 추론 필요한 학원 syllabus 추출은 Sonnet으론 부족
-  readonly availableModels = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const
+  readonly defaultModel = 'claude-opus-4-8'  // 교차 셀 추론 필요한 학원 syllabus 추출은 Sonnet으론 부족. 4.8 사용 가능 시 우선.
+  readonly availableModels = ['claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const
 
   async extractHomework(input: ExtractInput): Promise<ExtractOutput> {
     const model = input.model ?? this.defaultModel
