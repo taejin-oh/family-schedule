@@ -753,6 +753,14 @@ export async function bulkToggleItemsDone(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ids.length === 0) return { ok: true }
   const appDb = ctx.appDb ?? getDb()
+  // 영향받는 항목들의 고유 academyId 수집 — academy 상세(`/academies/[id]`) revalidate용.
+  // toggleItemDone/pin/unpin은 academy 경로를 revalidate하는데 bulk만 빠져 있어
+  // 대시보드에서 bulk 토글 후 학원 상세가 stale. academyId는 notNull.
+  const academyIds = appDb
+    .selectDistinct({ academyId: appSchema.homeworkItems.academyId })
+    .from(appSchema.homeworkItems)
+    .where(inArray(appSchema.homeworkItems.id, ids))
+    .all()
   appDb.update(appSchema.homeworkItems)
     .set({ doneAt: done ? new Date() : null })
     .where(inArray(appSchema.homeworkItems.id, ids))
@@ -760,6 +768,7 @@ export async function bulkToggleItemsDone(
   revalidatePath('/')
   revalidatePath('/dashboard')
   revalidatePath('/timetable')
+  for (const { academyId } of academyIds) revalidatePath(`/academies/${academyId}`)
   await logServerEvent({ category: 'mutation', event: done ? 'homework.bulk_done' : 'homework.bulk_undone', props: { count: ids.length } })
   return { ok: true }
 }
