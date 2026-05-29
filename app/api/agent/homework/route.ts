@@ -24,7 +24,9 @@ export async function POST(req: Request) {
   }
 
   const { academyId, title, dueDate, notes } = body
-  if (!Number.isInteger(academyId) || academyId! <= 0) {
+  // typeof 가드로 TS가 number로 narrow → 이하 non-null assertion 불필요.
+  // 런타임 동작은 기존과 동일 (양수 정수만 통과).
+  if (typeof academyId !== 'number' || !Number.isInteger(academyId) || academyId <= 0) {
     return NextResponse.json({ ok: false, error: 'academyId required' }, { status: 400 })
   }
   if (!title || !title.trim()) {
@@ -39,13 +41,13 @@ export async function POST(req: Request) {
     id: schema.academies.id,
     archivedAt: schema.academies.archivedAt,
   }).from(schema.academies)
-    .where(and(eq(schema.academies.id, academyId!), isNull(schema.academies.archivedAt)))
+    .where(and(eq(schema.academies.id, academyId), isNull(schema.academies.archivedAt)))
     .get()
   if (!academy) {
     return NextResponse.json({ ok: false, error: 'academy not found or archived' }, { status: 400 })
   }
 
-  const emptyBatch = await createEmptyBatch(academyId!)
+  const emptyBatch = await createEmptyBatch(academyId)
   if (!emptyBatch.ok) return NextResponse.json({ ok: false, error: emptyBatch.error }, { status: 500 })
 
   const draft = await addDraftItem(emptyBatch.data.batchId, {
