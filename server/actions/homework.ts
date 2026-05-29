@@ -319,8 +319,11 @@ export async function listTodoByDueWithin(
     eq(appSchema.homeworkItems.isCommitted, true),
     isNull(appSchema.homeworkItems.doneAt),
     // dueDate가 범위 안이거나, pinnedDate가 범위 안인 항목 포함.
-    sql`(${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} <= ${endIso})
-        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} <= ${endIso})`,
+    // outer paren 필수 — drizzle and(...)와 합쳐질 때 SQL precedence(AND > OR)에
+    // 따라 OR가 전체 절을 갈라치는 것을 막아 isCommitted/doneAt 필터가 양쪽 모두에
+    // 적용되도록 한다.
+    sql`((${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} <= ${endIso})
+        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} <= ${endIso}))`,
   ))
   // 정렬은 "아이가 실제로 봐야 하는 날짜" 기준 — pinnedDate가 있으면 그게 먼저.
   .orderBy(sql`COALESCE(${appSchema.homeworkItems.pinnedDate}, ${appSchema.homeworkItems.dueDate})`)
@@ -353,8 +356,9 @@ export async function listTodoByDueBetween(
   .where(and(
     eq(appSchema.homeworkItems.isCommitted, true),
     isNull(appSchema.homeworkItems.doneAt),
-    sql`(${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} BETWEEN ${fromIso} AND ${toIso})
-        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} BETWEEN ${fromIso} AND ${toIso})`,
+    // outer paren 필수 — listTodoByDueWithin의 주석 참고.
+    sql`((${appSchema.homeworkItems.dueDate} IS NOT NULL AND ${appSchema.homeworkItems.dueDate} BETWEEN ${fromIso} AND ${toIso})
+        OR (${appSchema.homeworkItems.pinnedDate} IS NOT NULL AND ${appSchema.homeworkItems.pinnedDate} BETWEEN ${fromIso} AND ${toIso}))`,
   ))
   // pinnedDate 있으면 그 날짜 기준으로 정렬 — 같은 날 묶기 위해.
   .orderBy(sql`COALESCE(${appSchema.homeworkItems.pinnedDate}, ${appSchema.homeworkItems.dueDate})`)

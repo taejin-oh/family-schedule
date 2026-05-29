@@ -177,11 +177,9 @@ describe('pin edge cases', () => {
   // ⚠️ 실패하는 회귀 테스트 — listTodoByDueWithin/Between의 WHERE 절 우선순위 버그를 노출.
   // 생성된 SQL:
   //   WHERE (A AND B AND (dueDate ...) OR (pinnedDate ...))
-  // 의도:
-  //   WHERE (A AND B AND ((dueDate ...) OR (pinnedDate ...)))
-  // 결과: pinnedDate가 범위 안인 row는 done_at IS NULL / is_committed=1 필터를 우회.
-  // 수정 방안: drizzle의 `or()` 헬퍼로 wrap하거나 sql template 전체를 `sql\`(... OR ...)\`` 한 번 더 감싸기.
-  it.fails('excludes done items even when pinned (WHERE precedence bug)', async () => {
+  // 의도: WHERE (A AND B AND ((dueDate ...) OR (pinnedDate ...)))
+  // outer paren으로 OR 절을 감싸야 isCommitted/doneAt 필터가 양쪽 모두에 적용됨.
+  it('excludes done items even when pinned', async () => {
     const appDb = makeDb()
     const { item } = insertCommittedItem(appDb, '2026-07-01')
     await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
@@ -192,8 +190,7 @@ describe('pin edge cases', () => {
     expect(list.map((it) => it.id)).not.toContain(item.id)
   })
 
-  // 같은 우선순위 버그가 listTodoByDueBetween에도 존재.
-  it.fails('listTodoByDueBetween excludes done items even when pinned (WHERE precedence bug)', async () => {
+  it('listTodoByDueBetween excludes done items even when pinned', async () => {
     const appDb = makeDb()
     const { item } = insertCommittedItem(appDb, '2026-07-01')
     await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
