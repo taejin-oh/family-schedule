@@ -151,3 +151,78 @@ describe('listTodoByDueBetween with pinnedDate', () => {
     expect(list.map((it) => it.id)).toContain(item.id)
   })
 })
+
+// === 추가 edge case 검증 (verification 단계에서 추가) ===
+
+describe('pin edge cases', () => {
+  it('overwrites pinnedDate when pinned again (오늘 → 내일)', async () => {
+    const appDb = makeDb()
+    const { item } = insertCommittedItem(appDb, '2026-07-01')
+    await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
+    await pinHomeworkToDate(item.id, '2026-05-30', { appDb })
+    const row = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, item.id)).get()
+    expect(row?.pinnedDate).toBe('2026-05-30')
+  })
+
+  it('past pinnedDate still appears in listTodoByDueWithin (catch-up behavior)', async () => {
+    const appDb = makeDb()
+    const { item } = insertCommittedItem(appDb, '2026-07-01')
+    // 어제 핀 — 사용자가 어제 미리 보이게 해놨는데 아직 안 한 케이스
+    await pinHomeworkToDate(item.id, '2026-05-28', { appDb })
+    const list = await listTodoByDueWithin('2026-05-29', 1, { appDb })
+    // pinnedDate <= endIso (2026-05-30) 이므로 포함됨 — 아이 홈에 계속 노출
+    expect(list.map((it) => it.id)).toContain(item.id)
+  })
+
+  // ⚠️ 실패하는 회귀 테스트 — listTodoByDueWithin/Between의 WHERE 절 우선순위 버그를 노출.
+  // 생성된 SQL:
+  //   WHERE (A AND B AND (dueDate ...) OR (pinnedDate ...))
+  // 의도:
+  //   WHERE (A AND B AND ((dueDate ...) OR (pinnedDate ...)))
+  // 결과: pinnedDate가 범위 안인 row는 done_at IS NULL / is_committed=1 필터를 우회.
+  // 수정 방안: drizzle의 `or()` 헬퍼로 wrap하거나 sql template 전체를 `sql\`(... OR ...)\`` 한 번 더 감싸기.
+  it.fails('excludes done items even when pinned (WHERE precedence bug)', async () => {
+    const appDb = makeDb()
+    const { item } = insertCommittedItem(appDb, '2026-07-01')
+    await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
+    // 완료 처리
+    appDb.update(appSchema.homeworkItems).set({ doneAt: new Date() })
+      .where(eq(appSchema.homeworkItems.id, item.id)).run()
+    const list = await listTodoByDueWithin('2026-05-29', 1, { appDb })
+    expect(list.map((it) => it.id)).not.toContain(item.id)
+  })
+
+  // 같은 우선순위 버그가 listTodoByDueBetween에도 존재.
+  it.fails('listTodoByDueBetween excludes done items even when pinned (WHERE precedence bug)', async () => {
+    const appDb = makeDb()
+    const { item } = insertCommittedItem(appDb, '2026-07-01')
+    await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
+    appDb.update(appSchema.homeworkItems).set({ doneAt: new Date() })
+      .where(eq(appSchema.homeworkItems.id, item.id)).run()
+    const list = await listTodoByDueBetween('2026-05-29', '2026-05-29', { appDb })
+    expect(list.map((it) => it.id)).not.toContain(item.id)
+  })
+
+  it('orders by COALESCE(pinnedDate, dueDate) — pinnedDate가 먼저', async () => {
+    const appDb = makeDb()
+    // item A: dueDate=2026-05-29 (오늘), 핀 없음 → 정렬 키 = 2026-05-29
+    const { item: a } = insertCommittedItem(appDb, '2026-05-29')
+    // item B: dueDate=2026-07-01 (미래), 핀 2026-05-28 → 정렬 키 = 2026-05-28 (먼저)
+    const { item: b } = insertCommittedItem(appDb, '2026-07-01')
+    await pinHomeworkToDate(b.id, '2026-05-28', { appDb })
+    const list = await listTodoByDueWithin('2026-05-29', 1, { appDb })
+    // B의 정렬 키(2026-05-28)가 A의 정렬 키(2026-05-29)보다 빠르므로 B가 먼저.
+    const ids = list.map((it) => it.id)
+    expect(ids.indexOf(b.id)).toBeLessThan(ids.indexOf(a.id))
+  })
+
+  it('unpin leaves dueDate-only behavior intact', async () => {
+    const appDb = makeDb()
+    const { item } = insertCommittedItem(appDb, '2026-07-01')
+    await pinHomeworkToDate(item.id, '2026-05-29', { appDb })
+    await unpinHomework(item.id, { appDb })
+    // 핀 풀면 dueDate(2026-07-01)는 오늘+1 범위 밖이라 노출 안 됨
+    const list = await listTodoByDueWithin('2026-05-29', 1, { appDb })
+    expect(list.map((it) => it.id)).not.toContain(item.id)
+  })
+})
