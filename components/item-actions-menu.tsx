@@ -40,8 +40,14 @@ export type ItemKind = 'homework' | 'recurring' | 'academy'
 type HomeworkProps = {
   itemKind: 'homework'
   currentDueDate?: string | null
+  // 미리 보기 핀 상태. 'YYYY-MM-DD' 이면 메뉴에서 "표시 빼기" 노출,
+  // null/undefined면 "오늘 보이기" / "내일 보이기" 노출.
+  pinnedDate?: string | null
   onDefer: (newDate: string) => Promise<void>
   onDelete: () => Promise<void>
+  // 미리 보기 핀 — 둘 다 optional. 제공된 경우만 메뉴에 표시.
+  onPin?: (dateIso: string) => Promise<void>
+  onUnpin?: () => Promise<void>
 }
 type RecurringProps = {
   itemKind: 'recurring'
@@ -196,6 +202,40 @@ export function ItemActionsMenu(props: Props) {
               <Menu.Item className={ITEM_CLASS} onClick={() => { setOpen(false); track('interaction', 'edit_open', { itemKind: props.itemKind }); onEdit() }}>
                 수정
               </Menu.Item>
+
+              {props.itemKind === 'homework' && props.onPin && !props.pinnedDate && (
+                <>
+                  <Menu.Item
+                    className={ITEM_CLASS}
+                    onClick={() => {
+                      track('interaction', 'pin_open', { itemKind: props.itemKind })
+                      runAction(() => props.onPin!(today), '핀 실패')
+                    }}
+                  >
+                    오늘 보이기 📌
+                  </Menu.Item>
+                  <Menu.Item
+                    className={ITEM_CLASS}
+                    onClick={() => {
+                      track('interaction', 'pin_open', { itemKind: props.itemKind })
+                      runAction(() => props.onPin!(addDays(today, 1)), '핀 실패')
+                    }}
+                  >
+                    내일 보이기 📌
+                  </Menu.Item>
+                </>
+              )}
+              {props.itemKind === 'homework' && props.onUnpin && props.pinnedDate && (
+                <Menu.Item
+                  className={ITEM_CLASS}
+                  onClick={() => {
+                    track('interaction', 'unpin', { itemKind: props.itemKind })
+                    runAction(() => props.onUnpin!(), '핀 해제 실패')
+                  }}
+                >
+                  오늘/내일 표시 빼기
+                </Menu.Item>
+              )}
 
               {props.itemKind === 'homework' && (
                 <Menu.SubmenuRoot>

@@ -57,6 +57,7 @@ export default async function DayPage({ params }: { params: Promise<{ date: stri
                 academyName={it.academyName}
                 academyColor={it.academyColor}
                 dueDate={it.dueDate}
+                pinnedDate={it.pinnedDate}
                 todayIso={todayIso}
               />
             ))}

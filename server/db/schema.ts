@@ -61,6 +61,9 @@ export const homeworkItems = sqliteTable('homework_items', {
   title: text('title').notNull(),
   notes: text('notes'),                      // 책 이름, 단원, 페이지, 분량 등 부가 정보
   dueDate: text('due_date'),                 // 'YYYY-MM-DD' or null
+  // dueDate는 그대로 두고, 아이 홈의 "오늘/내일" 영역에 미리 보이도록 핀 표시한 날짜.
+  // 'YYYY-MM-DD' 또는 null. 미래 dueDate인 숙제를 미리 시작시키기 위한 보조 컬럼.
+  pinnedDate: text('pinned_date'),
   source: text('source', { enum: ['ai','manual'] }).notNull(),
   aiOriginalTitle: text('ai_original_title'),
   confidence: real('confidence'),

@@ -187,6 +187,7 @@ export default async function KidsHome() {
                 academyName={it.academyName}
                 academyColor={it.academyColor}
                 dueDate={it.dueDate}
+                pinnedDate={it.pinnedDate}
                 todayIso={todayIso}
                 onComplete={onComplete}
               />

@@ -1,0 +1,1 @@
+ALTER TABLE `homework_items` ADD `pinned_date` text;
