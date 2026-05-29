@@ -95,6 +95,26 @@ describe('sendTelegram', () => {
     expect(result.reason).toContain('***')
   })
 
+  it('masks the URL-encoded token variant too (colon → %3A)', async () => {
+    // 토큰의 ':'가 '%3A'로 인코딩된 URL이 undici stack/cause에 들어가는 경우 대비.
+    const SECRET = '8957302092:AAG_encodedCase'
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', SECRET)
+    vi.stubEnv('TELEGRAM_CHAT_ID', '-100')
+
+    const encoded = encodeURIComponent(SECRET) // 8957302092%3AAAG_encodedCase
+    const fetchMock = vi.fn().mockRejectedValue(
+      new Error(`fetch failed for https://api.telegram.org/bot${encoded}/sendMessage`),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const sendTelegram = await loadSendTelegram()
+    const result = await sendTelegram('hello')
+
+    expect(result.ok).toBe(false)
+    expect(result.reason).not.toContain(encoded)
+    expect(result.reason).toContain('***')
+  })
+
   it('AbortError stays as "timeout" reason (no token to mask there)', async () => {
     vi.stubEnv('TELEGRAM_BOT_TOKEN', 'token123')
     vi.stubEnv('TELEGRAM_CHAT_ID', '-100')

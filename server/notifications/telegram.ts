@@ -1,10 +1,14 @@
 const TELEGRAM_TIMEOUT_MS = 10_000
 
 /** 에러 메시지에 봇 토큰이 우연히 포함된 경우(undici가 URL을 stack/cause에
- *  넣는 사례 대비) 토큰을 '***'로 치환해 reason 노출 표면을 줄인다. */
+ *  넣는 사례 대비) 토큰을 '***'로 치환해 reason 노출 표면을 줄인다.
+ *  토큰의 ':'가 '%3A'로 URL-인코딩된 변형도 함께 마스킹 (additive — 정상 메시지는 불변). */
 function maskToken(msg: string, token: string): string {
   if (!token) return msg
-  return msg.split(token).join('***')
+  let result = msg.split(token).join('***')
+  const encoded = encodeURIComponent(token)
+  if (encoded !== token) result = result.split(encoded).join('***')
+  return result
 }
 
 export async function sendTelegram(text: string): Promise<{ ok: boolean; reason?: string }> {
