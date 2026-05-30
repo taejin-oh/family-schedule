@@ -338,7 +338,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div
-        className="flex-1 relative"
+        className="flex-1 relative overflow-x-clip"
         style={{ touchAction: 'pan-y' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
