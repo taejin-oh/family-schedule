@@ -61,7 +61,7 @@
   --card-foreground: oklch(0.205 0.008 266);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.205 0.008 266);
-  --primary: oklch(0.205 0.008 266);        /* ink — primary 버튼/칩은 절제된 near-black 유지 */
+  --primary: oklch(0.515 0.21 264);         /* 코발트 — 버튼/링크/선택상태 브랜드 액센트 */
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.968 0.003 250);
   --secondary-foreground: oklch(0.205 0.008 266);

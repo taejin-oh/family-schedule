@@ -21,7 +21,7 @@ function DuePill({ label, bucket }: DuePillProps) {
       : bucket === 'today'
         ? 'bg-amber-100 text-amber-800 border-amber-300'
         : bucket === 'tomorrow'
-          ? 'bg-blue-50 text-blue-800 border-blue-200'
+          ? 'bg-brand/10 text-brand border-brand/25'
           : 'bg-muted/60 text-muted-foreground border-foreground/10'
   return (
     <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
