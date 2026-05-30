@@ -67,7 +67,7 @@ export function RecurringItem({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-[15px] break-words leading-snug">{title}</div>
+        <div className="font-medium text-[15px] landscape:text-[18px] break-words leading-snug">{title}</div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
           <span className={cn(
             'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold',

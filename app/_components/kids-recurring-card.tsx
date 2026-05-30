@@ -89,7 +89,7 @@ export function KidsRecurringTodoCard({
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-[17px] break-words leading-snug">{title}</div>
+          <div className="font-medium text-[17px] landscape:text-[20px] break-words leading-snug">{title}</div>
           <div className="text-[13px] text-muted-foreground mt-0.5">🔁 {cadenceLabel}</div>
         </div>
       </button>
@@ -159,7 +159,7 @@ export function KidsRecurringDoneCard({
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-[17px] break-words line-through decoration-muted-foreground/50">{title}</div>
+          <div className="font-medium text-[17px] landscape:text-[20px] break-words line-through decoration-muted-foreground/50">{title}</div>
           <div className="text-[13px] text-muted-foreground mt-0.5">🔁 {cadence === 'weekly' ? '매주' : '매일'}</div>
         </div>
       </button>
