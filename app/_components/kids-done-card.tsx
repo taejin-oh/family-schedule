@@ -60,7 +60,7 @@ export function KidsDoneCard({
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-[17px] landscape:text-[20px] break-words line-through decoration-muted-foreground/50">{title}</div>
+          <div className="font-medium text-[20px] break-words line-through decoration-muted-foreground/50">{title}</div>
           <div className="text-[13px] text-muted-foreground mt-0.5">{academyName}</div>
         </div>
       </button>
