@@ -164,7 +164,7 @@ export default function ProcessingPage() {
               <span
                 className={cn(
                   'shrink-0 w-7 h-7 rounded-full flex items-center justify-center',
-                  done && 'bg-green-600 text-white',
+                  done && 'bg-good text-white',
                   active && 'bg-primary text-primary-foreground',
                   pending && 'bg-muted text-muted-foreground',
                 )}

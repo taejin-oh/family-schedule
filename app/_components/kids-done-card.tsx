@@ -49,7 +49,7 @@ export function KidsDoneCard({
         )}
       >
         <span
-          className="w-[24px] h-[24px] rounded-full bg-green-600 flex items-center justify-center flex-shrink-0"
+          className="w-[24px] h-[24px] rounded-full bg-good flex items-center justify-center flex-shrink-0"
           aria-hidden
         >
           <Check className="h-4 w-4 text-white" strokeWidth={3} />

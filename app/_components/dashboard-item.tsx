@@ -19,9 +19,9 @@ function DuePill({ label, bucket }: DuePillProps) {
     bucket === 'overdue'
       ? 'bg-destructive/15 text-destructive border-destructive/30'
       : bucket === 'today'
-        ? 'bg-amber-100 text-amber-800 border-amber-300'
+        ? 'bg-reward-soft text-foreground border-reward/40'
         : bucket === 'tomorrow'
-          ? 'bg-brand/10 text-brand border-brand/25'
+          ? 'bg-brand-soft text-brand border-brand/30'
           : 'bg-muted/60 text-muted-foreground border-foreground/10'
   return (
     <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
@@ -125,7 +125,7 @@ export function HomeworkItem({
             className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
             aria-label="완료 취소"
           >
-            <span className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all">
+            <span className="w-[22px] h-[22px] rounded-full bg-good flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all">
               <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
             </span>
           </button>

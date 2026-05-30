@@ -175,7 +175,7 @@ export function MultiSelectProvider({
                   type="button"
                   onClick={handleDone}
                   disabled={selected.size === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-good text-white hover:bg-good/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden />
                   완료

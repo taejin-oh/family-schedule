@@ -24,9 +24,15 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
-  /* Clarity(맑음) 브랜드 액센트 — 코발트. progress·nav-active·focus 등 절제된 강조에만. */
+  /* 맑음/포근 공통 semantic 토큰 — data-theme으로 값만 교체. 흩어진 amber/violet/blue/green을 여기로 통합. */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-reward: var(--reward);
+  --color-reward-soft: var(--reward-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-destructive-soft: var(--destructive-soft);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -52,43 +58,86 @@
 }
 
 :root {
-  /* === 맑음(Clarity) 디자인 시스템 ===
-     차가운 라이트 그레이 배경 + 슬레이트 톤 텍스트 + 단일 코발트 브랜드 액센트.
-     흩어진 amber/violet/blue/green 강조를 '코발트 1색 + semantic'으로 정리. */
-  --background: oklch(0.967 0.002 250);     /* #F4F5F7 cool light grey */
-  --foreground: oklch(0.205 0.008 266);     /* #16181D slate near-black */
+  --radius: 0.625rem;
+  /* ── 맑음 (Clarity) ── 또렷하고 시원한 톤. 코발트 브랜드 액센트. */
+  --background: oklch(0.967 0.003 250);
+  --foreground: oklch(0.210 0.012 270);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.205 0.008 266);
+  --card-foreground: oklch(0.210 0.012 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.205 0.008 266);
-  --primary: oklch(0.515 0.21 264);         /* 코발트 — 버튼/링크/선택상태 브랜드 액센트 */
+  --popover-foreground: oklch(0.210 0.012 270);
+  --primary: oklch(0.210 0.012 270);          /* 진한 버튼/주요 액션 (절제) */
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.968 0.003 250);
-  --secondary-foreground: oklch(0.205 0.008 266);
-  --muted: oklch(0.968 0.003 250);
-  --muted-foreground: oklch(0.551 0.026 257); /* #6B7280 slate */
-  --accent: oklch(0.962 0.005 255);          /* hover bg — cool light */
-  --accent-foreground: oklch(0.205 0.008 266);
-  --destructive: oklch(0.617 0.205 22);      /* #E5484D */
-  --border: oklch(0.923 0.005 265);
-  --input: oklch(0.923 0.005 265);
-  --ring: oklch(0.515 0.21 264);             /* 코발트 focus ring */
-  --brand: oklch(0.515 0.21 264);            /* #2B5CE6 코발트 액센트 */
-  --brand-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.515 0.21 264);
-  --chart-2: oklch(0.551 0.026 257);
+  --secondary: oklch(0.97 0.003 250);
+  --secondary-foreground: oklch(0.210 0.012 270);
+  --muted: oklch(0.97 0.003 250);
+  --muted-foreground: oklch(0.550 0.020 265);
+  --accent: oklch(0.97 0.003 250);
+  --accent-foreground: oklch(0.210 0.012 270);
+  --destructive: oklch(0.620 0.210 22);
+  --border: oklch(0.922 0.004 265);
+  --input: oklch(0.922 0.004 265);
+  --ring: oklch(0.708 0 0);
+  /* semantic — 흩어진 amber/violet/blue/green을 여기로 통합 */
+  --brand: oklch(0.520 0.200 264);            /* 코발트: 링크·활성·진행바 */
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-soft: oklch(0.950 0.030 264);
+  --reward: oklch(0.770 0.160 70);            /* 별·보상 */
+  --reward-soft: oklch(0.950 0.060 92);
+  --good: oklch(0.620 0.170 150);             /* 완료 */
+  --good-soft: oklch(0.950 0.030 150);
+  --destructive-soft: oklch(0.950 0.030 22);
+  --chart-1: oklch(0.520 0.200 264);
+  --chart-2: oklch(0.550 0.020 265);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.7rem;                          /* 살짝 더 둥근 카드 (Clarity) */
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.205 0.008 266);
-  --sidebar-primary: oklch(0.515 0.21 264);
+  --sidebar-foreground: oklch(0.210 0.012 270);
+  --sidebar-primary: oklch(0.520 0.200 264);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.968 0.003 250);
-  --sidebar-accent-foreground: oklch(0.205 0.008 266);
-  --sidebar-border: oklch(0.923 0.005 265);
-  --sidebar-ring: oklch(0.515 0.21 264);
+  --sidebar-accent: oklch(0.97 0.003 250);
+  --sidebar-accent-foreground: oklch(0.210 0.012 270);
+  --sidebar-border: oklch(0.922 0.004 265);
+  --sidebar-ring: oklch(0.520 0.200 264);
+}
+
+/* ── 포근 (Warm) ── 따뜻하고 부드러운 톤. 같은 변수만 갈아끼움. 테라코타 액센트. */
+[data-theme="warm"] {
+  --background: oklch(0.940 0.013 80);
+  --foreground: oklch(0.270 0.014 60);
+  --card: oklch(0.985 0.006 80);
+  --card-foreground: oklch(0.270 0.014 60);
+  --popover: oklch(0.985 0.006 80);
+  --popover-foreground: oklch(0.270 0.014 60);
+  --primary: oklch(0.270 0.014 60);
+  --primary-foreground: oklch(0.985 0.006 80);
+  --secondary: oklch(0.93 0.012 75);
+  --secondary-foreground: oklch(0.270 0.014 60);
+  --muted: oklch(0.93 0.012 75);
+  --muted-foreground: oklch(0.570 0.022 75);
+  --accent: oklch(0.93 0.012 75);
+  --accent-foreground: oklch(0.270 0.014 60);
+  --destructive: oklch(0.570 0.160 33);
+  --border: oklch(0.890 0.014 72);
+  --input: oklch(0.890 0.014 72);
+  --ring: oklch(0.700 0.05 60);
+  --brand: oklch(0.640 0.130 47);             /* 테라코타 */
+  --brand-foreground: oklch(0.99 0.01 60);
+  --brand-soft: oklch(0.930 0.035 60);
+  --reward: oklch(0.730 0.120 70);
+  --reward-soft: oklch(0.930 0.045 80);
+  --good: oklch(0.580 0.100 150);
+  --good-soft: oklch(0.930 0.030 145);
+  --destructive-soft: oklch(0.950 0.030 33);
+  --sidebar: oklch(0.96 0.010 80);
+  --sidebar-foreground: oklch(0.270 0.014 60);
+  --sidebar-primary: oklch(0.640 0.130 47);
+  --sidebar-primary-foreground: oklch(0.99 0.01 60);
+  --sidebar-accent: oklch(0.93 0.012 75);
+  --sidebar-accent-foreground: oklch(0.270 0.014 60);
+  --sidebar-border: oklch(0.890 0.014 72);
+  --sidebar-ring: oklch(0.640 0.130 47);
 }
 
 .dark {

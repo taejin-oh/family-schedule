@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `theme` text DEFAULT 'clarity' NOT NULL;

@@ -85,7 +85,7 @@ export function SaveForm({
             baseBtn,
             status === 'idle' && 'bg-foreground text-background hover:opacity-90',
             status === 'pending' && 'bg-foreground/70 text-background cursor-wait',
-            status === 'success' && 'bg-emerald-600 text-white',
+            status === 'success' && 'bg-good text-white',
             status === 'error' && 'bg-foreground text-background hover:opacity-90',
           )}
         >

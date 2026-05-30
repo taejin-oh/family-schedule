@@ -8,6 +8,7 @@ import { SwipeNav } from '@/components/swipe-nav'
 import { ToastProvider } from '@/components/toast'
 import { ServiceWorkerRegister } from '@/components/sw-register'
 import { AnalyticsTracker } from '@/components/analytics-tracker'
+import { getSettings } from '@/server/actions/settings'
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
@@ -38,9 +39,12 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 설정의 색 테마(맑음/포근)를 SSR로 <html data-theme>에 부여 → 깜빡임 없음.
+  const settings = await getSettings()
+  const dataTheme = settings.theme === 'warm' ? 'warm' : undefined
   return (
-    <html lang="ko" className={geistMono.variable}>
+    <html lang="ko" data-theme={dataTheme} className={geistMono.variable}>
       <head>
         {/* Pretendard 폰트 CDN — TLS handshake/DNS를 page paint 전에 미리 시작 → 200~500ms 단축. */}
         <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />

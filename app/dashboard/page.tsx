@@ -351,7 +351,7 @@ export default async function HomePage({
             <div className="flex-1 min-w-0">
               <div className="font-medium text-[15px] break-words leading-snug">{rt.title}</div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand">
                   🔁 이번 주 안에
                 </span>
               </div>
@@ -625,7 +625,7 @@ export default async function HomePage({
         <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-600" aria-hidden />
+              <Check className="h-4 w-4 text-good" aria-hidden />
               오늘 한 일 ({doneToday.length + recurringDoneToday.length})
             </span>
             <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
@@ -655,7 +655,7 @@ export default async function HomePage({
                   <input type="hidden" name="dateIso" value={todayIso} />
                   <button
                     type="submit"
-                    className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    className="w-[22px] h-[22px] rounded-full bg-good flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
                     aria-label="완료 취소"
                   >
                     <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
@@ -688,7 +688,7 @@ export default async function HomePage({
         <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-600" aria-hidden />
+              <Check className="h-4 w-4 text-good" aria-hidden />
               이번 주 완료한 숙제 ({doneThisWeek.length})
             </span>
             <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
@@ -720,7 +720,7 @@ export default async function HomePage({
         <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
           <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
             <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-violet-600" aria-hidden />
+              <Check className="h-4 w-4 text-brand" aria-hidden />
               완료한 이번 주 할일 ({weeklyDone.length})
             </span>
             <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">▾</span>
@@ -733,7 +733,7 @@ export default async function HomePage({
                   <input type="hidden" name="dateIso" value={rt.dateIso} />
                   <button
                     type="submit"
-                    className="w-[22px] h-[22px] rounded-full bg-violet-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
+                    className="w-[22px] h-[22px] rounded-full bg-brand flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all"
                     aria-label="완료 취소"
                   >
                     <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
@@ -749,7 +749,7 @@ export default async function HomePage({
                     {rt.title}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand">
                       🔁 이번 주 안에
                     </span>
                     {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}

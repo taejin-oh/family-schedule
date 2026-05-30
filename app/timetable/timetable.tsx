@@ -230,7 +230,7 @@ export function Timetable({
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {p.done}/{p.total}
                   </span>
-                  {done && <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />}
+                  {done && <Check className="h-3.5 w-3.5 text-good" aria-hidden />}
                 </Link>
               )
             })}
@@ -249,14 +249,14 @@ export function Timetable({
                   key={d.key}
                   className={cn(
                     'text-center py-2 text-xs font-semibold border-b border-foreground/10',
-                    d.key === todayKey && 'bg-violet-50 rounded-t-md',
+                    d.key === todayKey && 'bg-brand-soft rounded-t-md',
                   )}
                 >
                   <span
                     className={cn(
                       'inline-flex w-7 h-7 items-center justify-center rounded-full text-[11px] font-bold',
                       d.key === todayKey
-                        ? 'bg-violet-600 text-white'
+                        ? 'bg-brand text-brand-foreground'
                         : 'text-foreground/80',
                     )}
                   >
@@ -275,7 +275,7 @@ export function Timetable({
                 {row.map((cell, dayIdx) => {
                   const dayKey = DAYS[dayIdx].key
                   const isToday = dayKey === todayKey
-                  const todayBg = isToday ? 'bg-violet-50/60' : ''
+                  const todayBg = isToday ? 'bg-brand-soft/60' : ''
 
                   if (cell === 'skip') return null
 
@@ -310,7 +310,7 @@ export function Timetable({
                           className={cn(
                             'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-bold',
                             allDone
-                              ? (isDark ? 'bg-white text-green-700' : 'bg-green-600 text-white')
+                              ? (isDark ? 'bg-white text-good' : 'bg-good text-white')
                               : progress.done === 0
                                 ? (isDark ? 'bg-white/25 text-white' : 'bg-black/15 text-black')
                                 : (isDark ? 'bg-white/85 text-foreground' : 'bg-black/80 text-white'),

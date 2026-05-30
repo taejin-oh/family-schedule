@@ -43,7 +43,7 @@ export function RecurringToggleRow({
   const cadenceBadge = (
     <span className={cn(
       'inline-block px-2 py-0.5 rounded-full font-medium text-[10px]',
-      isWeekly ? 'bg-violet-100 text-violet-700' : 'bg-muted text-muted-foreground',
+      isWeekly ? 'bg-brand-soft text-brand' : 'bg-muted text-muted-foreground',
     )}>
       🔁 {isWeekly ? '이번 주 안에' : '매일'}
     </span>

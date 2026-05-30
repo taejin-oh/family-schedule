@@ -18,6 +18,7 @@ export async function getSettings(ctx: Ctx = {}) {
   const row = db.select().from(schema.appSettings).where(eq(schema.appSettings.id, 1)).get()
   return row ?? {
     id: 1,
+    theme: 'clarity',
     visionProvider: 'claude',
     visionModel: 'claude-opus-4-8',
     telegramEnabled: false,
@@ -72,6 +73,18 @@ export async function listProviderOptions() {
     const p = getProvider(n)
     return { name: n, models: p.availableModels.slice(), defaultModel: p.defaultModel }
   })
+}
+
+const ThemeSchema = z.enum(['clarity', 'warm'])
+
+export async function setTheme(value: 'clarity' | 'warm', ctx: Ctx = {}): Promise<{ ok: boolean; error?: string }> {
+  const parsed = ThemeSchema.safeParse(value)
+  if (!parsed.success) return { ok: false, error: '알 수 없는 테마' }
+  const db = ctx.appDb ?? getDb()
+  db.update(schema.appSettings).set({ theme: parsed.data }).where(eq(schema.appSettings.id, 1)).run()
+  revalidatePath('/', 'layout')  // <html data-theme> 갱신 위해 전체 레이아웃 재검증
+  await logServerEvent({ category: 'mutation', event: 'settings.theme', props: { theme: parsed.data } })
+  return { ok: true }
 }
 
 export async function sendTestTelegram(): Promise<{ ok: boolean; reason?: string }> {

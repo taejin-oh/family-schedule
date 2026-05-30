@@ -45,7 +45,7 @@ export function RecurringItem({
   }
 
   const badgeClass = cadence === 'weekly'
-    ? 'bg-violet-100 text-violet-700'
+    ? 'bg-brand-soft text-brand'
     : 'bg-muted text-muted-foreground'
 
   const rowContent = (

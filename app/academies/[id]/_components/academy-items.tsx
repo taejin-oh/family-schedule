@@ -71,9 +71,9 @@ function DuePill({ due, todayIso }: { due: string; todayIso: string }) {
     style === 'overdue'
       ? 'bg-destructive/15 text-destructive border-destructive/30'
       : style === 'today'
-        ? 'bg-amber-100 text-amber-800 border-amber-300'
+        ? 'bg-reward-soft text-foreground border-reward/40'
         : style === 'tomorrow'
-          ? 'bg-blue-50 text-blue-800 border-blue-200'
+          ? 'bg-brand-soft text-brand border-brand/30'
           : 'bg-muted text-muted-foreground border-foreground/10'
   return (
     <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
@@ -374,7 +374,7 @@ export function DoneAcademyItems({
     <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
       <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
         <span className="flex items-center gap-2">
-          <Check className="h-4 w-4 text-green-600" aria-hidden />
+          <Check className="h-4 w-4 text-good" aria-hidden />
           완료한 숙제 ({items.length})
         </span>
         <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>

@@ -120,6 +120,13 @@
       "when": 1780014650523,
       "tag": "0016_bored_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780142534589,
+      "tag": "0017_sour_boomer",
+      "breakpoints": true
     }
   ]
 }

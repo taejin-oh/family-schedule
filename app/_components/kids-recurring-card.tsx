@@ -78,7 +78,7 @@ export function KidsRecurringTodoCard({
           className={cn(
             'w-[24px] h-[24px] rounded-full flex-shrink-0 transition-all duration-200',
             flying
-              ? 'bg-amber-400 border-2 border-amber-400 scale-110'
+              ? 'bg-reward border-2 border-reward scale-110'
               : 'border-2 border-muted-foreground/40',
           )}
           aria-hidden
@@ -125,7 +125,7 @@ export function KidsRecurringDoneCard({
   id, title, color, cadence, dateIso, notes, daysOfWeek, onUndo,
 }: DoneCardProps) {
   const [editOpen, setEditOpen] = useState(false)
-  const checkBg = cadence === 'weekly' ? 'bg-violet-600' : 'bg-green-600'
+  const checkBg = cadence === 'weekly' ? 'bg-brand' : 'bg-good'
   const router = useRouter()
   const toast = useToast()
 

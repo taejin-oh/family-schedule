@@ -36,13 +36,13 @@ export function StickersRow({ reward, count, canRedeem, onRedeem }: Props) {
       <div className="flex items-center gap-4">
         <div className="relative w-[100px] h-[100px] shrink-0">
           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-            <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#FEF3C7" strokeWidth="10" />
+            <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="var(--reward-soft)" strokeWidth="10" />
             <circle
               cx="50"
               cy="50"
               r={RADIUS}
               fill="none"
-              stroke="#F59E0B"
+              stroke="var(--reward)"
               strokeWidth="10"
               strokeDasharray={`${arc} ${CIRC}`}
               strokeLinecap="round"
@@ -62,7 +62,7 @@ export function StickersRow({ reward, count, canRedeem, onRedeem }: Props) {
               ? '목표 도달! 선물 받을 수 있어요 🎉'
               : `${count}개 모음 · ${remaining}개 더 모으면 보상!`}
           </div>
-          <div className="flex flex-wrap gap-1 text-xl leading-none mt-2 text-amber-500">
+          <div className="flex flex-wrap gap-1 text-xl leading-none mt-2 text-reward">
             {Array.from({ length: target }).map((_, i) => (
               <span
                 key={i}

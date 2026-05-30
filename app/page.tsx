@@ -285,7 +285,7 @@ export default async function KidsHome() {
       {totalDone > 0 && (
         <details className="group space-y-2">
           <summary className="cursor-pointer select-none list-none px-1 pt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
-            <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />
+            <Check className="h-3.5 w-3.5 text-good" aria-hidden />
             <span>오늘 한 일 ({totalDone})</span>
             <span className="ml-1 text-muted-foreground/70 group-open:hidden">펼치기</span>
             <span className="ml-1 text-muted-foreground/70 hidden group-open:inline">접기</span>

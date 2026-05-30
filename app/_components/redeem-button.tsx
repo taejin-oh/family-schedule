@@ -21,7 +21,7 @@ export function RedeemButton({
           await onRedeem()
         })
       }}
-      className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium py-2.5 rounded-lg transition-colors"
+      className="w-full bg-good hover:bg-good/90 disabled:bg-good/50 text-white font-medium py-2.5 rounded-lg transition-colors"
     >
       🎉 선물 받기!
     </button>

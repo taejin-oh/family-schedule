@@ -57,7 +57,7 @@ export default async function StickerHistoryPage() {
           <ul className="text-sm space-y-2 max-h-[60vh] overflow-auto">
             {[...stickers.stamps].reverse().map((st) => (
               <li key={st.id} className="flex items-center gap-2">
-                <span className="text-amber-500 text-lg" aria-hidden>★</span>
+                <span className="text-reward text-lg" aria-hidden>★</span>
                 <span className="text-muted-foreground">
                   {st.kind === 'auto'
                     ? `자동 · ${st.forDate}`
