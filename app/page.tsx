@@ -165,7 +165,7 @@ export default async function KidsHome() {
         </div>
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-foreground transition-all"
+            className="h-full bg-brand transition-all"
             style={{ width: `${pct}%` }}
             aria-hidden
           />

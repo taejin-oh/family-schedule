@@ -24,6 +24,9 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  /* Clarity(맑음) 브랜드 액센트 — 코발트. progress·nav-active·focus 등 절제된 강조에만. */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -49,44 +52,50 @@
 }
 
 :root {
-  /* iOS systemGroupedBackground (~#F2F2F7) — v6 Apple Reminders 톤 */
-  --background: oklch(0.962 0.0035 264);
-  --foreground: oklch(0.145 0 0);
+  /* === 맑음(Clarity) 디자인 시스템 ===
+     차가운 라이트 그레이 배경 + 슬레이트 톤 텍스트 + 단일 코발트 브랜드 액센트.
+     흩어진 amber/violet/blue/green 강조를 '코발트 1색 + semantic'으로 정리. */
+  --background: oklch(0.967 0.002 250);     /* #F4F5F7 cool light grey */
+  --foreground: oklch(0.205 0.008 266);     /* #16181D slate near-black */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.205 0.008 266);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.205 0.008 266);
+  --primary: oklch(0.205 0.008 266);        /* ink — primary 버튼/칩은 절제된 near-black 유지 */
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
+  --secondary: oklch(0.968 0.003 250);
+  --secondary-foreground: oklch(0.205 0.008 266);
+  --muted: oklch(0.968 0.003 250);
+  --muted-foreground: oklch(0.551 0.026 257); /* #6B7280 slate */
+  --accent: oklch(0.962 0.005 255);          /* hover bg — cool light */
+  --accent-foreground: oklch(0.205 0.008 266);
+  --destructive: oklch(0.617 0.205 22);      /* #E5484D */
+  --border: oklch(0.923 0.005 265);
+  --input: oklch(0.923 0.005 265);
+  --ring: oklch(0.515 0.21 264);             /* 코발트 focus ring */
+  --brand: oklch(0.515 0.21 264);            /* #2B5CE6 코발트 액센트 */
+  --brand-foreground: oklch(0.985 0 0);
+  --chart-1: oklch(0.515 0.21 264);
+  --chart-2: oklch(0.551 0.026 257);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.7rem;                          /* 살짝 더 둥근 카드 (Clarity) */
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.205 0.008 266);
+  --sidebar-primary: oklch(0.515 0.21 264);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.968 0.003 250);
+  --sidebar-accent-foreground: oklch(0.205 0.008 266);
+  --sidebar-border: oklch(0.923 0.005 265);
+  --sidebar-ring: oklch(0.515 0.21 264);
 }
 
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
+  --brand: oklch(0.62 0.19 264);
+  --brand-foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
@@ -124,6 +133,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 한글 줄바꿈: 단어 중간에서 끊지 않음 (학/원 방지). 긴 비CJK는 break-words로 보완. */
+    word-break: keep-all;
   }
   html {
     @apply font-sans;
