@@ -80,9 +80,10 @@ export function KidsTodoCard({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-[17px] break-words leading-snug">
+        {/* 가로모드에선 숙제 제목만 키움 (academy/due 메타는 그대로) */}
+        <div className="font-medium text-[17px] landscape:text-[20px] break-words leading-snug">
           {title}
-          {pinnedDate && <span className="ml-1.5 text-[15px]" aria-label="미리 보기 핀">📌</span>}
+          {pinnedDate && <span className="ml-1.5 text-[15px] landscape:text-[17px]" aria-label="미리 보기 핀">📌</span>}
         </div>
         <div className="text-[13px] text-muted-foreground mt-0.5">
           {academyName}
