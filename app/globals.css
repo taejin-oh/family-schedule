@@ -133,8 +133,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* 한글 줄바꿈: 단어 중간에서 끊지 않음 (학/원 방지). 긴 비CJK는 break-words로 보완. */
-    word-break: keep-all;
   }
   html {
     @apply font-sans;

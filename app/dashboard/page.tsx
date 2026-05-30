@@ -521,7 +521,7 @@ export default async function HomePage({
           </Link>
         </Card>
       ) : filter === 'thisweek' ? (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:space-y-0 lg:columns-2 lg:gap-x-5 [&>section]:lg:mb-3 [&>section]:lg:break-inside-avoid">
           {weeklySection}
           {(() => {
             const allWeekHw = visibleBuckets.flatMap((bk) => filteredBuckets[bk])
@@ -557,7 +557,7 @@ export default async function HomePage({
           })()}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:space-y-0 lg:columns-2 lg:gap-x-5 [&>section]:lg:mb-3 [&>section]:lg:break-inside-avoid">
           {filter === 'all' && weeklySection}
           {visibleBuckets.map((bk) => {
             const hwList = filteredBuckets[bk]
