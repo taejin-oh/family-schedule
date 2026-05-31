@@ -31,5 +31,7 @@ export interface VisionProvider {
   readonly name: 'claude' | 'codex' | 'gemini'
   readonly defaultModel: string
   readonly availableModels: readonly string[]
+  // true면 runner가 원본(풀해상도)을, false면 resized(다운스케일) 경로를 넘긴다.
+  readonly fullResolution: boolean
   extractHomework(input: ExtractInput): Promise<ExtractOutput>
 }
