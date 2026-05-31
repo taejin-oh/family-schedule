@@ -36,7 +36,7 @@ export function SideNav() {
     <aside className="hidden lg:flex lg:flex-col lg:w-[212px] lg:shrink-0 lg:sticky lg:top-0 lg:h-screen bg-card border-r border-border px-3.5 py-5 overflow-y-auto">
       <Link href="/" prefetch className="flex items-center gap-2.5 px-2 pb-4">
         <span className="w-[30px] h-[30px] rounded-[9px] bg-brand/10 flex items-center justify-center text-base">📚</span>
-        <span className="text-[15.5px] font-extrabold tracking-tight whitespace-nowrap">가족 스케줄</span>
+        <span className="text-[15.5px] font-extrabold tracking-tight whitespace-nowrap">은채 스케줄</span>
       </Link>
       <nav className="flex flex-col gap-1">
         {NAV.map(({ href, icon: Icon, label }) => (
