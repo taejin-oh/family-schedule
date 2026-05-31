@@ -7,7 +7,7 @@
 //
 // 캐시 이름에 버전을 박아두고 새 버전 활성화 시 이전 캐시 삭제.
 
-const CACHE = 'family-schedule-v1'
+const CACHE = 'family-schedule-v2'
 
 self.addEventListener('install', () => {
   // 새 SW를 즉시 waiting 단계 없이 active로.
