@@ -1,12 +1,14 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAcademyDetail } from '@/server/actions/academy-detail'
+import { listAcademies, getWeeklyProgressMap } from '@/server/actions/academies'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { ActiveAcademyItems, DoneAcademyItems } from './_components/academy-items'
 import { BatchesRollback } from './_components/batches-rollback'
+import { AcademyRail } from '../_components/academy-rail'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 
 const SUBJECT_KO: Record<string, string> = {
@@ -25,7 +27,11 @@ export default async function AcademyDetailPage({
   const { id } = await params
   const { date: dateFilter } = await searchParams
   const numId = Number(id)
-  const data = await getAcademyDetail(numId)
+  const [data, allAcademies, progressMap] = await Promise.all([
+    getAcademyDetail(numId),
+    listAcademies(),
+    getWeeklyProgressMap(),
+  ])
   if (!data) notFound()
 
   const { academy, active: allActive, done: allDone, batches } = data
@@ -43,7 +49,10 @@ export default async function AcademyDetailPage({
 
   return (
     <MultiSelectProvider activeIds={activeIds} doneIds={doneIds} mode="delete-only">
-    <div className="space-y-4">
+    {/* lg: 좌측 학원 마스터 레일 + 우측 상세 (모바일은 상세만) */}
+    <div className="lg:flex lg:gap-6 lg:items-start">
+      <AcademyRail academies={allAcademies} progress={progressMap} activeId={numId} />
+      <div className="flex-1 min-w-0 space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div className="min-w-0">
           <Link
@@ -142,6 +151,7 @@ export default async function AcademyDetailPage({
       <DoneAcademyItems items={done} now={Date.now()} />
 
       <BatchesRollback batches={batches} />
+      </div>
     </div>
     </MultiSelectProvider>
   )

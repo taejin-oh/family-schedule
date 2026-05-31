@@ -19,9 +19,9 @@ function DuePill({ label, bucket }: DuePillProps) {
     bucket === 'overdue'
       ? 'bg-destructive/15 text-destructive border-destructive/30'
       : bucket === 'today'
-        ? 'bg-amber-100 text-amber-800 border-amber-300'
+        ? 'bg-reward-soft text-foreground border-reward/40'
         : bucket === 'tomorrow'
-          ? 'bg-blue-50 text-blue-800 border-blue-200'
+          ? 'bg-brand-soft text-foreground border-brand/30'
           : 'bg-muted/60 text-muted-foreground border-foreground/10'
   return (
     <span className={cn('inline-block px-1.5 py-0.5 rounded-full text-xs border font-medium', cls)}>
@@ -125,7 +125,7 @@ export function HomeworkItem({
             className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
             aria-label="완료 취소"
           >
-            <span className="w-[22px] h-[22px] rounded-full bg-green-600 flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all">
+            <span className="w-[22px] h-[22px] rounded-full bg-good flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all">
               <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
             </span>
           </button>
@@ -149,8 +149,8 @@ export function HomeworkItem({
       />
       <div className="flex-1 min-w-0">
         <div className={cn(
-          // 가로모드에선 숙제 제목만 키움 (설명/메타는 그대로). landscape = orientation 기반.
-          'font-medium text-[15px] landscape:text-[18px] break-words leading-snug',
+          // 숙제 제목만 키움 (설명/메타는 그대로). 세로·가로 모두 18px.
+          'font-medium text-[18px] break-words leading-snug',
           done && 'line-through decoration-muted-foreground/40',
         )}>{title}</div>
         <div className="flex items-center flex-wrap gap-1.5 text-xs text-muted-foreground mt-0.5">

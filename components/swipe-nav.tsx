@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { TABS, currentTabIndex } from '@/lib/tabs'
+import { TABS, LANDSCAPE_TABS, currentTabIndex } from '@/lib/tabs'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { track as trackEvent } from '@/lib/log/client'
 
 const SWIPE_THRESHOLD_PX = 60
@@ -97,18 +98,21 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     restartProgressBar()
   }, [showLoading])
 
-  const idx = currentTabIndex(pathname)
-  const prevTab = idx > 0 ? TABS[idx - 1] : null
-  const nextTab = idx >= 0 && idx < TABS.length - 1 ? TABS[idx + 1] : null
+  // 가로/PC(lg+)에선 사이드바 순서(LANDSCAPE_TABS, 할 일 포함)를, 모바일에선 하단탭 순서(TABS)를 사용.
+  const isWide = useMediaQuery('(min-width: 1024px)')
+  const tabs = isWide ? LANDSCAPE_TABS : TABS
+  const idx = currentTabIndex(pathname, tabs)
+  const prevTab = idx > 0 ? tabs[idx - 1] : null
+  const nextTab = idx >= 0 && idx < tabs.length - 1 ? tabs[idx + 1] : null
   const prevSnapshot = prevTab ? snapshotCache.get(prevTab.href) : undefined
   const nextSnapshot = nextTab ? snapshotCache.get(nextTab.href) : undefined
 
   // Pre-warm adjacent RSC payloads.
   useEffect(() => {
     if (idx === -1) return
-    if (idx > 0) router.prefetch(TABS[idx - 1].href)
-    if (idx < TABS.length - 1) router.prefetch(TABS[idx + 1].href)
-  }, [idx, router])
+    if (idx > 0) router.prefetch(tabs[idx - 1].href)
+    if (idx < tabs.length - 1) router.prefetch(tabs[idx + 1].href)
+  }, [idx, router, tabs])
 
   // Snapshot the current page's rendered DOM shortly after a navigation settles,
   // so that next time someone is on an adjacent tab they see this content during
@@ -195,7 +199,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
 
     let translation = dx
     if (idx === 0 && dx > 0) translation = dx * EDGE_RESISTANCE
-    if (idx === TABS.length - 1 && dx < 0) translation = dx * EDGE_RESISTANCE
+    if (idx === tabs.length - 1 && dx < 0) translation = dx * EDGE_RESISTANCE
 
     const track = trackRef.current
     if (track) {
@@ -259,7 +263,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     if (inFlightDirRef.current !== null && inFlightDirRef.current !== direction) return
 
     const proposedTarget = direction === 'left'
-      ? Math.min(baseIdx + 1, TABS.length - 1)
+      ? Math.min(baseIdx + 1, tabs.length - 1)
       : Math.max(baseIdx - 1, 0)
 
     if (proposedTarget === baseIdx) {
@@ -279,8 +283,8 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     //      a new router.push immediately. React supersedes the in-flight one.
     trackEvent('interaction', 'swipe_nav', {
       direction,
-      from: TABS[idx]?.href,
-      to: TABS[proposedTarget]?.href,
+      from: tabs[idx]?.href,
+      to: tabs[proposedTarget]?.href,
       chained: inFlightDirRef.current !== null,
     })
 
@@ -299,7 +303,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
         inFlightTimeoutRef.current = null
         if (target === null) return
         startTransition(() => {
-          router.push(TABS[target].href)
+          router.push(tabs[target].href)
         })
       }, ANIMATION_MS)
     } else {
@@ -311,7 +315,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
         // Phase C — fire chained navigation immediately to the further
         // target. React supersedes the in-flight router.push.
         startTransition(() => {
-          router.push(TABS[proposedTarget].href)
+          router.push(tabs[proposedTarget].href)
         })
       }
       // Phase B falls through: just update the refs below.
@@ -338,7 +342,7 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div
-        className="flex-1 relative"
+        className="flex-1 relative overflow-x-clip"
         style={{ touchAction: 'pan-y' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}

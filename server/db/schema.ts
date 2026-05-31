@@ -96,6 +96,8 @@ export const appSettings = sqliteTable('app_settings', {
   telegramAcademyReminderMinutes: integer('telegram_academy_reminder_minutes').notNull().default(10),
   // 아이 홈 빈 상태 카피 (null이면 DEFAULT_EMPTY_STATES 사용)
   emptyStateCopy: text('empty_state_copy', { mode: 'json' }).$type<Array<{ emoji: string; title: string; sub: string }>>(),
+  // 색 테마 톤. 'clarity'(맑음) | 'warm'(포근). 끝에 추가 → 단순 ADD COLUMN 마이그레이션.
+  theme: text('theme').notNull().default('clarity'),
 })
 
 export const recurringTasks = sqliteTable('recurring_tasks', {

@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/card'
 import { TelegramTestButton } from './_components/telegram-test-button'
 import { CleanupSection } from './_components/cleanup-section'
 import { SaveForm } from './_components/save-form'
+import { ThemePicker } from './_components/theme-picker'
 
 // 모바일 16px(text-base)/데스크톱 14px(md:text-sm). Android Chrome은 16px 미만 입력
 // 포커스 시 화면을 auto-zoom하고 blur 후에도 복원하지 않음 → 키보드 닫아도 확대 유지 버그.
@@ -86,11 +87,22 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:max-w-xl">
       <header className="px-1 pt-2 pb-1">
-        <h1 className="text-[30px] leading-tight font-bold tracking-tight">설정</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">앱 환경 · 보상 · 알림</p>
+        <h1 className="text-[30px] lg:text-[34px] leading-tight font-bold tracking-tight">설정</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">앱 환경 · 색 테마 · 보상 · 알림</p>
       </header>
+
+      {/* 🎨 색 테마 */}
+      <Card className="p-4 gap-3">
+        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          🎨 색 테마
+        </h2>
+        <p className="text-xs text-muted-foreground -mt-1">
+          앱 전체 색감을 고르세요. 선택 즉시 모든 화면에 적용됩니다.
+        </p>
+        <ThemePicker current={(s.theme === 'warm' ? 'warm' : 'clarity')} />
+      </Card>
 
       {/* 🎁 스티커 보상 */}
       <Card className="p-4 gap-3">
@@ -147,7 +159,7 @@ export default async function SettingsPage() {
               <ul className="text-xs space-y-1 mt-2 mb-1">
                 {[...stickers.stamps].reverse().slice(0, 5).map((st) => (
                   <li key={st.id} className="flex items-center gap-2">
-                    <span className="text-amber-500">★</span>
+                    <span className="text-reward">★</span>
                     <span className="text-muted-foreground">
                       {st.kind === 'auto'
                         ? `자동 · ${st.forDate}`
@@ -181,7 +193,7 @@ export default async function SettingsPage() {
             />
             <button
               type="submit"
-              className="bg-emerald-600 text-white text-sm font-semibold rounded-lg px-3 py-1.5 hover:bg-emerald-700 transition-colors"
+              className="bg-good text-white text-sm font-semibold rounded-lg px-3 py-1.5 hover:bg-good/90 transition-colors"
             >
               + 보너스
             </button>

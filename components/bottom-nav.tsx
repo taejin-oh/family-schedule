@@ -24,7 +24,7 @@ export function BottomNav() {
               prefetch={true}
               className={cn(
                 'flex h-full w-full flex-col items-center justify-center gap-1 text-xs transition-colors touch-manipulation',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                isActive ? 'text-brand' : 'text-muted-foreground hover:text-foreground'
               )}
               aria-current={isActive ? 'page' : undefined}
             >

@@ -49,7 +49,7 @@ export function KidsDoneCard({
         )}
       >
         <span
-          className="w-[24px] h-[24px] rounded-full bg-green-600 flex items-center justify-center flex-shrink-0"
+          className="w-[24px] h-[24px] rounded-full bg-good flex items-center justify-center flex-shrink-0"
           aria-hidden
         >
           <Check className="h-4 w-4 text-white" strokeWidth={3} />
@@ -60,7 +60,7 @@ export function KidsDoneCard({
           aria-hidden
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-[17px] landscape:text-[20px] break-words line-through decoration-muted-foreground/50">{title}</div>
+          <div className="font-medium text-[20px] break-words line-through decoration-muted-foreground/50">{title}</div>
           <div className="text-[13px] text-muted-foreground mt-0.5">{academyName}</div>
         </div>
       </button>

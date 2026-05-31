@@ -57,56 +57,58 @@ export default async function RecurringPage({
         />
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
-          이번 주 매주 할 일
-        </h2>
-        {weekTasks.length === 0 ? (
-          <Card className="p-6 text-center text-muted-foreground text-sm">
-            이번 주에 할 일이 없어요
-          </Card>
-        ) : (
-          <Card className="p-0 gap-0 divide-y divide-foreground/10">
-            {weekTasks.map((t) => (
-              <RecurringToggleRow
-                key={t.id}
-                id={t.id}
-                title={t.title}
-                color={t.color}
-                cadence={t.cadence}
-                done={t.doneAt !== null}
-                notes={t.notes}
-              />
-            ))}
-          </Card>
-        )}
-      </section>
+      <div className="space-y-4 lg:space-y-0 lg:columns-2 lg:gap-x-5 [&>section]:lg:mb-4 [&>section]:lg:break-inside-avoid">
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            이번 주 매주 할 일
+          </h2>
+          {weekTasks.length === 0 ? (
+            <Card className="p-6 text-center text-muted-foreground text-sm">
+              이번 주에 할 일이 없어요
+            </Card>
+          ) : (
+            <Card className="p-0 gap-0 divide-y divide-foreground/10">
+              {weekTasks.map((t) => (
+                <RecurringToggleRow
+                  key={t.id}
+                  id={t.id}
+                  title={t.title}
+                  color={t.color}
+                  cadence={t.cadence}
+                  done={t.doneAt !== null}
+                  notes={t.notes}
+                />
+              ))}
+            </Card>
+          )}
+        </section>
 
-      <section className="space-y-2">
-        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
-          오늘의 매일 할 일
-        </h2>
-        {todayTasks.length === 0 ? (
-          <Card className="p-6 text-center text-muted-foreground text-sm">
-            오늘은 매일 할 일이 없어요
-          </Card>
-        ) : (
-          <Card className="p-0 gap-0 divide-y divide-foreground/10">
-            {todayTasks.map((t) => (
-              <RecurringToggleRow
-                key={t.id}
-                id={t.id}
-                title={t.title}
-                color={t.color}
-                cadence={t.cadence}
-                done={t.doneAt !== null}
-                notes={t.notes}
-                daysOfWeek={t.daysOfWeek as DayKey[]}
-              />
-            ))}
-          </Card>
-        )}
-      </section>
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+            오늘의 매일 할 일
+          </h2>
+          {todayTasks.length === 0 ? (
+            <Card className="p-6 text-center text-muted-foreground text-sm">
+              오늘은 매일 할 일이 없어요
+            </Card>
+          ) : (
+            <Card className="p-0 gap-0 divide-y divide-foreground/10">
+              {todayTasks.map((t) => (
+                <RecurringToggleRow
+                  key={t.id}
+                  id={t.id}
+                  title={t.title}
+                  color={t.color}
+                  cadence={t.cadence}
+                  done={t.doneAt !== null}
+                  notes={t.notes}
+                  daysOfWeek={t.daysOfWeek as DayKey[]}
+                />
+              ))}
+            </Card>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
