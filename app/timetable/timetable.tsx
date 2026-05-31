@@ -78,6 +78,8 @@ type SlotBlock = {
   color: string
   spanRows: number
   dayKey: string
+  startTime: string
+  endTime: string
 }
 
 // Build a 2D structure: cells[rowIdx][dayIdx] = { block | 'skip' | null }
@@ -104,6 +106,8 @@ function buildCells(academies: Academy[]) {
           color: academy.color,
           spanRows,
           dayKey: slot.day,
+          startTime: slot.start,
+          endTime: slot.end,
         }
         for (let r = startRow + 1; r < startRow + spanRows && r < TOTAL_ROWS; r++) {
           if (cells[r][dayIdx] === null) {
@@ -163,8 +167,8 @@ export function Timetable({
       const wrapperRect = wrapper.getBoundingClientRect()
       const tbodyRect = tbody.getBoundingClientRect()
       const tbodyTop = tbodyRect.top - wrapperRect.top
-      // Each row is h-7 = 28px, covering 30 minutes.
-      indicator.style.top = `${tbodyTop + (minutesFromStart / 30) * 28}px`
+      // Each row is h-8 = 32px, covering 30 minutes.
+      indicator.style.top = `${tbodyTop + (minutesFromStart / 30) * 32}px`
       indicator.style.display = ''
     }
     compute()
@@ -196,45 +200,58 @@ export function Timetable({
   const cells = buildCells(academies)
   const todayKey = JS_DAY_TO_KEY[new Date().getDay()]
 
+  // 진행칩을 한 번만 만들어 lg(헤더 우측)·모바일(sticky row) 두 곳에서 재사용.
+  const progressChips =
+    weeklyProgress.length > 0
+      ? weeklyProgress.map((p) => {
+          const done = p.done === p.total && p.total > 0
+          const pct = p.total === 0 ? 0 : Math.round((p.done / p.total) * 100)
+          return (
+            <Link
+              key={p.academyId}
+              href={`/academies/${p.academyId}`}
+              prefetch
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card text-sm transition-colors hover:bg-accent',
+                done && 'ring-1 ring-good/40',
+              )}
+              title={`${p.name}: ${p.done}/${p.total}개 완료 (${pct}%)`}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+              <span className="font-semibold">{p.name}</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {p.done}/{p.total}
+              </span>
+              {done && <Check className="h-3.5 w-3.5 text-good" aria-hidden />}
+            </Link>
+          )
+        })
+      : null
+
   return (
     <div className="space-y-4">
-      <header className="px-1 pt-2 pb-1">
-        <h1 className="text-[30px] leading-tight font-bold tracking-tight">시간표</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          이번 주 학원 일정{weekStart ? ` · ${formatWeekRange(weekStart)}` : ''}
-        </p>
+      {/* 헤더 — lg에서 제목 좌 / 학원 진행칩 우측 정렬 */}
+      <header className="px-1 pt-2 pb-1 lg:flex lg:items-end lg:justify-between lg:gap-4">
+        <div>
+          <h1 className="text-[30px] lg:text-[34px] leading-tight font-bold tracking-tight">시간표</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            이번 주 학원 일정{weekStart ? ` · ${formatWeekRange(weekStart)}` : ''}
+          </p>
+        </div>
+        {progressChips && (
+          <div className="hidden lg:flex lg:flex-wrap lg:justify-end lg:gap-2 lg:max-w-[62%]">
+            {progressChips}
+          </div>
+        )}
       </header>
 
-      {weeklyProgress.length > 0 && (
-        <div className="space-y-1.5 sticky top-0 z-10 bg-background py-2 -my-2">
+      {/* 모바일 — 진행칩 sticky row (lg에서는 헤더로 이동) */}
+      {progressChips && (
+        <div className="space-y-1.5 sticky top-0 z-10 bg-background py-2 -my-2 lg:hidden">
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
             이번 주 숙제 진행
           </div>
-          <div className="flex flex-wrap gap-2">
-            {weeklyProgress.map((p) => {
-              const done = p.done === p.total && p.total > 0
-              const pct = p.total === 0 ? 0 : Math.round((p.done / p.total) * 100)
-              return (
-                <Link
-                  key={p.academyId}
-                  href={`/academies/${p.academyId}`}
-                  prefetch
-                  className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card text-sm transition-colors hover:bg-accent',
-                    done && 'ring-1 ring-green-500/40',
-                  )}
-                  title={`${p.name}: ${p.done}/${p.total}개 완료 (${pct}%)`}
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-                  <span className="font-semibold">{p.name}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {p.done}/{p.total}
-                  </span>
-                  {done && <Check className="h-3.5 w-3.5 text-good" aria-hidden />}
-                </Link>
-              )
-            })}
-          </div>
+          <div className="flex flex-wrap gap-2">{progressChips}</div>
         </div>
       )}
 
@@ -268,7 +285,7 @@ export function Timetable({
           </thead>
           <tbody ref={tbodyRef}>
             {cells.map((row, rowIdx) => (
-              <tr key={rowIdx} className="h-7">
+              <tr key={rowIdx} className="h-8">
                 <td className="text-right pr-2 text-[10px] text-muted-foreground align-top pt-0.5 whitespace-nowrap">
                   {rowIdx % 2 === 0 ? rowIndexToLabel(rowIdx) : ''}
                 </td>
@@ -296,15 +313,24 @@ export function Timetable({
                   const inner = (
                     <div
                       className={cn(
-                        'w-full h-full px-1.5 py-1.5 text-xs font-semibold overflow-hidden leading-tight flex flex-col gap-1 rounded-md',
+                        'w-full h-full px-1.5 py-1.5 text-[13px] font-bold overflow-hidden leading-tight flex flex-col gap-1 rounded-md',
                         isDark ? 'text-white' : 'text-black',
                       )}
                       style={{
                         backgroundColor: cell.color,
-                        minHeight: `${rowSpan * 28}px`,
+                        minHeight: `${rowSpan * 32}px`,
                       }}
                     >
                       <div className="truncate">{cell.academyName}</div>
+                      {/* lg: 시간 범위 — 블록 안에 공간 있을 때(2슬롯 60분 이상)만 표시 */}
+                      {rowSpan >= 2 && (
+                        <div className={cn(
+                          'hidden lg:block text-[11px] tabular-nums font-semibold leading-none',
+                          isDark ? 'opacity-80' : 'opacity-70',
+                        )}>
+                          {cell.startTime}–{cell.endTime}
+                        </div>
+                      )}
                       {progress && progress.total > 0 && (
                         <div
                           className={cn(

@@ -87,9 +87,9 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:max-w-xl">
       <header className="px-1 pt-2 pb-1">
-        <h1 className="text-[30px] leading-tight font-bold tracking-tight">설정</h1>
+        <h1 className="text-[30px] lg:text-[34px] leading-tight font-bold tracking-tight">설정</h1>
         <p className="text-sm text-muted-foreground mt-0.5">앱 환경 · 색 테마 · 보상 · 알림</p>
       </header>
 

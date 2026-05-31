@@ -1,7 +1,7 @@
 'use server'
 
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, and, isNull, desc, asc } from 'drizzle-orm'
+import { eq, and, isNull, desc, asc, gte } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { evaluateToday } from '@/server/util/sticker-rules'
@@ -59,6 +59,59 @@ export async function getStickerState(ctx: Ctx = {}) {
     target: reward?.targetCount ?? null,
     canRedeem: reward != null && stamps.length >= reward.targetCount,
   }
+}
+
+/**
+ * 아이 홈 가로 모드 좌측 히어로의 "이번 주 출석" 보드 + 연속(streak) 데이터.
+ * 모두 auto 스탬프(forDate UNIQUE)에서 파생 — 새 저장소 없음.
+ * status: done(별)/today(오늘)/future(앞으로)/missed(지난 미완).
+ */
+export async function getWeeklyAttendance(ctx: Ctx = {}) {
+  const db = ctx.db ?? getDb()
+  const todayIso = localDateIso()
+  const today = new Date(todayIso + 'T00:00:00')
+  const daysSinceMonday = (today.getDay() + 6) % 7
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - daysSinceMonday)
+
+  // 이번 주 + streak 계산용으로 최근 ~95일 auto 스탬프 날짜만 수집.
+  const cutoff = new Date(today)
+  cutoff.setDate(cutoff.getDate() - 95)
+  const cutoffIso = localDateIso(cutoff)
+
+  const rows = db
+    .select({ forDate: schema.stamps.forDate })
+    .from(schema.stamps)
+    .where(and(eq(schema.stamps.kind, 'auto'), gte(schema.stamps.forDate, cutoffIso)))
+    .all()
+  const doneDates = new Set(rows.map((r) => r.forDate).filter((d): d is string => !!d))
+
+  const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
+  const days = DAY_LABELS.map((label, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    const iso = localDateIso(d)
+    const status: 'done' | 'today' | 'future' | 'missed' = doneDates.has(iso)
+      ? 'done'
+      : iso === todayIso
+        ? 'today'
+        : iso > todayIso
+          ? 'future'
+          : 'missed'
+    return { label, date: iso, status }
+  })
+
+  // streak: 오늘(스탬프 있으면 포함)부터 거꾸로 연속된 auto 스탬프 일수.
+  // 오늘 아직 안 했으면 어제부터 세서 진행 중 streak이 0으로 끊기지 않게.
+  let streak = 0
+  const cursor = new Date(today)
+  if (!doneDates.has(todayIso)) cursor.setDate(cursor.getDate() - 1)
+  while (doneDates.has(localDateIso(cursor))) {
+    streak += 1
+    cursor.setDate(cursor.getDate() - 1)
+  }
+
+  return { days, streak }
 }
 
 export async function listRedemptions(ctx: Ctx = {}) {

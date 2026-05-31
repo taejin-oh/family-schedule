@@ -1,11 +1,12 @@
 import 'server-only'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, isNotNull, isNull, asc, desc } from 'drizzle-orm'
+import { eq, isNotNull, isNull, asc, desc, and, gte, lt } from 'drizzle-orm'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import * as schema from '@/server/db/schema'
 import { getDb } from '@/server/db/client'
 import { isValidScheduleTime, isValidTimeRange } from '@/lib/time-slots'
+import { localDateIso } from '@/server/util/date'
 import { logServerEvent } from '@/server/log/server-event'
 
 function revalidateAcademyPages() {
@@ -88,6 +89,48 @@ export async function archiveAcademy(id: number, ctx: Ctx = {}): Promise<Result>
 export async function listAcademies(ctx: Ctx = {}) {
   const db = ctx.db ?? getDb()
   return db.select().from(schema.academies).where(isNull(schema.academies.archivedAt)).orderBy(asc(schema.academies.id)).all()
+}
+
+/**
+ * 이번 주(월~다음 주 월 직전) committed 숙제의 학원별 진행도(done/total).
+ * 가로 모드 학원 상세 좌측 레일의 진행 배지용. timetable과 동일 기준.
+ */
+export async function getWeeklyProgressMap(
+  ctx: Ctx = {},
+): Promise<Record<number, { total: number; done: number }>> {
+  const db = ctx.db ?? getDb()
+  const today = new Date()
+  const daysSinceMonday = (today.getDay() + 6) % 7
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - daysSinceMonday)
+  monday.setHours(0, 0, 0, 0)
+  const nextMonday = new Date(monday)
+  nextMonday.setDate(monday.getDate() + 7)
+  const mondayIso = localDateIso(monday)
+  const nextMondayIso = localDateIso(nextMonday)
+
+  const rows = db
+    .select({
+      academyId: schema.homeworkItems.academyId,
+      doneAt: schema.homeworkItems.doneAt,
+    })
+    .from(schema.homeworkItems)
+    .where(
+      and(
+        eq(schema.homeworkItems.isCommitted, true),
+        gte(schema.homeworkItems.dueDate, mondayIso),
+        lt(schema.homeworkItems.dueDate, nextMondayIso),
+      ),
+    )
+    .all()
+
+  const map: Record<number, { total: number; done: number }> = {}
+  for (const r of rows) {
+    const cur = (map[r.academyId] ??= { total: 0, done: 0 })
+    cur.total += 1
+    if (r.doneAt !== null) cur.done += 1
+  }
+  return map
 }
 
 /** Archived academies for the 보관함 page; newest archive first. */

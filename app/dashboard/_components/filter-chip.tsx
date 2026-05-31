@@ -46,7 +46,7 @@ export function FilterChipGroup({ current, chips }: { current: string; chips: Ch
             prefetch
             onClick={pick(c.key)}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors',
+              'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-base font-semibold transition-colors',
               active
                 ? 'bg-brand text-brand-foreground'
                 : 'bg-card text-foreground/80 hover:bg-accent hover:text-foreground'
@@ -60,7 +60,7 @@ export function FilterChipGroup({ current, chips }: { current: string; chips: Ch
               />
             )}
             <span>{c.label}</span>
-            <span className={cn('text-xs font-normal tabular-nums', active ? 'text-background/80' : 'text-muted-foreground')}>
+            <span className={cn('text-sm font-normal tabular-nums', active ? 'text-background/80' : 'text-muted-foreground')}>
               {c.count}
             </span>
           </Link>

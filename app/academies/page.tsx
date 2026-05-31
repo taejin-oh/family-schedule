@@ -18,7 +18,7 @@ export default async function AcademiesPage() {
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div>
-          <h1 className="text-[30px] leading-tight font-bold tracking-tight">학원</h1>
+          <h1 className="text-[30px] lg:text-[34px] leading-tight font-bold tracking-tight">학원</h1>
           <div className="text-sm text-muted-foreground mt-0.5">
             {rows.length}개{archivedRows.length > 0 && ` · 보관 ${archivedRows.length}개`}
           </div>
@@ -35,7 +35,7 @@ export default async function AcademiesPage() {
             등록된 학원이 없습니다.
           </Card>
         ) : (
-          <Card className="p-0 gap-0 divide-y divide-foreground/10">
+          <div className="lg:columns-2 lg:gap-x-5 space-y-2 lg:space-y-0 [&>div]:lg:mb-2 [&>div]:lg:break-inside-avoid">
             {rows.map((r) => {
               const sub = SUBJECT_KO[r.subject] ?? r.subject
               const sched = r.scheduleRule?.slots && r.scheduleRule.slots.length > 0
@@ -57,19 +57,22 @@ export default async function AcademiesPage() {
                 revalidatePath('/')
               }
               return (
-                <AcademyRow
-                  key={r.id}
-                  id={r.id}
-                  name={r.name}
-                  color={r.color}
-                  subjectLabel={sub}
-                  scheduleLabel={sched}
-                  onArchive={onArchiveOne}
-                  onUnarchive={onUnarchiveOne}
-                />
+                <div key={r.id}>
+                  <Card className="p-0 gap-0">
+                    <AcademyRow
+                      id={r.id}
+                      name={r.name}
+                      color={r.color}
+                      subjectLabel={sub}
+                      scheduleLabel={sched}
+                      onArchive={onArchiveOne}
+                      onUnarchive={onUnarchiveOne}
+                    />
+                  </Card>
+                </div>
               )
             })}
-          </Card>
+          </div>
         )}
       </section>
 

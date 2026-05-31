@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { Check, ArrowRight } from 'lucide-react'
 import { listTodoByDueWithin, listTodoByDueBetween, listDoneToday, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
-import { getStickerState, redeem } from '@/server/actions/stickers'
+import { getStickerState, redeem, getWeeklyAttendance } from '@/server/actions/stickers'
 import { getEmptyStates } from '@/server/actions/empty-states'
 import { pickEmptyState } from '@/lib/empty-states'
 import { EmptyStateTracker } from '@/components/empty-state-tracker'
@@ -13,6 +13,7 @@ import { KidsTodoCard } from '@/app/_components/kids-todo-card'
 import { KidsDoneCard } from '@/app/_components/kids-done-card'
 import { KidsRecurringTodoCard, KidsRecurringDoneCard } from '@/app/_components/kids-recurring-card'
 import { StickersRow } from '@/app/_components/stickers-row'
+import { AttendanceBoard } from '@/app/_components/attendance-board'
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -47,12 +48,13 @@ export default async function KidsHome() {
     listTodoByDueWithin(todayIso, 1),  // overdue + 오늘 + 내일
     upcomingPromise,                   // 모레~일요일
   ])
-  const [doneToday, todayRec, weekRec, sticker, emptyStates] = await Promise.all([
+  const [doneToday, todayRec, weekRec, sticker, emptyStates, attendance] = await Promise.all([
     listDoneToday(),
     listTodayRecurring(),
     listThisWeekRecurring(),
     getStickerState(),
     getEmptyStates(),
+    getWeeklyAttendance(),
   ])
 
   // 매일 recurring (오늘 due) — 스티커 평가에 포함
@@ -124,9 +126,10 @@ export default async function KidsHome() {
   const todaySub = `${tm}월 ${td}일 · ${DAY_KO[todayDow]}요일`
 
   return (
-    <div className="space-y-4">
-      {/* 상단 헤더 — Apple Reminders 톤 */}
-      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
+    <div className="space-y-4 lg:space-y-0">
+      {/* 상단 헤더 — Apple Reminders 톤. lg에서는 좌측 히어로의 인사가 대신하므로 숨김
+          (그래야 좌측 요약이 스크롤 0부터 바로 고정됨). */}
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2 lg:hidden">
         <div>
           <h1 className="text-[34px] leading-tight font-bold tracking-tight">오늘</h1>
           <div className="text-sm text-muted-foreground mt-0.5">
@@ -141,6 +144,24 @@ export default async function KidsHome() {
         </Link>
       </header>
 
+      {/* lg: 좌측 히어로(요약) + 우측 작업목록. 모바일은 기존 세로 스택 그대로. */}
+      <div className="lg:flex lg:gap-6 lg:items-start">
+      {/* ===== 좌측 히어로 ===== */}
+      <aside className="lg:w-[340px] lg:shrink-0 lg:sticky lg:top-7 lg:self-start lg:max-h-[calc(100dvh-3.5rem)] lg:overflow-y-auto space-y-4">
+      {/* 인사 — lg 전용 (모바일은 상단 헤더가 대신함) */}
+      <div className="hidden lg:flex items-center gap-3 px-1">
+        <span
+          className="w-12 h-12 rounded-full bg-brand text-brand-foreground flex items-center justify-center text-xl font-extrabold shrink-0"
+          aria-hidden
+        >
+          은
+        </span>
+        <div className="min-w-0">
+          <div className="text-2xl font-extrabold tracking-tight leading-tight">안녕, 은채야~ 👋</div>
+          <div className="text-sm text-muted-foreground mt-0.5">{todaySub}</div>
+        </div>
+      </div>
+
       {/* 스티커 보상 */}
       <StickersRow
         reward={sticker.reward}
@@ -154,7 +175,7 @@ export default async function KidsHome() {
         <div className="flex items-center gap-4">
           <div className="text-[40px] leading-none font-bold tabular-nums">{totalActive}</div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="text-[13px] font-semibold text-muted-foreground">
               REMAINING
             </div>
             <div className="text-sm font-medium mt-0.5">
@@ -172,10 +193,19 @@ export default async function KidsHome() {
         </div>
       </Card>
 
+      {/* 이번 주 출석 — lg 전용 (stamps에서 파생) */}
+      <div className="hidden lg:block">
+        <AttendanceBoard days={attendance.days} streak={attendance.streak} />
+      </div>
+      </aside>
+
+      {/* ===== 우측 작업목록 ===== */}
+      <div className="flex-1 min-w-0 space-y-4">
+
       {/* 오늘 해야 할 숙제 */}
       {totalActive > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
             오늘 해야 할 숙제
           </h2>
           <div className="space-y-2">
@@ -224,7 +254,7 @@ export default async function KidsHome() {
       {/* 이번 주 안에 할 일 (매주 recurring) — 스티커 무관 */}
       {weeklyTotal > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
             이번 주 안에 할 일 · {weeklyDone.length} / {weeklyTotal}
           </h2>
           <div className="space-y-2">
@@ -259,7 +289,7 @@ export default async function KidsHome() {
       {/* 이번 주 남은 숙제 (작게) */}
       {upcomingDates.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
+          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
             이번 주 남은 숙제 · {upcoming.length}개
           </h2>
           <Card className="p-0 gap-0 divide-y divide-foreground/10">
@@ -284,7 +314,7 @@ export default async function KidsHome() {
       {/* 오늘 한 일 — 맨 아래, 기본 접힘 */}
       {totalDone > 0 && (
         <details className="group space-y-2">
-          <summary className="cursor-pointer select-none list-none px-1 pt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+          <summary className="cursor-pointer select-none list-none px-1 pt-1 inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
             <Check className="h-3.5 w-3.5 text-good" aria-hidden />
             <span>오늘 한 일 ({totalDone})</span>
             <span className="ml-1 text-muted-foreground/70 group-open:hidden">펼치기</span>
@@ -318,6 +348,8 @@ export default async function KidsHome() {
           </div>
         </details>
       )}
+      </div>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { listRecentBatches, listRelatedBatches } from '@/server/actions/homework
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
+import { Card } from '@/components/ui/card'
 import { UploadForm } from './upload-form'
 
 export default async function UploadPage({
@@ -67,22 +68,48 @@ export default async function UploadPage({
   return (
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1">
-        <h1 className="text-[30px] leading-tight font-bold tracking-tight">
+        <h1 className="text-[30px] lg:text-[34px] leading-tight font-bold tracking-tight">
           {reuse ? '재분석' : '숙제 추가'}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           {reuse ? '같은 파일로 다시 분석' : '사진 또는 직접 입력'}
         </p>
       </header>
-      <UploadForm
-        academies={academies}
-        batchesByAcademy={batchesByAcademy}
-        hintsByAcademy={hintsByAcademy}
-        reuse={reuse}
-        related={related}
-        initialAcademyId={preselectedAcademyId}
-        mode={mode}
-      />
+      {/* lg: 좌 입력 폼 / 우 AI 안내 패널. 모바일은 폼만(안내는 hidden). */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
+        <UploadForm
+          academies={academies}
+          batchesByAcademy={batchesByAcademy}
+          hintsByAcademy={hintsByAcademy}
+          reuse={reuse}
+          related={related}
+          initialAcademyId={preselectedAcademyId}
+          mode={mode}
+        />
+        <aside className="hidden lg:block lg:sticky lg:top-7">
+          <Card className="p-5 gap-3">
+            <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              AI가 이렇게 정리해줘요
+            </h2>
+            <ul className="space-y-2">
+              {([
+                ['📷', '사진 속 손글씨·표·인쇄물을 읽어요'],
+                ['🗂️', '학원별로 숙제를 자동 분류해요'],
+                ['📅', '마감일을 찾아 날짜로 정리해요'],
+                ['⚠️', '애매하면 “확신 낮음”으로 표시해요'],
+              ] as const).map(([emoji, text]) => (
+                <li key={text} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/50">
+                  <span className="text-xl leading-none">{emoji}</span>
+                  <span className="text-sm font-medium">{text}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground leading-relaxed border-t border-foreground/10 pt-3">
+              정리된 숙제는 <b className="text-foreground font-semibold">확정 전에 직접 수정</b>할 수 있고, 비슷한 숙제가 이미 있으면 중복으로 알려줘요.
+            </p>
+          </Card>
+        </aside>
+      </div>
     </div>
   )
 }
