@@ -24,6 +24,7 @@ const fakeProvider: VisionProvider = {
   name: 'claude',
   defaultModel: 'claude-sonnet-4-6',
   availableModels: ['claude-sonnet-4-6'],
+  fullResolution: false,
   async extractHomework() {
     return {
       items: [

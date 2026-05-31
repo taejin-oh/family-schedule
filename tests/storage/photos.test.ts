@@ -24,12 +24,12 @@ describe('photos storage', () => {
     expect(readFileSync(result.path).length).toBe(png.length)
   })
 
-  it('makeResized creates a JPEG <= 1600px on long side and reports dims', async () => {
-    const png = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: '#fff' } })
+  it('makeResized creates a JPEG <= 2576px on long side and reports dims', async () => {
+    const png = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: '#fff' } })
       .png().toBuffer()
     const orig = await saveOriginal({ root: tmp, batchId: 2, index: 0, ext: 'png', bytes: png })
     const resized = await makeResized({ root: tmp, batchId: 2, index: 0, originalPath: orig.path })
-    expect(resized.path).toMatch(/0000000002\/000-1600\.jpg$/)
-    expect(Math.max(resized.width, resized.height)).toBeLessThanOrEqual(1600)
+    expect(resized.path).toMatch(/0000000002\/000-2576\.jpg$/)
+    expect(Math.max(resized.width, resized.height)).toBeLessThanOrEqual(2576)
   })
 })

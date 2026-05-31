@@ -48,8 +48,9 @@ export async function processExtractHomework(
   db.update(schema.homeworkBatches).set({ status: 'processing' }).where(eq(schema.homeworkBatches.id, batch.id)).run()
 
   try {
+    // codex 등 fullResolution provider는 원본(풀해상도)을, claude는 resized(2576px) 경로를 받는다.
     const result = await provider.extractHomework({
-      imagePaths: photos.map((p) => p.resizedPath),
+      imagePaths: photos.map((p) => (provider.fullResolution ? p.originalPath : p.resizedPath)),
       academy: {
         name: academy.name,
         subject: academy.subject,
