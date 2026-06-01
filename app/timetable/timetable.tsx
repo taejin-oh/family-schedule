@@ -40,19 +40,26 @@ const JS_DAY_TO_KEY: Record<number, string> = {
 }
 
 const START_HOUR = 6   // 06:00
-const END_HOUR = 23    // 34 rows total (06:00–22:30)
-const TOTAL_ROWS = (END_HOUR - START_HOUR) * 2
+const END_HOUR = 23    // 23:00 (그리드 끝)
 
-function timeToRowIndex(time: string): number {
+const ROW_PX = 32                        // 30분당 픽셀 높이
+const PX_PER_MIN = ROW_PX / 30
+const GRID_START_MIN = START_HOUR * 60   // 360
+const GRID_END_MIN = END_HOUR * 60       // 1380
+const TOTAL_MIN = GRID_END_MIN - GRID_START_MIN
+const GRID_HEIGHT = TOTAL_MIN * PX_PER_MIN
+// 정시 라벨 (06,07,...,23)
+const HOUR_LABELS: number[] = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i)
+
+/** "HH:MM" → 자정 기준 분 */
+function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
-  return (h - START_HOUR) * 2 + (m >= 30 ? 1 : 0)
+  return h * 60 + m
 }
 
-function rowIndexToLabel(row: number): string {
-  const totalMinutes = START_HOUR * 60 + row * 30
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+/** 분 → 그리드 상단 기준 px (블록·라벨·현재시각선 모두 이 한 함수로 정렬) */
+function yOf(min: number): number {
+  return (min - GRID_START_MIN) * PX_PER_MIN
 }
 
 function localDateIso(d: Date): string {
@@ -72,53 +79,37 @@ function dateForDay(weekStart: Date | undefined, dayKey: string): string | null 
   return localDateIso(d)
 }
 
-type SlotBlock = {
+type DayBlock = {
   academyId: number
   academyName: string
   color: string
-  spanRows: number
-  dayKey: string
   startTime: string
   endTime: string
+  startMin: number
+  endMin: number
 }
 
-// Build a 2D structure: cells[rowIdx][dayIdx] = { block | 'skip' | null }
-function buildCells(academies: Academy[]) {
-  const cells: Array<Array<SlotBlock | 'skip' | null>> = Array.from(
-    { length: TOTAL_ROWS },
-    () => Array(DAYS.length).fill(null),
+/**
+ * 요일별 학원 블록 목록. 30분 격자에 스냅하지 않고 실제 시각(분)을 그대로 보존 →
+ * 16:50 시작은 16:50 위치에 그려진다 (이전 rowSpan 방식은 16:30으로 스냅됐음).
+ */
+function buildBlocksByDay(academies: Academy[]): DayBlock[][] {
+  return DAYS.map((d) =>
+    academies.flatMap((a) =>
+      (a.scheduleRule?.slots ?? [])
+        .filter((s) => s.day === d.key)
+        .map((s) => ({
+          academyId: a.id,
+          academyName: a.name,
+          color: a.color,
+          startTime: s.start,
+          endTime: s.end,
+          startMin: toMin(s.start),
+          endMin: toMin(s.end),
+        }))
+        .filter((b) => b.endMin > b.startMin),
+    ),
   )
-
-  for (const academy of academies) {
-    if (!academy.scheduleRule?.slots) continue
-    for (const slot of academy.scheduleRule.slots) {
-      const dayIdx = DAYS.findIndex((d) => d.key === slot.day)
-      if (dayIdx === -1) continue
-      const startRow = timeToRowIndex(slot.start)
-      const endRow = timeToRowIndex(slot.end)
-      const spanRows = Math.max(1, Math.min(endRow - startRow, TOTAL_ROWS - startRow))
-      if (startRow < 0 || startRow >= TOTAL_ROWS) continue
-
-      if (cells[startRow][dayIdx] === null) {
-        cells[startRow][dayIdx] = {
-          academyId: academy.id,
-          academyName: academy.name,
-          color: academy.color,
-          spanRows,
-          dayKey: slot.day,
-          startTime: slot.start,
-          endTime: slot.end,
-        }
-        for (let r = startRow + 1; r < startRow + spanRows && r < TOTAL_ROWS; r++) {
-          if (cells[r][dayIdx] === null) {
-            cells[r][dayIdx] = 'skip'
-          }
-        }
-      }
-    }
-  }
-
-  return cells
 }
 
 function formatWeekRange(monday: Date): string {
@@ -142,38 +133,21 @@ export function Timetable({
   slotProgress?: SlotProgress
 }) {
   // Hooks must be called unconditionally — declare before any early return.
-  // Current-time indicator: position a horizontal red line at the current time
-  // (only when within 06:00–22:30 grid range). We manipulate DOM via refs
-  // inside useLayoutEffect so the line appears at the correct position on the
-  // very first paint — no visible delay or flicker.
-  const tableWrapperRef = useRef<HTMLDivElement>(null)
-  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  // 현재시각 빨간 선: 블록·라벨과 동일한 yOf(분) 공식으로 위치 → 항상 정확히 정렬.
+  // "지금"은 클라이언트 시각이라 mount 후 effect에서 설정(SSR 하이드레이션 불일치 회피).
   const indicatorRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     function compute() {
-      const wrapper = tableWrapperRef.current
-      const tbody = tbodyRef.current
       const indicator = indicatorRef.current
-      if (!wrapper || !tbody || !indicator) return
-
+      if (!indicator) return
       const now = new Date()
-      const minutesFromStart = (now.getHours() - START_HOUR) * 60 + now.getMinutes()
-      if (minutesFromStart < 0 || minutesFromStart >= TOTAL_ROWS * 30) {
+      const nowMin = now.getHours() * 60 + now.getMinutes()
+      if (nowMin < GRID_START_MIN || nowMin >= GRID_END_MIN) {
         indicator.style.display = 'none'
         return
       }
-
-      // 하드코딩 행높이 대신 실제 DOM 행 위치로 보간 — 행 높이가 미세하게 달라도
-      // (가로/세로, 블록 셀 등) 그리드 라인·시간 라벨과 항상 정확히 정렬된다.
-      const wrapperRect = wrapper.getBoundingClientRect()
-      const rows = tbody.querySelectorAll('tr')
-      const rowIdx = Math.floor(minutesFromStart / 30)
-      const row = rows[rowIdx]
-      if (!row) { indicator.style.display = 'none'; return }
-      const rowRect = row.getBoundingClientRect()
-      const frac = (minutesFromStart % 30) / 30   // 행 안에서의 분 비율
-      indicator.style.top = `${(rowRect.top - wrapperRect.top) + frac * rowRect.height}px`
+      indicator.style.top = `${yOf(nowMin)}px`
       indicator.style.display = ''
     }
     compute()
@@ -202,7 +176,7 @@ export function Timetable({
     )
   }
 
-  const cells = buildCells(academies)
+  const blocksByDay = buildBlocksByDay(academies)
   const todayKey = JS_DAY_TO_KEY[new Date().getDay()]
 
   // 진행칩을 한 번만 만들어 lg(헤더 우측)·모바일(sticky row) 두 곳에서 재사용.
@@ -261,132 +235,143 @@ export function Timetable({
       )}
 
       <Card className="p-2 overflow-x-auto">
-        <div ref={tableWrapperRef} className="relative">
-        <table className="w-full border-collapse text-sm table-fixed">
-          <thead>
-            <tr>
-              <th className="w-10 sm:w-12 text-right pr-1 font-normal text-muted-foreground text-[10px]" />
-              {DAYS.map((d) => (
-                <th
+        {/* 요일 헤더 */}
+        <div className="flex">
+          <div className="w-10 sm:w-12 shrink-0" />
+          {DAYS.map((d) => (
+            <div
+              key={d.key}
+              className={cn(
+                'flex-1 flex justify-center py-2 border-b border-foreground/10',
+                d.key === todayKey && 'bg-brand-soft rounded-t-md',
+              )}
+            >
+              <span
+                className={cn(
+                  'inline-flex w-7 h-7 items-center justify-center rounded-full text-[11px] font-bold',
+                  d.key === todayKey ? 'bg-brand text-brand-foreground' : 'text-foreground/80',
+                )}
+              >
+                {d.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* 그리드 본문 — 분 단위 절대 배치 */}
+        <div className="flex" style={{ height: GRID_HEIGHT }}>
+          {/* 시간 라벨 컬럼 */}
+          <div className="w-10 sm:w-12 shrink-0 relative">
+            {HOUR_LABELS.map((h) => (
+              <div
+                key={h}
+                className="absolute right-2 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums whitespace-nowrap"
+                style={{ top: yOf(h * 60) }}
+              >
+                {String(h).padStart(2, '0')}:00
+              </div>
+            ))}
+          </div>
+
+          {/* 요일 컬럼 영역 — 30분 격자선은 배경 그라디언트로 (블록 뒤) */}
+          <div
+            className="flex-1 relative"
+            style={{
+              backgroundImage: `repeating-linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 0, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px, transparent ${ROW_PX}px)`,
+            }}
+          >
+            <div className="absolute inset-0 grid grid-cols-7">
+              {DAYS.map((d, dayIdx) => (
+                <div
                   key={d.key}
                   className={cn(
-                    'text-center py-2 text-xs font-semibold border-b border-foreground/10',
-                    d.key === todayKey && 'bg-brand-soft rounded-t-md',
+                    'relative border-l border-foreground/5',
+                    d.key === todayKey && 'bg-brand-soft/40',
                   )}
                 >
-                  <span
-                    className={cn(
-                      'inline-flex w-7 h-7 items-center justify-center rounded-full text-[11px] font-bold',
-                      d.key === todayKey
-                        ? 'bg-brand text-brand-foreground'
-                        : 'text-foreground/80',
-                    )}
-                  >
-                    {d.label}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody ref={tbodyRef}>
-            {cells.map((row, rowIdx) => (
-              <tr key={rowIdx} className="h-8">
-                <td className="text-right pr-2 text-[10px] text-muted-foreground align-top pt-0.5 whitespace-nowrap">
-                  {rowIdx % 2 === 0 ? rowIndexToLabel(rowIdx) : ''}
-                </td>
-                {row.map((cell, dayIdx) => {
-                  const dayKey = DAYS[dayIdx].key
-                  const isToday = dayKey === todayKey
-                  const todayBg = isToday ? 'bg-brand-soft/60' : ''
-
-                  if (cell === 'skip') return null
-
-                  if (cell === null) {
-                    return (
-                      <td
-                        key={dayKey}
-                        className={cn('border-t border-l border-foreground/5', todayBg)}
-                      />
+                  {blocksByDay[dayIdx].map((b, i) => {
+                    // 그리드 범위로 클램프 (범위 밖 부분은 잘라서 표시)
+                    const vis0 = Math.max(b.startMin, GRID_START_MIN)
+                    const vis1 = Math.min(b.endMin, GRID_END_MIN)
+                    if (vis1 <= vis0) return null
+                    const top = yOf(vis0)
+                    const height = (vis1 - vis0) * PX_PER_MIN
+                    const slotDate = dateForDay(weekStart, d.key)
+                    const progress = slotDate ? slotProgress[`${b.academyId}|${slotDate}`] : undefined
+                    const allDone = !!progress && progress.total > 0 && progress.done === progress.total
+                    const isDark = textOn(b.color) === 'white'
+                    const inner = (
+                      <div
+                        className={cn(
+                          'w-full h-full px-1.5 py-1 text-[13px] font-bold overflow-hidden leading-tight flex flex-col gap-0.5 rounded-md',
+                          isDark ? 'text-white' : 'text-black',
+                        )}
+                        style={{ backgroundColor: b.color }}
+                      >
+                        <div className="truncate">{b.academyName}</div>
+                        {/* lg: 시간 범위 — 60분 이상 블록만 (공간 있을 때) */}
+                        {height >= 52 && (
+                          <div className={cn(
+                            'hidden lg:block text-[11px] tabular-nums font-semibold leading-none',
+                            isDark ? 'opacity-80' : 'opacity-70',
+                          )}>
+                            {b.startTime}–{b.endTime}
+                          </div>
+                        )}
+                        {progress && progress.total > 0 && (
+                          <div
+                            className={cn(
+                              'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-bold',
+                              allDone
+                                ? (isDark ? 'bg-white text-good' : 'bg-good text-white')
+                                : progress.done === 0
+                                  ? (isDark ? 'bg-white/25 text-white' : 'bg-black/15 text-black')
+                                  : (isDark ? 'bg-white/85 text-foreground' : 'bg-black/80 text-white'),
+                            )}
+                          >
+                            {allDone && <Check className="h-2.5 w-2.5" aria-hidden />}
+                            {progress.done}/{progress.total}
+                          </div>
+                        )}
+                      </div>
                     )
-                  }
+                    return (
+                      <div
+                        key={i}
+                        className="absolute inset-x-[2px]"
+                        style={{ top: top + 1, height: Math.max(height - 2, 14) }}
+                      >
+                        {slotDate ? (
+                          <Link
+                            href={`/academies/${b.academyId}?date=${slotDate}`}
+                            prefetch
+                            className="block w-full h-full hover:opacity-90 transition-opacity"
+                            title={`${b.academyName} · ${b.startTime}–${b.endTime}`}
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          inner
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
 
-                  const rowSpan = Math.min(cell.spanRows, TOTAL_ROWS - rowIdx)
-                  const slotDate = dateForDay(weekStart, cell.dayKey)
-                  const progress = slotDate ? slotProgress[`${cell.academyId}|${slotDate}`] : undefined
-                  const allDone = !!progress && progress.total > 0 && progress.done === progress.total
-                  const isDark = textOn(cell.color) === 'white'
-                  const inner = (
-                    <div
-                      className={cn(
-                        'w-full h-full px-1.5 py-1 text-[13px] font-bold overflow-hidden leading-tight flex flex-col gap-0.5 rounded-md',
-                        isDark ? 'text-white' : 'text-black',
-                      )}
-                      style={{ backgroundColor: cell.color }}
-                    >
-                      <div className="truncate">{cell.academyName}</div>
-                      {/* lg: 시간 범위 — 블록 안에 공간 있을 때(2슬롯 60분 이상)만 표시 */}
-                      {rowSpan >= 2 && (
-                        <div className={cn(
-                          'hidden lg:block text-[11px] tabular-nums font-semibold leading-none',
-                          isDark ? 'opacity-80' : 'opacity-70',
-                        )}>
-                          {cell.startTime}–{cell.endTime}
-                        </div>
-                      )}
-                      {progress && progress.total > 0 && (
-                        <div
-                          className={cn(
-                            'inline-flex items-center gap-1 self-start px-1.5 py-0 rounded-full text-[10px] tabular-nums font-bold',
-                            allDone
-                              ? (isDark ? 'bg-white text-good' : 'bg-good text-white')
-                              : progress.done === 0
-                                ? (isDark ? 'bg-white/25 text-white' : 'bg-black/15 text-black')
-                                : (isDark ? 'bg-white/85 text-foreground' : 'bg-black/80 text-white'),
-                          )}
-                        >
-                          {allDone && <Check className="h-2.5 w-2.5" aria-hidden />}
-                          {progress.done}/{progress.total}
-                        </div>
-                      )}
-                    </div>
-                  )
-
-                  return (
-                    <td
-                      key={dayKey}
-                      rowSpan={rowSpan}
-                      // relative + p-0: 블록을 absolute로 채워 행 높이에 영향 0 → 모든 행 균일(32px).
-                      className={cn('border-t border-l border-foreground/5 relative p-0', todayBg)}
-                    >
-                      {slotDate ? (
-                        <Link
-                          href={`/academies/${cell.academyId}?date=${slotDate}`}
-                          prefetch
-                          className="absolute inset-[2px] hover:opacity-90 transition-opacity"
-                          title={`${cell.academyName} · ${slotDate}`}
-                        >
-                          {inner}
-                        </Link>
-                      ) : (
-                        <div className="absolute inset-[2px]">{inner}</div>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div
-          ref={indicatorRef}
-          aria-hidden
-          className="absolute pointer-events-none z-10 left-10 sm:left-12 right-0"
-          style={{ top: '0px', display: 'none' }}
-        >
-          <div className="relative h-[2px] bg-destructive/80">
-            <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-destructive" />
+            {/* 현재시각 인디케이터 — 블록과 동일 좌표계(yOf) */}
+            <div
+              ref={indicatorRef}
+              aria-hidden
+              className="absolute inset-x-0 pointer-events-none z-10"
+              style={{ top: '0px', display: 'none' }}
+            >
+              <div className="relative h-[2px] bg-destructive/80">
+                <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-destructive" />
+              </div>
+            </div>
           </div>
-        </div>
         </div>
       </Card>
     </div>
