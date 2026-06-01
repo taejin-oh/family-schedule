@@ -164,11 +164,16 @@ export function Timetable({
         return
       }
 
+      // 하드코딩 행높이 대신 실제 DOM 행 위치로 보간 — 행 높이가 미세하게 달라도
+      // (가로/세로, 블록 셀 등) 그리드 라인·시간 라벨과 항상 정확히 정렬된다.
       const wrapperRect = wrapper.getBoundingClientRect()
-      const tbodyRect = tbody.getBoundingClientRect()
-      const tbodyTop = tbodyRect.top - wrapperRect.top
-      // Each row is h-8 = 32px, covering 30 minutes.
-      indicator.style.top = `${tbodyTop + (minutesFromStart / 30) * 32}px`
+      const rows = tbody.querySelectorAll('tr')
+      const rowIdx = Math.floor(minutesFromStart / 30)
+      const row = rows[rowIdx]
+      if (!row) { indicator.style.display = 'none'; return }
+      const rowRect = row.getBoundingClientRect()
+      const frac = (minutesFromStart % 30) / 30   // 행 안에서의 분 비율
+      indicator.style.top = `${(rowRect.top - wrapperRect.top) + frac * rowRect.height}px`
       indicator.style.display = ''
     }
     compute()
@@ -313,13 +318,10 @@ export function Timetable({
                   const inner = (
                     <div
                       className={cn(
-                        'w-full h-full px-1.5 py-1.5 text-[13px] font-bold overflow-hidden leading-tight flex flex-col gap-1 rounded-md',
+                        'w-full h-full px-1.5 py-1 text-[13px] font-bold overflow-hidden leading-tight flex flex-col gap-0.5 rounded-md',
                         isDark ? 'text-white' : 'text-black',
                       )}
-                      style={{
-                        backgroundColor: cell.color,
-                        minHeight: `${rowSpan * 32}px`,
-                      }}
+                      style={{ backgroundColor: cell.color }}
                     >
                       <div className="truncate">{cell.academyName}</div>
                       {/* lg: 시간 범위 — 블록 안에 공간 있을 때(2슬롯 60분 이상)만 표시 */}
@@ -353,19 +355,20 @@ export function Timetable({
                     <td
                       key={dayKey}
                       rowSpan={rowSpan}
-                      className={cn('border-t border-l border-foreground/5 align-top p-0.5', todayBg)}
+                      // relative + p-0: 블록을 absolute로 채워 행 높이에 영향 0 → 모든 행 균일(32px).
+                      className={cn('border-t border-l border-foreground/5 relative p-0', todayBg)}
                     >
                       {slotDate ? (
                         <Link
                           href={`/academies/${cell.academyId}?date=${slotDate}`}
                           prefetch
-                          className="block h-full hover:opacity-90 transition-opacity"
+                          className="absolute inset-[2px] hover:opacity-90 transition-opacity"
                           title={`${cell.academyName} · ${slotDate}`}
                         >
                           {inner}
                         </Link>
                       ) : (
-                        inner
+                        <div className="absolute inset-[2px]">{inner}</div>
                       )}
                     </td>
                   )
