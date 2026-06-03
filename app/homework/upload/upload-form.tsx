@@ -25,6 +25,7 @@ type BatchSummary = {
   userHint: string | null
   failureReason: string | null
   photoCount: number
+  firstPhotoId: number | null
   firstPhotoPath: string | null
   firstPhotoName: string | null
   isPdf: boolean
@@ -40,7 +41,7 @@ type ReuseSource = {
   academyId: number
   capturedAt: Date
   userHint: string | null
-  photos: { path: string; isPdf: boolean; name: string | null }[]
+  photos: { id: number; path: string; isPdf: boolean; name: string | null }[]
 }
 
 const STATUS_LABEL: Record<BatchSummary['status'], string> = {
@@ -489,8 +490,18 @@ export function UploadForm({
             <Label>재사용할 파일 ({reuse.photos.length}개)</Label>
             <ul className="bg-muted rounded-xl p-3 text-xs space-y-1">
               {reuse.photos.map((p, i) => (
-                <li key={p.path} className="truncate" title={p.name ?? undefined}>
-                  {p.isPdf ? '📄' : '🖼️'} {p.name?.trim() || `파일 ${i + 1}`}
+                <li key={p.path}>
+                  <a
+                    href={`/api/photo?id=${p.id}&variant=orig`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 truncate hover:text-foreground transition-colors"
+                    title={`${p.name?.trim() || `파일 ${i + 1}`} · 원본 열기 ↗`}
+                  >
+                    <span>{p.isPdf ? '📄' : '🖼️'}</span>
+                    <span className="truncate">{p.name?.trim() || `파일 ${i + 1}`}</span>
+                    <span className="ml-auto text-muted-foreground shrink-0">↗</span>
+                  </a>
                 </li>
               ))}
             </ul>

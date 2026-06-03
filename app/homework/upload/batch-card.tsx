@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { X } from 'lucide-react'
+import { X, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type BatchCardData = {
@@ -10,6 +10,7 @@ export type BatchCardData = {
   status: 'pending' | 'processing' | 'ready' | 'committed' | 'failed'
   isPdf: boolean
   photoCount: number
+  firstPhotoId: number | null
   firstPhotoName: string | null
   itemCount: number
   userHint: string | null
@@ -78,12 +79,40 @@ export function BatchCard({
 }) {
   const arch = archiveLabel(batch)
   const due = dueRangeLabel(batch)
+  // 업로드 원본을 클릭해서 바로 보기 (기존/미래 모두 — 파일은 디스크에 있음).
+  // 사진이 정리(삭제)된 batch는 원본이 없으니 썸네일 생략.
+  const canView = batch.firstPhotoId != null && !batch.photosCleanedAt
+  const origHref = batch.firstPhotoId != null ? `/api/photo?id=${batch.firstPhotoId}&variant=orig` : null
 
   return (
-    <div className="relative group">
+    <div className="relative group flex items-stretch gap-2">
+      {canView && origHref && (
+        <a
+          href={origHref}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 self-center"
+          title="원본 보기 ↗"
+        >
+          {batch.isPdf ? (
+            <div className="w-14 h-14 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
+              <FileText className="h-6 w-6" aria-hidden />
+            </div>
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={`/api/photo?id=${batch.firstPhotoId}`}
+              alt={batch.firstPhotoName ?? '업로드 원본'}
+              loading="lazy"
+              decoding="async"
+              className="w-14 h-14 object-cover rounded-lg ring-1 ring-foreground/10"
+            />
+          )}
+        </a>
+      )}
       <Link
         href={`/homework/upload?reuse=${batch.id}`}
-        className="block p-3 pr-9 rounded-xl bg-muted hover:bg-accent transition-colors text-xs space-y-1"
+        className="flex-1 min-w-0 block p-3 pr-9 rounded-xl bg-muted hover:bg-accent transition-colors text-xs space-y-1"
         title="이 파일로 다시 분석"
       >
         <div className="flex items-center justify-between gap-2">

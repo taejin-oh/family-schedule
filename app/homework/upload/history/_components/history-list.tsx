@@ -13,6 +13,7 @@ type BatchSummary = {
   userHint: string | null
   failureReason: string | null
   photoCount: number
+  firstPhotoId: number | null
   firstPhotoPath: string | null
   firstPhotoName: string | null
   isPdf: boolean

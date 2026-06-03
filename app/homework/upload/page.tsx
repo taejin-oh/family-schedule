@@ -49,7 +49,7 @@ export default async function UploadPage({
   }
 
   // If reuse mode, fetch the source batch + its analysis history
-  let reuse: { batchId: number; academyId: number; photos: { path: string; isPdf: boolean; name: string | null }[]; userHint: string | null; capturedAt: Date } | null = null
+  let reuse: { batchId: number; academyId: number; photos: { id: number; path: string; isPdf: boolean; name: string | null }[]; userHint: string | null; capturedAt: Date } | null = null
   let related: Awaited<ReturnType<typeof listRelatedBatches>> = []
   if (reuseId !== null) {
     const batch = getDb().select().from(schema.homeworkBatches).where(eq(schema.homeworkBatches.id, reuseId)).get()
@@ -60,7 +60,7 @@ export default async function UploadPage({
       academyId: batch.academyId,
       capturedAt: batch.capturedAt,
       userHint: batch.userHint,
-      photos: photos.map((p) => ({ path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf'), name: p.originalName })),
+      photos: photos.map((p) => ({ id: p.id, path: p.resizedPath, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf'), name: p.originalName })),
     }
     related = await listRelatedBatches(reuseId)
   }
