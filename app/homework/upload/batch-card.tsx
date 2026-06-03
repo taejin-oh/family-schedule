@@ -10,6 +10,7 @@ export type BatchCardData = {
   status: 'pending' | 'processing' | 'ready' | 'committed' | 'failed'
   isPdf: boolean
   photoCount: number
+  firstPhotoName: string | null
   itemCount: number
   userHint: string | null
   minDue: string | null
@@ -106,8 +107,11 @@ export function BatchCard({
             {due}
           </div>
         )}
-        <div className="text-muted-foreground text-[11px]">
-          {batch.isPdf ? '📄' : '🖼️'} 파일 {batch.photoCount}개
+        <div className="text-muted-foreground text-[11px] truncate" title={batch.firstPhotoName ?? undefined}>
+          {batch.isPdf ? '📄' : '🖼️'}{' '}
+          {batch.firstPhotoName
+            ? <>{batch.firstPhotoName}{batch.photoCount > 1 && ` 외 ${batch.photoCount - 1}개`}</>
+            : `파일 ${batch.photoCount}개`}
         </div>
         {batch.userHint && (
           <div className="text-muted-foreground line-clamp-1 italic">

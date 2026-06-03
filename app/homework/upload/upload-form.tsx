@@ -26,6 +26,7 @@ type BatchSummary = {
   failureReason: string | null
   photoCount: number
   firstPhotoPath: string | null
+  firstPhotoName: string | null
   isPdf: boolean
   itemCount: number
   minDue: string | null
@@ -39,7 +40,7 @@ type ReuseSource = {
   academyId: number
   capturedAt: Date
   userHint: string | null
-  photos: { path: string; isPdf: boolean }[]
+  photos: { path: string; isPdf: boolean; name: string | null }[]
 }
 
 const STATUS_LABEL: Record<BatchSummary['status'], string> = {
@@ -488,8 +489,8 @@ export function UploadForm({
             <Label>재사용할 파일 ({reuse.photos.length}개)</Label>
             <ul className="bg-muted rounded-xl p-3 text-xs space-y-1">
               {reuse.photos.map((p, i) => (
-                <li key={p.path} className="truncate">
-                  {p.isPdf ? '📄' : '🖼️'} 파일 {i + 1} <span className="text-muted-foreground">({p.path.split('/').pop()})</span>
+                <li key={p.path} className="truncate" title={p.name ?? undefined}>
+                  {p.isPdf ? '📄' : '🖼️'} {p.name?.trim() || `파일 ${i + 1}`}
                 </li>
               ))}
             </ul>

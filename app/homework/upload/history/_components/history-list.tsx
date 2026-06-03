@@ -14,6 +14,7 @@ type BatchSummary = {
   failureReason: string | null
   photoCount: number
   firstPhotoPath: string | null
+  firstPhotoName: string | null
   isPdf: boolean
   itemCount: number
   minDue: string | null

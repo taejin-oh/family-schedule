@@ -1,0 +1,1 @@
+ALTER TABLE `homework_photos` ADD `original_name` text;

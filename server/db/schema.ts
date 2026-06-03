@@ -52,6 +52,9 @@ export const homeworkPhotos = sqliteTable('homework_photos', {
   width: integer('width').notNull(),
   height: integer('height').notNull(),
   bytes: integer('bytes').notNull(),
+  // 업로드 당시 사용자 파일명 (예: IMG_1234.HEIC, 알림장.pdf). 어느 업로드인지 식별용.
+  // 기존 데이터는 null → UI에서 "사진 N" 폴백.
+  originalName: text('original_name'),
 })
 
 export const homeworkItems = sqliteTable('homework_items', {

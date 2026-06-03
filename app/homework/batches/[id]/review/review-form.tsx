@@ -28,7 +28,7 @@ type Item = {
   sourcePhotoId?: number | null
   similar?: SimilarMatch | null
 }
-type Photo = { id: number; isPdf: boolean }
+type Photo = { id: number; isPdf: boolean; name?: string | null }
 
 export function ReviewForm({
   batchId, todayIso, initial, photos, currentHint, isReadOnly = false,
@@ -322,11 +322,11 @@ export function ReviewForm({
                       {/* Source thumbnail (only for image photos — PDFs get an icon) */}
                       {photo && (
                         <a
-                          href={`/api/photo?id=${photo.id}`}
+                          href={`/api/photo?id=${photo.id}&variant=orig`}
                           target="_blank"
                           rel="noreferrer"
                           className="shrink-0"
-                          title={photo.isPdf ? 'PDF 원본 열기' : '원본 사진 보기'}
+                          title={`${photo.name?.trim() || (photo.isPdf ? 'PDF' : '사진')} · 원본 열기`}
                         >
                           {photo.isPdf ? (
                             <div className="w-16 h-16 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
@@ -336,7 +336,7 @@ export function ReviewForm({
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
                               src={`/api/photo?id=${photo.id}`}
-                              alt="원본 사진"
+                              alt={photo.name?.trim() || '원본 사진'}
                               loading="lazy"
                               decoding="async"
                               className="w-16 h-16 object-cover rounded-lg ring-1 ring-foreground/10"
@@ -489,36 +489,34 @@ export function ReviewForm({
         </h2>
         <div className="space-y-2">
           {photos.map((p, i) => {
-            const href = `/api/photo?id=${p.id}`
+            // 클릭 시 업로드 원본을 직접 열기 (variant=orig). 썸네일은 가벼운 resized 사용.
+            const origHref = `/api/photo?id=${p.id}&variant=orig`
+            const thumbHref = `/api/photo?id=${p.id}`
+            const label = p.name?.trim() || (p.isPdf ? `PDF ${i + 1}` : `사진 ${i + 1}`)
             if (p.isPdf) {
               return (
-                <a
-                  key={p.id}
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block"
-                >
+                <a key={p.id} href={origHref} target="_blank" rel="noreferrer" className="block">
                   <Card className="p-3 gap-2 hover:bg-accent/40 transition-colors">
                     <div className="flex items-center gap-2 text-sm">
                       <FileText className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
-                      <span className="font-medium">PDF {i + 1}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">열기 ↗</span>
+                      <span className="font-medium truncate" title={label}>{label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground shrink-0">열기 ↗</span>
                     </div>
                   </Card>
                 </a>
               )
             }
             return (
-              <a key={p.id} href={href} target="_blank" rel="noreferrer" className="block">
+              <a key={p.id} href={origHref} target="_blank" rel="noreferrer" className="block space-y-1" title={`${label} · 원본 열기`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={href}
-                  alt={`사진 ${i + 1}`}
+                  src={thumbHref}
+                  alt={label}
                   loading="lazy"
                   decoding="async"
                   className="w-full rounded-xl ring-1 ring-foreground/10"
                 />
+                <div className="text-xs text-muted-foreground truncate px-1" title={label}>{label}</div>
               </a>
             )
           })}

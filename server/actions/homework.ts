@@ -116,6 +116,7 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
         width: resized.width,
         height: resized.height,
         bytes: orig.bytes,
+        originalName: f.name?.trim() || null,   // 업로드 당시 실제 파일명
       }).run()
     }
 
@@ -452,15 +453,17 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
     batchId: appSchema.homeworkPhotos.batchId,
     resizedPath: appSchema.homeworkPhotos.resizedPath,
     originalPath: appSchema.homeworkPhotos.originalPath,
+    originalName: appSchema.homeworkPhotos.originalName,
   }).from(appSchema.homeworkPhotos).where(inArray(appSchema.homeworkPhotos.batchId, ids)).all()
 
-  const byBatch = new Map<number, { count: number; firstPath: string | null; isPdf: boolean }>()
+  const byBatch = new Map<number, { count: number; firstPath: string | null; firstName: string | null; isPdf: boolean }>()
   for (const p of photos) {
     const cur = byBatch.get(p.batchId)
     if (!cur) {
       byBatch.set(p.batchId, {
         count: 1,
         firstPath: p.resizedPath,
+        firstName: p.originalName,
         isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') || p.originalPath.toLowerCase().endsWith('.pdf'),
       })
     } else {
@@ -484,6 +487,7 @@ export async function listRecentBatches(opts: { limit?: number } = {}, ctx: Ctx 
       ...b,
       photoCount: byBatch.get(b.id)?.count ?? 0,
       firstPhotoPath: byBatch.get(b.id)?.firstPath ?? null,
+      firstPhotoName: byBatch.get(b.id)?.firstName ?? null,
       isPdf: byBatch.get(b.id)?.isPdf ?? false,
       itemCount: agg ? Number(agg.cnt) : 0,
       minDue: agg?.minDue ?? null,

@@ -30,11 +30,40 @@ function jaccard(a: string[], b: string[]): number {
 type ExistingItem = {
   id: number
   title: string
+  notes: string | null
   dueDate: string | null
   doneAt: Date | null
 }
 
-function findSimilar(draftTitle: string, draftDueDate: string | null, existing: ExistingItem[]): {
+/**
+ * 항목의 교재(책) 시그니처 추출. AI가 notes에 "교재: <책이름>. ..." 형식으로 넣는다.
+ * 못 찾으면 null → 책을 알 수 없으므로 책 게이트를 적용하지 않는다.
+ */
+function extractBook(notes: string | null): string | null {
+  if (!notes) return null
+  // "교재: Debate Pro Junior 1. ..." / "교재：..." → 책 이름 (첫 마침표/중점/줄바꿈 전까지)
+  const m = notes.match(/교재\s*[:：]\s*([^.\n·]+)/)
+  if (m && m[1].trim()) return m[1].trim()
+  // "myON: ...", "Write Right 3 - ..." 처럼 앞쪽 라벨형 책 이름
+  const m2 = notes.match(/^\s*([A-Za-z][\w'’ -]{1,40}?)\s*[:：]/)
+  if (m2 && m2[1].trim()) return m2[1].trim()
+  return null
+}
+
+/** 두 책이 같은 책인지. 한쪽이라도 책을 모르면(null) 게이트하지 않고 true. */
+function sameBook(a: string | null, b: string | null): boolean {
+  if (!a || !b) return true
+  const ta = tokenize(a), tb = tokenize(b)
+  if (ta.length === 0 || tb.length === 0) return true
+  return jaccard(ta, tb) >= 0.5   // 책 토큰 절반 이상 겹치면 같은 책
+}
+
+function findSimilar(
+  draftTitle: string,
+  draftNotes: string | null,
+  draftDueDate: string | null,
+  existing: ExistingItem[],
+): {
   title: string
   dueDate: string | null
   doneAt: Date | null
@@ -42,8 +71,11 @@ function findSimilar(draftTitle: string, draftDueDate: string | null, existing: 
 } | null {
   const draftTokens = tokenize(draftTitle)
   if (draftTokens.length === 0) return null
+  const draftBook = extractBook(draftNotes)
   let best: { item: ExistingItem; score: number } | null = null
   for (const e of existing) {
+    // 책이 다르면 다른 숙제로 간주 — 유사 후보에서 제외 (제목만 비슷해도 무시).
+    if (!sameBook(draftBook, extractBook(e.notes))) continue
     let score = jaccard(draftTokens, tokenize(e.title))
     // Small boost if dueDate also matches
     if (draftDueDate && draftDueDate === e.dueDate) score += 0.15
@@ -85,6 +117,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     .select({
       id: schema.homeworkItems.id,
       title: schema.homeworkItems.title,
+      notes: schema.homeworkItems.notes,
       dueDate: schema.homeworkItems.dueDate,
       doneAt: schema.homeworkItems.doneAt,
     })
@@ -136,9 +169,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
           confidence: it.confidence ?? null,
           confidenceReason: it.confidenceReason ?? null,
           sourcePhotoId: (it.sourcePhotoId != null && photoIds.has(it.sourcePhotoId)) ? it.sourcePhotoId : null,
-          similar: findSimilar(it.title, it.dueDate, existingCommitted),
+          similar: findSimilar(it.title, it.notes, it.dueDate, existingCommitted),
         }))}
-        photos={photos.map((p) => ({ id: p.id, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf') }))}
+        photos={photos.map((p) => ({ id: p.id, isPdf: p.resizedPath.toLowerCase().endsWith('.pdf'), name: p.originalName }))}
         currentHint={batch.userHint}
         isReadOnly={isReadOnly}
       />
