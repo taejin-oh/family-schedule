@@ -21,6 +21,10 @@ function getWeekBounds() {
   }
 }
 
+// "오늘" 열 강조 + 이번 주 범위가 new Date()에 의존. 정적 프리렌더되면 빌드 날짜로
+// 고정되므로 force-dynamic으로 매 요청 현재 날짜 기준 재렌더.
+export const dynamic = 'force-dynamic'
+
 export default async function TimetablePage() {
   const academies = await listAcademies()
   const { mondayIso, nextMondayIso, monday } = getWeekBounds()

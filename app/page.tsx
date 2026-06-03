@@ -22,6 +22,11 @@ function weekdayLabel(iso: string): string {
   return `${DAY_KO[new Date(y, m - 1, d).getDay()]}요일`
 }
 
+// 이 페이지는 "오늘" 날짜 + 라이브 DB(better-sqlite3)에 의존한다. better-sqlite3 읽기는
+// fetch가 아니라 Next가 동적으로 감지 못 해 정적 프리렌더 → localDateIso()가 빌드 날짜로
+// 고정되는 버그가 있었다. force-dynamic으로 매 요청마다 현재 날짜로 재렌더한다.
+export const dynamic = 'force-dynamic'
+
 export default async function KidsHome() {
   const todayIso = localDateIso()
 
