@@ -149,9 +149,11 @@ export function ReviewForm({
     router.push('/homework/batches/' + res.data.batchId)
   }
 
+  // grid-cols-1 명시 필수: bare `grid`는 모바일에서 컬럼이 auto(max-content)라
+  // 긴 제목/메모가 컬럼을 부풀려 화면이 잘림. grid-cols-1=minmax(0,1fr)로 폭 제약.
   return (
-    <div className="grid md:grid-cols-3 gap-4">
-      <div className="md:col-span-2 space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="md:col-span-2 min-w-0 space-y-4">
         {isReadOnly && (
           <div className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
             🔒 이미 확정된 batch입니다. 항목은 읽기 전용 — 변경하려면 「다시 추출하기」로 새 batch를 만들어주세요.
