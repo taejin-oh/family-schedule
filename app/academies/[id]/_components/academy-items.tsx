@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
-import { deferHomework, deleteHomeworkItem } from '@/server/actions/homework'
+import { deferHomework, deleteHomeworkItem, toggleItemDone } from '@/server/actions/homework'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
@@ -112,6 +112,15 @@ function ActiveRow({ item, todayIso }: { item: Item; todayIso: string }) {
     await deferHomework(item.id, newDate)
     router.refresh()
   }
+  async function handleComplete() {
+    setHidden(true)
+    try {
+      await toggleItemDone(item.id, true)
+      router.refresh()
+    } catch {
+      setHidden(false)
+    }
+  }
   async function handleDelete() {
     setHidden(true)
     toast.show({
@@ -163,7 +172,18 @@ function ActiveRow({ item, todayIso }: { item: Item; todayIso: string }) {
         onDefer={handleDefer}
         onDelete={handleDelete}
       >
-        <div className="p-3 pr-12 flex items-start gap-3">{body}</div>
+        <button
+          type="button"
+          onClick={handleComplete}
+          aria-label={`"${item.title}" 완료`}
+          className="w-full text-left p-3 pr-12 flex items-start gap-3 hover:bg-accent/40 active:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span
+            className="mt-0.5 w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 flex-shrink-0"
+            aria-hidden
+          />
+          {body}
+        </button>
       </ItemActionsMenu>
       <EditHomeworkDialog
         open={editOpen}
@@ -184,19 +204,25 @@ export function ActiveAcademyItems({
   items: Item[]
   todayIso: string
 }) {
-  if (items.length === 0) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground text-center rounded-xl ring-1 ring-foreground/10 bg-card">
-        진행 중인 숙제가 없습니다.
-      </div>
-    )
-  }
   return (
-    <div className="rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden divide-y">
-      {items.map((it) => (
-        <ActiveRow key={it.id} item={it} todayIso={todayIso} />
-      ))}
-    </div>
+    <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
+      <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
+        <span className="flex items-center gap-2">📚 진행 중인 숙제 ({items.length})</span>
+        <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+        <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+      </summary>
+      <div className="border-t">
+        {items.length === 0 ? (
+          <div className="p-4 text-sm text-muted-foreground text-center">진행 중인 숙제가 없습니다.</div>
+        ) : (
+          <div className="divide-y">
+            {items.map((it) => (
+              <ActiveRow key={it.id} item={it} todayIso={todayIso} />
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   )
 }
 
@@ -214,6 +240,15 @@ function DoneRow({ item, now }: { item: Item; now: number }) {
   async function handleDefer(newDate: string) {
     await deferHomework(item.id, newDate)
     router.refresh()
+  }
+  async function handleRestore() {
+    setHidden(true)
+    try {
+      await toggleItemDone(item.id, false)
+      router.refresh()
+    } catch {
+      setHidden(false)
+    }
   }
   async function handleDelete() {
     setHidden(true)
@@ -264,7 +299,20 @@ function DoneRow({ item, now }: { item: Item; now: number }) {
         onDefer={handleDefer}
         onDelete={handleDelete}
       >
-        <div className="p-3 pr-12 flex items-start gap-3 opacity-60">{body}</div>
+        <button
+          type="button"
+          onClick={handleRestore}
+          aria-label={`"${item.title}" 완료 취소`}
+          className="w-full text-left p-3 pr-12 flex items-start gap-3 opacity-60 hover:opacity-100 hover:bg-accent/40 active:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span
+            className="mt-0.5 w-[22px] h-[22px] rounded-full bg-good flex items-center justify-center flex-shrink-0"
+            aria-hidden
+          >
+            <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+          </span>
+          {body}
+        </button>
       </ItemActionsMenu>
       <EditHomeworkDialog
         open={editOpen}

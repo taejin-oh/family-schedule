@@ -139,12 +139,7 @@ export default async function AcademyDetailPage({
         + 이 학원 숙제 추가
       </Link>
 
-      <section className="space-y-2">
-        <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
-          📚 진행 중인 숙제 · {active.length}
-        </h2>
-        <ActiveAcademyItems items={active} todayIso={todayIso} />
-      </section>
+      <ActiveAcademyItems items={active} todayIso={todayIso} />
 
       {/* Completed homework — collapsible, with undo */}
       {/* eslint-disable-next-line react-hooks/purity -- server component renders per-request; Date.now() is intentional */}
