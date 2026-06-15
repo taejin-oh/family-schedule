@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { TABS, currentTabIndex } from '@/lib/tabs'
 
-// TABS 순서 가정에 의존하므로, 깨지면 즉시 알 수 있도록 명시적으로 잠가둠.
-const HOME_IDX = TABS.findIndex((t) => t.href === '/')
-
 describe('currentTabIndex', () => {
   it('정확 매칭 — 각 TAB href는 자기 자신의 index를 반환', () => {
     TABS.forEach((t, i) => {
@@ -28,11 +25,11 @@ describe('currentTabIndex', () => {
     expect(currentTabIndex('/homework/batches/1')).toBe(-1)
   })
 
-  it('/dashboard alias — 홈 인덱스로 매핑되어 swipe가 동작', () => {
-    // 모바일에서 / → "관리" → /dashboard 진입 후 좌우 swipe로 인접 탭 이동을
-    // 가능하게 하기 위한 alias. -1이면 swipe-nav가 스와이프를 무효 처리하므로
-    // 반드시 유효 인덱스를 반환해야 함.
-    expect(currentTabIndex('/dashboard')).toBe(HOME_IDX)
+  it('/dashboard 는 이제 홈(/)으로 리다이렉트 — 탭이 아니므로 -1', () => {
+    // 부모 관리(할 일)가 홈(/)으로 이동하면서 /dashboard 는 redirect-only가 됐다.
+    // 더 이상 swipe 대상 탭이 아니므로 alias 없이 -1을 반환한다.
+    // (아이홈은 이제 /kids 정식 탭 — 위 '정확 매칭' 테스트가 커버.)
+    expect(currentTabIndex('/dashboard')).toBe(-1)
   })
 
   it('매칭되지 않는 경로는 -1', () => {

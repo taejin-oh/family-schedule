@@ -10,8 +10,8 @@ import { localDateIso } from '@/server/util/date'
 import { logServerEvent } from '@/server/log/server-event'
 
 function revalidateAcademyPages() {
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/academies', 'layout')
   revalidatePath('/timetable')
 }

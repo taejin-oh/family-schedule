@@ -1,360 +1,772 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
-import { Check, ArrowRight } from 'lucide-react'
-import { listTodoByDueWithin, listTodoByDueBetween, listDoneToday, toggleItemDone } from '@/server/actions/homework'
-import { listTodayRecurring, listThisWeekRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
-import { getStickerState, redeem, getWeeklyAttendance } from '@/server/actions/stickers'
-import { getEmptyStates } from '@/server/actions/empty-states'
-import { pickEmptyState } from '@/lib/empty-states'
-import { EmptyStateTracker } from '@/components/empty-state-tracker'
+import { Check } from 'lucide-react'
+import { listCommittedItems, listDoneToday, listDoneThisWeek, toggleItemDone } from '@/server/actions/homework'
+import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { listAcademies } from '@/server/actions/academies'
+import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
-import { KidsTodoCard } from '@/app/_components/kids-todo-card'
-import { KidsDoneCard } from '@/app/_components/kids-done-card'
-import { KidsRecurringTodoCard, KidsRecurringDoneCard } from '@/app/_components/kids-recurring-card'
-import { StickersRow } from '@/app/_components/stickers-row'
-import { AttendanceBoard } from '@/app/_components/attendance-board'
+import { HomeworkItem } from '@/app/_components/dashboard-item'
+import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
+import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
+import { FilterChipGroup } from './dashboard/_components/filter-chip'
+import { logServerEvent } from '@/server/log/server-event'
 
-const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
-
-function weekdayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number)
-  return `${DAY_KO[new Date(y, m - 1, d).getDay()]}요일`
-}
-
-// 이 페이지는 "오늘" 날짜 + 라이브 DB(better-sqlite3)에 의존한다. better-sqlite3 읽기는
-// fetch가 아니라 Next가 동적으로 감지 못 해 정적 프리렌더 → localDateIso()가 빌드 날짜로
-// 고정되는 버그가 있었다. force-dynamic으로 매 요청마다 현재 날짜로 재렌더한다.
+// 홈(부모 관리)은 "오늘" 날짜 + 라이브 DB에 의존. better-sqlite3 읽기는 fetch가
+// 아니라 Next가 정적 프리렌더 → localDateIso()가 빌드 날짜로 고정되는 버그가 있다.
+// force-dynamic으로 매 요청마다 현재 날짜로 재렌더한다. (아이홈/kids와 동일.)
 export const dynamic = 'force-dynamic'
 
-export default async function KidsHome() {
-  const todayIso = localDateIso()
+type ActiveItem = Awaited<ReturnType<typeof listCommittedItems>>[number]
+type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
+type RecurringItem = {
+  id: number
+  title: string
+  notes: string | null
+  color: string
+  cadence: 'daily' | 'weekly'
+  daysOfWeek?: DayKey[]
+  doneAt: Date | null
+  dateIso: string  // value to send to markRecurringDone (today/tomorrow for daily, anything-in-week for weekly)
+}
 
-  // 아이 홈은 "오늘 = 내일까지(+1)" + "이번 주 남은(+2..일요일)" 두 작은 결과셋만 필요.
-  // 학원 누적될수록 listCommittedItems 전체 fetch가 무거워서 SQL-side 범위 필터로 교체.
-  const todayDate = new Date(todayIso + 'T00:00:00')
-  const dow = todayDate.getDay()
-  const daysUntilThisSunday = (7 - dow) % 7  // today=Sunday → 0
+type BucketKey = 'overdue' | 'today' | 'tomorrow' | 'thisweek' | 'nextweek' | 'later' | 'nodate'
+type FilterKey = 'all' | 'today' | 'tomorrow' | 'thisweek' | 'nextweek'
 
-  const sunday = new Date(todayDate)
-  sunday.setDate(sunday.getDate() + daysUntilThisSunday)
-  const sundayIso = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
-  const dayAfterTomorrow = new Date(todayDate)
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2)
-  const datIso = `${dayAfterTomorrow.getFullYear()}-${String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0')}-${String(dayAfterTomorrow.getDate()).padStart(2, '0')}`
+const BUCKET_META: Record<BucketKey, { label: string; tone?: 'destructive' | 'today' }> = {
+  overdue:  { label: '지났음', tone: 'destructive' },
+  today:    { label: '오늘',   tone: 'today' },
+  tomorrow: { label: '내일' },
+  thisweek: { label: '이번 주' },
+  nextweek: { label: '다음 주 숙제' },
+  later:    { label: '이후' },
+  nodate:   { label: '기한 없음' },
+}
 
-  // 큰 Promise.all([...]) 7개는 TS tuple inference 한계라 두 그룹으로 나눔.
-  // sqlite는 sync라 어차피 serialized — 분리해도 latency 동일.
-  const upcomingPromise = daysUntilThisSunday >= 2
-    ? listTodoByDueBetween(datIso, sundayIso)
-    : Promise.resolve<Awaited<ReturnType<typeof listTodoByDueBetween>>>([])
+function diffDays(due: string, todayIso: string): number {
+  const t = new Date(todayIso + 'T00:00:00')
+  const d = new Date(due + 'T00:00:00')
+  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
+}
 
-  const [todayList, upcoming] = await Promise.all([
-    listTodoByDueWithin(todayIso, 1),  // overdue + 오늘 + 내일
-    upcomingPromise,                   // 모레~일요일
-  ])
-  const [doneToday, todayRec, weekRec, sticker, emptyStates, attendance] = await Promise.all([
-    listDoneToday(),
-    listTodayRecurring(),
-    listThisWeekRecurring(),
-    getStickerState(),
-    getEmptyStates(),
-    getWeeklyAttendance(),
-  ])
+function bucketOf(item: ActiveItem, todayIso: string): BucketKey {
+  if (!item.dueDate) return 'nodate'
+  const dd = diffDays(item.dueDate, todayIso)
+  if (dd < 0) return 'overdue'
+  if (dd === 0) return 'today'
+  if (dd === 1) return 'tomorrow'
+  // Calendar-based week boundaries (Sunday = last day of week)
+  const today = new Date(todayIso + 'T00:00:00')
+  const dow = today.getDay()  // 0=Sun..6=Sat
+  const daysUntilThisSunday = (7 - dow) % 7
+  if (dd <= daysUntilThisSunday) return 'thisweek'
+  if (dd <= daysUntilThisSunday + 7) return 'nextweek'
+  return 'later'
+}
 
-  // 매일 recurring (오늘 due) — 스티커 평가에 포함
-  const dailyTodayActive = todayRec.filter((r) => r.doneAt === null)
-  const dailyTodayDone = todayRec.filter((r) => r.doneAt !== null)
-
-  // 매주 recurring — 이번 주 단위. 스티커 평가에서 제외, 별도 섹션에 표시
-  const weeklyActive = weekRec.filter((r) => r.doneAt === null)
-  const weeklyDone = weekRec.filter((r) => r.doneAt !== null)
-  const weeklyTotal = weeklyActive.length + weeklyDone.length
-  const upcomingByDay = new Map<string, typeof upcoming>()
-  for (const it of upcoming) {
-    if (!it.dueDate) continue
-    if (!upcomingByDay.has(it.dueDate)) upcomingByDay.set(it.dueDate, [])
-    upcomingByDay.get(it.dueDate)!.push(it)
+function bucketize(items: ActiveItem[], todayIso: string): Record<BucketKey, ActiveItem[]> {
+  const out: Record<BucketKey, ActiveItem[]> = {
+    overdue: [], today: [], tomorrow: [], thisweek: [], nextweek: [], later: [], nodate: [],
   }
-  const upcomingDates = [...upcomingByDay.keys()].sort()
+  for (const it of items) out[bucketOf(it, todayIso)].push(it)
+  return out
+}
 
-  // 진행률 (오늘 단위) — 매주는 별도 섹션, 스티커 평가에서도 제외되므로 여기서도 제외
-  const totalActive = todayList.length + dailyTodayActive.length
-  const totalDone = doneToday.length + dailyTodayDone.length
-  const total = totalActive + totalDone
-  const pct = total === 0 ? 100 : Math.round((totalDone / total) * 100)
+function formatDueLabel(due: string | null, todayIso: string): string | null {
+  if (!due) return null
+  const dd = diffDays(due, todayIso)
+  if (dd < 0) return `${Math.abs(dd)}일 지남`
+  if (dd === 0) return '오늘'
+  if (dd === 1) return '내일'
+  if (dd <= 7) return `${dd}일 후`
+  return due
+}
 
-  // Server actions
+function formatRelative(doneAt: Date, now: number): string {
+  const diffMs = now - doneAt.getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 1) return '방금'
+  if (diffMin < 60) return `${diffMin}분 전`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) {
+    const h = doneAt.getHours()
+    const m = doneAt.getMinutes()
+    const ampm = h < 12 ? '오전' : '오후'
+    const hh = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return `${ampm} ${hh}:${String(m).padStart(2, '0')}`
+  }
+  return `${Math.floor(diffHr / 24)}일 전`
+}
+
+function isFilterKey(s: string | undefined): s is FilterKey {
+  return s === 'today' || s === 'tomorrow' || s === 'thisweek' || s === 'nextweek' || s === 'all'
+}
+
+function FilterChip({
+  label,
+  count,
+  href,
+  active,
+  dot,
+}: {
+  label: string
+  count: number
+  href: string
+  active: boolean
+  dot?: string
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors',
+        active
+          ? 'bg-foreground text-background'
+          : 'bg-card text-foreground/80 hover:bg-accent hover:text-foreground'
+      )}
+    >
+      {dot && (
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: dot }}
+          aria-hidden
+        />
+      )}
+      <span>{label}</span>
+      <span className={cn('text-xs font-normal tabular-nums', active ? 'text-background/80' : 'text-muted-foreground')}>
+        {count}
+      </span>
+    </Link>
+  )
+}
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; academy?: string }>
+}) {
+  const sp = await searchParams
+  const filter: FilterKey = isFilterKey(sp.filter) ? sp.filter : 'all'
+  const academyFilter = sp.academy ? Number(sp.academy) : null
+
+  // 모든 데이터를 항상 fetch — chip count들이 서로 다른 데이터셋을 참조하기 때문에
+  // 조건부 fetch하면 filter 변경에 따라 count가 stale로 보임 (예: "오늘" chip count에
+  // weeklyActive가 들어가는데 filter=today일 때 weekRecurring=[]로 떨어지면 count 줄어듦).
+  // sqlite sync 호출이라 7개 query 합쳐도 ms 단위. 데이터 일관성 우선.
+  // eslint-disable-next-line react-hooks/purity -- server component perf measurement
+  const tFetch0 = performance.now()
+  const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
+    listCommittedItems(),
+    listDoneToday(),
+    listDoneThisWeek(),
+    listTodayRecurring(),
+    listDayRecurring(1),
+    listThisWeekRecurring(),
+    listAcademies(),
+  ])
+  await logServerEvent({
+    category: 'perf',
+    event: 'dashboard.fetch',
+    props: {
+      filter,
+      // eslint-disable-next-line react-hooks/purity -- server component perf measurement
+      ms: Math.round(performance.now() - tFetch0),
+      active: active.length,
+      academies: academies.length,
+    },
+  })
+  const todayIso = localDateIso()
+  const tomorrowIso = tomorrowRecurring[0]?.targetDateIso ?? (() => {
+    const t = new Date(); t.setDate(t.getDate() + 1); return localDateIso(t)
+  })()
+  // eslint-disable-next-line react-hooks/purity -- server component, Date.now() is evaluated per-request
+  const now = Date.now()
+  const buckets = bucketize(active, todayIso)
+
+  // Annotate each recurring item with the date to send to markRecurringDone
+  const todayRecur: RecurringItem[] = todayRecurring.map((r) => ({ ...r, dateIso: todayIso }))
+  const tomorrowRecur: RecurringItem[] = tomorrowRecurring.map((r) => ({ ...r, dateIso: tomorrowIso }))
+  const weekRecur: RecurringItem[] = weekRecurring.map((r) => ({ ...r, dateIso: todayIso }))
+  // Daily inline in bucket sections (today/tomorrow buckets). Weekly NOT inlined here.
+  const recurringActive = todayRecur.filter((r) => r.doneAt === null)
+  const recurringDoneToday = todayRecur.filter((r) => r.doneAt !== null)
+  const tomorrowRecurringActive = tomorrowRecur.filter((r) => r.doneAt === null)
+  // Weekly recurring — shown in its own section (이번 주 할일), active only.
+  const weeklyActive = weekRecur.filter((r) => r.doneAt === null)
+  // Weekly done — shown in its own '완료한 이번 주 할일' section.
+  const weeklyDone = weekRecur.filter((r) => r.doneAt !== null)
+
+  // Server actions for homework
   async function onComplete(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
     await toggleItemDone(id, true)
+    revalidatePath('/kids')
     revalidatePath('/')
-    revalidatePath('/dashboard')
   }
+
   async function onUndo(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
     await toggleItemDone(id, false)
+    revalidatePath('/kids')
     revalidatePath('/')
-    revalidatePath('/dashboard')
-  }
-  async function onRecComplete(formData: FormData) {
-    'use server'
-    const taskId = Number(formData.get('taskId'))
-    const dateIso = String(formData.get('dateIso'))
-    await markRecurringDone(taskId, dateIso)
-    revalidatePath('/')
-    revalidatePath('/dashboard')
-    revalidatePath('/recurring')
-  }
-  async function onRecUndo(formData: FormData) {
-    'use server'
-    const taskId = Number(formData.get('taskId'))
-    const dateIso = String(formData.get('dateIso'))
-    await markRecurringUndone(taskId, dateIso)
-    revalidatePath('/')
-    revalidatePath('/dashboard')
-    revalidatePath('/recurring')
-  }
-  async function onRedeem() {
-    'use server'
-    const res = await redeem()
-    if (!res.ok) throw new Error(res.error)
-    revalidatePath('/')
-    revalidatePath('/admin/settings')
   }
 
-  // v6 헤더용 날짜 라벨
-  const [ty, tm, td] = todayIso.split('-').map(Number)
-  const todayDow = new Date(ty, tm - 1, td).getDay()
-  const todaySub = `${tm}월 ${td}일 · ${DAY_KO[todayDow]}요일`
+  // Server actions for recurring
+  async function onRecurringComplete(formData: FormData) {
+    'use server'
+    const taskId = Number(formData.get('taskId'))
+    const dateIso = formData.get('dateIso')?.toString() ?? localDateIso()
+    await markRecurringDone(taskId, dateIso)
+    revalidatePath('/kids')
+    revalidatePath('/')
+  }
+
+  async function onRecurringUndo(formData: FormData) {
+    'use server'
+    const taskId = Number(formData.get('taskId'))
+    const dateIso = formData.get('dateIso')?.toString() ?? localDateIso()
+    await markRecurringUndone(taskId, dateIso)
+    revalidatePath('/kids')
+    revalidatePath('/')
+  }
+
+  // Academy filter: build list of academies that have active committed items
+  const academiesWithItems = academies.filter((ac) =>
+    active.some((it) => it.academyId === ac.id)
+  )
+  const showAcademyRow = academiesWithItems.length > 1
+
+  // Apply academy filter to buckets
+  const filteredBuckets: Record<BucketKey, ActiveItem[]> = academyFilter
+    ? {
+        overdue:  buckets.overdue.filter((it) => it.academyId === academyFilter),
+        today:    buckets.today.filter((it) => it.academyId === academyFilter),
+        tomorrow: buckets.tomorrow.filter((it) => it.academyId === academyFilter),
+        thisweek: buckets.thisweek.filter((it) => it.academyId === academyFilter),
+        nextweek: buckets.nextweek.filter((it) => it.academyId === academyFilter),
+        later:    buckets.later.filter((it) => it.academyId === academyFilter),
+        nodate:   buckets.nodate.filter((it) => it.academyId === academyFilter),
+      }
+    : buckets
+
+  // Helper to build href preserving the other param.
+  // Targets "/" (this page = 홈/부모 관리).
+  function timeHref(f: string) {
+    const p = new URLSearchParams()
+    if (f !== 'all') p.set('filter', f)
+    if (academyFilter) p.set('academy', String(academyFilter))
+    const qs = p.toString()
+    return qs ? `/?${qs}` : '/'
+  }
+  function academyHref(id: number | null) {
+    const p = new URLSearchParams()
+    if (filter !== 'all') p.set('filter', filter)
+    if (id) p.set('academy', String(id))
+    const qs = p.toString()
+    return qs ? `/?${qs}` : '/'
+  }
+
+  const totalActive = active.length + recurringActive.length
+  const totalDone = doneToday.length + recurringDoneToday.length
+
+  // REMAINING은 화면 상단 필터 범위에 따라 분모/분자를 다르게 계산.
+  // tomorrow / nextweek는 미래 시점이라 완료 섹션 자체가 비표시 → progress bar 숨김.
+  type ProgressScope = 'today' | 'thisweek' | 'all' | null
+  const progressScope: ProgressScope =
+    filter === 'today'    ? 'today'
+  : filter === 'thisweek' ? 'thisweek'
+  : filter === 'all'      ? 'all'
+  :                         null
+
+  const scopeActive =
+    progressScope === 'today'
+      // 사용자 정의 "오늘 = 내일까지 마감" 적용 — overdue + today + tomorrow.
+      ? filteredBuckets.overdue.length + filteredBuckets.today.length + filteredBuckets.tomorrow.length + recurringActive.length
+    : progressScope === 'thisweek'
+      ? filteredBuckets.overdue.length + filteredBuckets.today.length
+        + filteredBuckets.tomorrow.length + filteredBuckets.thisweek.length
+        + recurringActive.length + weeklyActive.length
+    : progressScope === 'all'
+      ? (academyFilter
+          ? Object.values(filteredBuckets).reduce((s, arr) => s + arr.length, 0)
+          : active.length)
+        + recurringActive.length + weeklyActive.length
+    : totalActive  // tomorrow / nextweek — progress bar 숨길 거지만 큰 숫자엔 사용
+
+  const scopeDone =
+    progressScope === 'today'    ? doneToday.length + recurringDoneToday.length
+  : progressScope === 'thisweek' ? doneThisWeek.length + recurringDoneToday.length
+  : progressScope === 'all'      ? doneThisWeek.length + recurringDoneToday.length
+  :                                 0
+
+  const scopeTotal = scopeActive + scopeDone
+  const completionPct = scopeTotal === 0 ? 0 : Math.round((scopeDone / scopeTotal) * 100)
+
+  const scopeLabel =
+    progressScope === 'today'    ? '오늘'
+  : progressScope === 'thisweek' ? '이번 주'
+  : progressScope === 'all'      ? '전체'
+  :                                 null
+
+  // 내일 daily recurring은 filter='tomorrow' (내일만) / 'thisweek' (이번 주)
+  // 에서만 노출. filter='today' / 'all' 덱에선 노이즈라 숨김. list section + visibleCount
+  // 둘이 같은 boolean 참조하도록 page-level에서 한 번만 정의.
+  // (FilterKey union narrow 회피 위해 string list로 includes)
+  const showTomorrowRecur: boolean = (['tomorrow', 'thisweek'] as readonly string[]).includes(filter)
+
+  // Decide which buckets to render based on time filter.
+  // 사용자 정의 "오늘 = 내일까지 마감": filter='today'엔 tomorrow도 포함.
+  // filter='tomorrow'는 "내일만 단독 보기" 별도 옵션으로 유지.
+  // '전체' 필터에서도 tomorrow는 today와 인지 겹쳐 노이즈 — '내일' 필터로 따로.
+  const visibleBuckets: BucketKey[] =
+    filter === 'today'    ? ['overdue', 'today', 'tomorrow']
+  : filter === 'tomorrow' ? ['tomorrow']
+  : filter === 'thisweek' ? ['overdue', 'today', 'tomorrow', 'thisweek']
+  : filter === 'nextweek' ? ['nextweek']
+  : /* all */               ['overdue', 'today', 'tomorrow', 'thisweek', 'nextweek', 'later', 'nodate']
+
+  // Weekly section label varies by current filter
+  const weeklyLabel =
+    filter === 'today'    ? '남은 이번 주 할일'
+  : filter === 'tomorrow' ? '남은 이번 주 할일'
+  : /* thisweek / all */    '이번 주 할일'
+  // nextweek filter is excluded — it uses nextWeekPreviewSection instead.
+
+  // Preview of weekly tasks that will reset next Monday (used only on filter='nextweek').
+  // Read-only — no toggle since 'doneAt' here reflects current week's completion, not next week's.
+  const nextWeekPreviewSection = filter !== 'nextweek' || weekRecur.length === 0 ? null : (
+    <section className="space-y-2">
+      <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
+        다음 주 할일 · {weekRecur.length}
+      </h2>
+      <Card className="p-0 gap-0 divide-y divide-foreground/10">
+        {weekRecur.map((rt) => (
+          <div key={`nw-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60">
+            <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/30 flex-shrink-0" aria-hidden />
+            <span
+              className="w-[5px] h-9 rounded-full flex-shrink-0"
+              style={{ background: rt.color }}
+              aria-hidden
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-[15px] break-words leading-snug">{rt.title}</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand">
+                  🔁 이번 주 안에
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </Card>
+    </section>
+  )
+
+  const weeklySection = weeklyActive.length === 0 ? null : (
+    <section className="space-y-2">
+      <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
+        {weeklyLabel} · {weeklyActive.length}
+      </h2>
+      <Card className="p-0 gap-0 divide-y divide-foreground/10">
+        {weeklyActive.map((rt) => (
+          <RecurringItemRow
+            key={`w-${rt.id}`}
+            id={rt.id}
+            title={rt.title}
+            notes={rt.notes}
+            color={rt.color}
+            cadence={rt.cadence}
+            daysOfWeek={[]}
+            dateIso={rt.dateIso}
+            onComplete={onRecurringComplete}
+          />
+        ))}
+      </Card>
+    </section>
+  )
+
+  // Count visible items for "empty" detection (includes recurring in today bucket)
+  const visibleCount =
+    visibleBuckets.reduce((s, k) => s + filteredBuckets[k].length, 0) +
+    (visibleBuckets.includes('today') ? recurringActive.length : 0) +
+    (visibleBuckets.includes('tomorrow') && showTomorrowRecur ? tomorrowRecurringActive.length : 0) +
+    (filter === 'nextweek' ? weekRecur.length : weeklyActive.length)
+
+  const hasAnything = totalActive > 0 || totalDone > 0
+
+  // 다중 선택 대상 — active + 완료된 homework (오늘 + 이번 주). recurring은 ID 체계가
+  // 다르고 사용 빈도 낮아서 일단 제외. doneIds는 dedup (이번 주에는 오늘도 포함되므로).
+  const activeIds = active.map((it) => it.id)
+  const doneIdsSet = new Set<number>()
+  for (const it of doneToday) doneIdsSet.add(it.id)
+  for (const it of doneThisWeek) doneIdsSet.add(it.id)
+  const doneIds = [...doneIdsSet]
+
+  const doneTodaySection = (doneToday.length > 0 || recurringDoneToday.length > 0) ? (
+    <div className="lg:break-inside-avoid lg:mb-3">
+      <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+        <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
+          <span className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-good" aria-hidden />
+            오늘 한 일 ({doneToday.length + recurringDoneToday.length})
+          </span>
+          <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+          <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+        </summary>
+        <div className="divide-y divide-foreground/10 border-t border-foreground/10">
+          {doneToday.map((it) => (
+            <HomeworkItem
+              key={it.id}
+              id={it.id}
+              title={it.title}
+              notes={it.notes}
+              dueDate={it.dueDate}
+              academyName={it.academyName}
+              academyColor={it.academyColor}
+              dueLabel={null}
+              bucket="other"
+              done
+              doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
+              onUndo={onUndo}
+            />
+          ))}
+          {recurringDoneToday.map((rt) => (
+            <div key={`r-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
+              <form action={onRecurringUndo} className="flex-shrink-0">
+                <input type="hidden" name="taskId" value={rt.id} />
+                <input type="hidden" name="dateIso" value={todayIso} />
+                <button type="submit" className="w-[22px] h-[22px] rounded-full bg-good flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all" aria-label="완료 취소">
+                  <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
+                </button>
+              </form>
+              <span className="w-[5px] h-9 rounded-full flex-shrink-0" style={{ background: rt.color }} aria-hidden />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">{rt.title}</div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">🔁 매일</span>
+                  {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+    </div>
+  ) : null
+
+  const weeklyDoneSection = weeklyDone.length > 0 ? (
+    <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+      <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
+        <span className="flex items-center gap-2">
+          <Check className="h-4 w-4 text-brand" aria-hidden />
+          완료한 이번 주 할일 ({weeklyDone.length})
+        </span>
+        <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">▾</span>
+      </summary>
+      <div className="divide-y divide-foreground/10 border-t border-foreground/10">
+        {weeklyDone.map((rt) => (
+          <div key={`wd-${rt.id}`} className="px-4 py-3 flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
+            <form action={onRecurringUndo} className="flex-shrink-0">
+              <input type="hidden" name="taskId" value={rt.id} />
+              <input type="hidden" name="dateIso" value={rt.dateIso} />
+              <button type="submit" className="w-[22px] h-[22px] rounded-full bg-brand flex items-center justify-center hover:ring-2 hover:ring-red-400 hover:ring-offset-1 transition-all" aria-label="완료 취소">
+                <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />
+              </button>
+            </form>
+            <span className="w-[5px] h-9 rounded-full flex-shrink-0" style={{ background: rt.color }} aria-hidden />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-[15px] break-words leading-snug line-through decoration-muted-foreground/40">{rt.title}</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand">🔁 이번 주 안에</span>
+                {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  ) : null
+
+  const doneThisWeekSection = doneThisWeek.length > 0 ? (
+    <details className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+      <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
+        <span className="flex items-center gap-2">
+          <Check className="h-4 w-4 text-good" aria-hidden />
+          이번 주 완료한 숙제 ({doneThisWeek.length})
+        </span>
+        <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+        <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+      </summary>
+      <div className="divide-y divide-foreground/10 border-t border-foreground/10">
+        {doneThisWeek.map((it) => (
+          <HomeworkItem
+            key={it.id}
+            id={it.id}
+            title={it.title}
+            notes={it.notes}
+            dueDate={it.dueDate}
+            academyName={it.academyName}
+            academyColor={it.academyColor}
+            dueLabel={null}
+            bucket="other"
+            done
+            doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
+            onUndo={onUndo}
+          />
+        ))}
+      </div>
+    </details>
+  ) : null
+
+  // 버킷 하나를 section으로 렌더 — all/today/tomorrow 브랜치에서 공유.
+  const renderBucket = (bk: BucketKey) => {
+    const hwList = filteredBuckets[bk]
+    const recurList: RecurringItem[] =
+      bk === 'today' ? recurringActive :
+      bk === 'tomorrow' && showTomorrowRecur ? tomorrowRecurringActive :
+      []
+    if (hwList.length === 0 && recurList.length === 0) return null
+    const meta = BUCKET_META[bk]
+    return (
+      <section key={bk} className="space-y-2">
+        <h2 className={cn(
+          'text-[13px] font-semibold px-1 pt-1',
+          meta.tone === 'destructive' && 'text-destructive',
+          meta.tone === 'today' && 'text-foreground',
+          !meta.tone && 'text-muted-foreground',
+        )}>
+          {meta.label} · {hwList.length + recurList.length}
+        </h2>
+        <Card className="p-0 gap-0 divide-y divide-foreground/10">
+          {hwList.map((it) => (
+            <HomeworkItem
+              key={it.id}
+              id={it.id}
+              title={it.title}
+              notes={it.notes}
+              dueDate={it.dueDate}
+              pinnedDate={it.pinnedDate}
+              academyName={it.academyName}
+              academyColor={it.academyColor}
+              dueLabel={formatDueLabel(it.dueDate, todayIso)}
+              bucket={bk}
+              onComplete={onComplete}
+            />
+          ))}
+          {recurList.map((rt) => (
+            <RecurringItemRow
+              key={`r-${rt.id}`}
+              id={rt.id}
+              title={rt.title}
+              notes={rt.notes}
+              color={rt.color}
+              cadence={rt.cadence}
+              daysOfWeek={rt.daysOfWeek ?? []}
+              dateIso={rt.dateIso}
+              onComplete={onRecurringComplete}
+            />
+          ))}
+        </Card>
+      </section>
+    )
+  }
 
   return (
-    <div className="space-y-4 lg:space-y-0">
-      {/* 상단 헤더 — Apple Reminders 톤. lg에서는 좌측 히어로의 인사가 대신하므로 숨김
-          (그래야 좌측 요약이 스크롤 0부터 바로 고정됨). */}
-      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2 lg:hidden">
+    <MultiSelectProvider activeIds={activeIds} doneIds={doneIds}>
+    <div className="space-y-4">
+      <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div>
-          <h1 className="text-[34px] leading-tight font-bold tracking-tight">오늘</h1>
+          <h1 className="text-[30px] leading-tight font-bold tracking-tight">할 일</h1>
           <div className="text-sm text-muted-foreground mt-0.5">
-            {todaySub} · {totalActive > 0 ? `${totalActive}개 남음` : '오늘 끝!'}
+            남은 {totalActive} · 완료 {totalDone}
           </div>
         </div>
-        <Link
-          href="/dashboard"
-          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 shrink-0 pb-1.5"
-        >
-          관리 <ArrowRight className="h-3 w-3" />
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href="/kids" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+            🧒 은채 화면
+          </Link>
+          <Link href="/homework/upload" className={cn(buttonVariants({ size: 'sm' }))}>
+            + 숙제
+          </Link>
+        </div>
       </header>
 
-      {/* lg: 좌측 히어로(요약) + 우측 작업목록. 모바일은 기존 세로 스택 그대로. */}
-      <div className="lg:flex lg:gap-6 lg:items-start">
-      {/* ===== 좌측 히어로 ===== */}
-      <aside className="lg:w-[340px] lg:shrink-0 lg:sticky lg:top-7 lg:self-start lg:max-h-[calc(100dvh-3.5rem)] lg:overflow-y-auto space-y-4">
-      {/* 인사 — lg 전용 (모바일은 상단 헤더가 대신함) */}
-      <div className="hidden lg:flex items-center gap-3 px-1">
-        <span
-          className="w-12 h-12 rounded-full bg-brand text-brand-foreground flex items-center justify-center text-xl font-extrabold shrink-0"
-          aria-hidden
-        >
-          은
-        </span>
-        <div className="min-w-0">
-          <div className="text-2xl font-extrabold tracking-tight leading-tight">안녕, 은채야~ 👋</div>
-          <div className="text-sm text-muted-foreground mt-0.5">{todaySub}</div>
-        </div>
-      </div>
-
-      {/* 스티커 보상 */}
-      <StickersRow
-        reward={sticker.reward}
-        count={sticker.count}
-        canRedeem={sticker.canRedeem}
-        onRedeem={onRedeem}
-      />
-
-      {/* 진행 카드 — v6 inline */}
-      <Card className="p-4 gap-2">
-        <div className="flex items-center gap-4">
-          <div className="text-[40px] leading-none font-bold tabular-nums">{totalActive}</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-muted-foreground">
-              REMAINING
+      {hasAnything && (
+        <Card className="p-4 gap-2">
+          <div className="flex items-center gap-4">
+            <div className="text-[36px] leading-none font-bold tabular-nums">{scopeActive}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-muted-foreground">
+                REMAINING
+              </div>
+              <div className="text-sm font-medium mt-0.5">
+                {scopeLabel
+                  ? <>{scopeLabel} ✓ {scopeDone} · {completionPct}% 완료</>
+                  : <>남은 {scopeActive}개</>}
+              </div>
             </div>
-            <div className="text-sm font-medium mt-0.5">
-              완료 {totalDone} / 전체 {total}
-            </div>
+            {scopeLabel && (
+              <div className="text-sm text-muted-foreground tabular-nums shrink-0">{completionPct}%</div>
+            )}
           </div>
-          <div className="text-sm text-muted-foreground tabular-nums shrink-0">{pct}%</div>
-        </div>
-        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-brand transition-all"
-            style={{ width: `${pct}%` }}
-            aria-hidden
+          {scopeLabel && (
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand transition-all"
+                style={{ width: `${completionPct}%` }}
+                aria-hidden
+              />
+            </div>
+          )}
+        </Card>
+      )}
+
+      {active.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <FilterChipGroup
+            key={filter}
+            current={filter}
+            chips={[
+              // 전체: 모든 미완료 항목 (homework + recurring 모두 포함)
+              { key: 'all', label: '전체', count: active.length + recurringActive.length + weeklyActive.length, href: timeHref('all') },
+              // 오늘: 오늘까지 마감(지난 마감 포함) + 오늘 daily recurring
+              { key: 'today', label: '오늘', count: buckets.overdue.length + buckets.today.length + recurringActive.length, href: timeHref('today') },
+              // 내일만: 내일 마감 + 내일 daily recurring
+              { key: 'tomorrow', label: '내일만', count: buckets.tomorrow.length + tomorrowRecurringActive.length, href: timeHref('tomorrow') },
+              // 이번 주: 이번 주 안에 해야 할 모든 것 (지난+오늘+내일+이번주 + daily recurring + weekly recurring)
+              { key: 'thisweek', label: '이번 주', count: buckets.overdue.length + buckets.today.length + buckets.tomorrow.length + buckets.thisweek.length + recurringActive.length + weeklyActive.length, href: timeHref('thisweek') },
+              // 다음 주: 다음 주 마감만 (이번 주 weekly recurring은 포함 X — 다음 주 새로 시작)
+              { key: 'nextweek', label: '다음 주', count: buckets.nextweek.length, href: timeHref('nextweek') },
+            ]}
           />
+          <MultiSelectToggle />
         </div>
-      </Card>
-
-      {/* 이번 주 출석 — lg 전용 (stamps에서 파생) */}
-      <div className="hidden lg:block">
-        <AttendanceBoard days={attendance.days} streak={attendance.streak} />
-      </div>
-      </aside>
-
-      {/* ===== 우측 작업목록 ===== */}
-      <div className="flex-1 min-w-0 space-y-4">
-
-      {/* 오늘 해야 할 숙제 */}
-      {totalActive > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
-            오늘 해야 할 숙제
-          </h2>
-          <div className="space-y-2">
-            {todayList.map((it) => (
-              <KidsTodoCard
-                key={it.id}
-                id={it.id}
-                title={it.title}
-                academyName={it.academyName}
-                academyColor={it.academyColor}
-                dueDate={it.dueDate}
-                pinnedDate={it.pinnedDate}
-                todayIso={todayIso}
-                onComplete={onComplete}
-              />
-            ))}
-            {dailyTodayActive.map((rt) => (
-              <KidsRecurringTodoCard
-                key={`d-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="daily"
-                dateIso={todayIso}
-                notes={rt.notes}
-                daysOfWeek={rt.daysOfWeek}
-                onComplete={onRecComplete}
-              />
-            ))}
-          </div>
-        </section>
-      ) : (() => {
-        const empty = pickEmptyState(emptyStates, todayIso)
-        return (
-          <>
-            <EmptyStateTracker where="kid_home" which={empty.title.slice(0, 12)} />
-            <Card className="p-8 text-center space-y-2">
-              <div className="text-6xl leading-none">{empty.emoji}</div>
-              <div className="text-xl font-bold">{empty.title}</div>
-              <div className="text-base text-muted-foreground">{empty.sub}</div>
-            </Card>
-          </>
-        )
-      })()}
-
-      {/* 이번 주 안에 할 일 (매주 recurring) — 스티커 무관 */}
-      {weeklyTotal > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
-            이번 주 안에 할 일 · {weeklyDone.length} / {weeklyTotal}
-          </h2>
-          <div className="space-y-2">
-            {weeklyActive.map((rt) => (
-              <KidsRecurringTodoCard
-                key={`w-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="weekly"
-                dateIso={todayIso}
-                notes={rt.notes}
-                onComplete={onRecComplete}
-              />
-            ))}
-            {weeklyDone.map((rt) => (
-              <KidsRecurringDoneCard
-                key={`wd-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="weekly"
-                dateIso={todayIso}
-                notes={rt.notes}
-                onUndo={onRecUndo}
-              />
-            ))}
-          </div>
-        </section>
       )}
 
-      {/* 이번 주 남은 숙제 (작게) */}
-      {upcomingDates.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
-            이번 주 남은 숙제 · {upcoming.length}개
-          </h2>
-          <Card className="p-0 gap-0 divide-y divide-foreground/10">
-            {upcomingDates.map((d) => {
-              const items = upcomingByDay.get(d)!
+      {/* Academy filter chips — '전체' chip 제거. 학원 chip 클릭으로 toggle. */}
+      {showAcademyRow && active.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {academiesWithItems.map((ac) => {
+            const cnt = active.filter((it) => it.academyId === ac.id).length
+            const isActive = academyFilter === ac.id
+            return (
+              <FilterChip
+                key={ac.id}
+                label={ac.name}
+                count={cnt}
+                href={academyHref(isActive ? null : ac.id)}
+                active={isActive}
+                dot={ac.color}
+              />
+            )
+          })}
+          {academyFilter !== null && (
+            <span className="text-[11px] text-muted-foreground">탭 해제 = 전체</span>
+          )}
+        </div>
+      )}
+
+      {/* Empty states */}
+      {!hasAnything ? (
+        <Card className="p-10 text-center text-muted-foreground space-y-2">
+          <div className="text-3xl">🎉</div>
+          <div>할 일이 없습니다.</div>
+          <div className="text-xs">사진이나 PDF를 업로드하면 AI가 숙제를 정리해 줍니다.</div>
+        </Card>
+      ) : totalActive === 0 ? (
+        <Card className="p-6 text-center text-muted-foreground">
+          <div className="text-2xl mb-1">🎉</div>
+          <div className="text-sm">남은 할 일이 없어요. 잘했어!</div>
+        </Card>
+      ) : visibleCount === 0 ? (
+        <Card className="p-6 text-center text-muted-foreground space-y-2">
+          <div className="text-sm">선택한 기간에 할 일이 없습니다.</div>
+          <Link
+            href={academyFilter ? academyHref(null) : '/'}
+            className="inline-block text-xs text-foreground/70 hover:text-foreground underline underline-offset-2"
+          >
+            전체 보기
+          </Link>
+        </Card>
+      ) : filter === 'thisweek' ? (
+        /* 이번 주: 왼쪽=active weekly + 완료들(맨 아래) / 오른쪽=숙제 버킷 */
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-x-5 lg:space-y-0 lg:items-start">
+          <div className="space-y-3">
+            {weeklySection}
+            {weeklyDoneSection}
+            {doneThisWeekSection}
+          </div>
+          <div className="space-y-3">
+            {(() => {
+              const allWeekHw = visibleBuckets.flatMap((bk) => filteredBuckets[bk])
+              if (allWeekHw.length === 0) return null
               return (
-                <Link
-                  key={d}
-                  href={`/day/${d}`}
-                  className="px-4 py-3 flex items-center gap-3 hover:bg-accent/40 active:bg-accent/60 transition-colors"
-                >
-                  <span className="text-sm font-medium w-14 flex-shrink-0">{weekdayLabel(d)}</span>
-                  <span className="text-sm text-muted-foreground flex-1">{items.length}개</span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden />
-                </Link>
+                <section className="space-y-2">
+                  <h2 className="text-[13px] font-semibold text-muted-foreground px-1 pt-1">
+                    이번 주 숙제 · {allWeekHw.length}
+                  </h2>
+                  <Card className="p-0 gap-0 divide-y divide-foreground/10">
+                    {allWeekHw.map((it) => (
+                      <HomeworkItem
+                        key={it.id}
+                        id={it.id}
+                        title={it.title}
+                        notes={it.notes}
+                        dueDate={it.dueDate}
+                        pinnedDate={it.pinnedDate}
+                        academyName={it.academyName}
+                        academyColor={it.academyColor}
+                        dueLabel={formatDueLabel(it.dueDate, todayIso)}
+                        bucket={bucketOf(it, todayIso)}
+                        onComplete={onComplete}
+                      />
+                    ))}
+                  </Card>
+                </section>
               )
-            })}
-          </Card>
-        </section>
+            })()}
+          </div>
+        </div>
+      ) : filter === 'all' ? (
+        /* 전체: 왼쪽=active weekly + 완료들(맨 아래) / 오른쪽=숙제 버킷들 */
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-x-5 lg:space-y-0 lg:items-start">
+          <div className="space-y-3">
+            {weeklySection}
+            {doneTodaySection}
+            {weeklyDoneSection}
+            {doneThisWeekSection}
+          </div>
+          <div className="space-y-3">
+            {visibleBuckets.map(renderBucket)}
+          </div>
+        </div>
+      ) : filter === 'today' ? (
+        /* 오늘: 왼쪽=지남+오늘 버킷+이번주할일+오늘한일(맨 아래) / 오른쪽=내일 버킷 */
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-x-5 lg:space-y-0 lg:items-start">
+          <div className="space-y-3">
+            {renderBucket('overdue')}
+            {renderBucket('today')}
+            {weeklySection}
+            {doneTodaySection}
+          </div>
+          <div className="space-y-3">
+            {renderBucket('tomorrow')}
+          </div>
+        </div>
+      ) : (
+        /* 내일/다음 주: 단순 스택 */
+        <div className="space-y-3">
+          {visibleBuckets.map(renderBucket)}
+          {filter === 'tomorrow' && weeklySection}
+          {nextWeekPreviewSection}
+        </div>
       )}
 
-      {/* 오늘 한 일 — 맨 아래, 기본 접힘 */}
-      {totalDone > 0 && (
-        <details className="group space-y-2">
-          <summary className="cursor-pointer select-none list-none px-1 pt-1 inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
-            <Check className="h-3.5 w-3.5 text-good" aria-hidden />
-            <span>오늘 한 일 ({totalDone})</span>
-            <span className="ml-1 text-muted-foreground/70 group-open:hidden">펼치기</span>
-            <span className="ml-1 text-muted-foreground/70 hidden group-open:inline">접기</span>
-          </summary>
-          <div className="space-y-2 mt-2">
-            {doneToday.map((it) => (
-              <KidsDoneCard
-                key={it.id}
-                id={it.id}
-                title={it.title}
-                academyName={it.academyName}
-                academyColor={it.academyColor}
-                dueDate={it.dueDate}
-                onUndo={onUndo}
-              />
-            ))}
-            {dailyTodayDone.map((rt) => (
-              <KidsRecurringDoneCard
-                key={`dd-${rt.id}`}
-                id={rt.id}
-                title={rt.title}
-                color={rt.color}
-                cadence="daily"
-                dateIso={todayIso}
-                notes={rt.notes}
-                daysOfWeek={rt.daysOfWeek}
-                onUndo={onRecUndo}
-              />
-            ))}
-          </div>
-        </details>
-      )}
-      </div>
-      </div>
     </div>
+    </MultiSelectProvider>
   )
 }

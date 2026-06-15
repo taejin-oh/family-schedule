@@ -102,8 +102,8 @@ export async function deleteBatch(batchId: number, ctx: Ctx = {}) {
     .run()
 
   revalidatePath(`/academies/${batch.academyId}`)
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'homework.batch_delete', props: { batchId, academyId: batch.academyId, photoCount: photos.length, via: 'academy_detail' } })
 }

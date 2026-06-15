@@ -13,7 +13,7 @@ export function BottomNav() {
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t pb-[env(safe-area-inset-bottom)]"
       aria-label="하단 내비게이션"
     >
-      <div className="grid grid-cols-6 h-14">
+      <div className="grid grid-cols-7 h-14">
         {TABS.map(({ href, icon: Icon, label }) => {
           const isActive =
             href === '/' ? pathname === '/' : pathname.startsWith(href)

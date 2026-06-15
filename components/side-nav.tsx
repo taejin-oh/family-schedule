@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ListChecks, CalendarDays, GraduationCap, Camera, Repeat, Settings } from 'lucide-react'
+import { Home, Smile, CalendarDays, GraduationCap, Camera, Repeat, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // 가로모드/PC(lg+) 좌측 사이드바 내비. 모바일 하단탭 + md 상단헤더를 대체.
 const NAV = [
   { href: '/', icon: Home, label: '홈' },
-  { href: '/dashboard', icon: ListChecks, label: '할 일' },
+  { href: '/kids', icon: Smile, label: '아이홈' },
   { href: '/timetable', icon: CalendarDays, label: '시간표' },
   { href: '/academies', icon: GraduationCap, label: '학원' },
   { href: '/homework/upload', icon: Camera, label: '숙제 추가' },
@@ -20,7 +20,6 @@ export function SideNav() {
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
-    if (href === '/dashboard') return pathname.startsWith('/dashboard')
     return pathname === href || pathname.startsWith(href + '/')
   }
 

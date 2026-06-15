@@ -52,8 +52,8 @@ export async function createRecurringTask(input: RecurringTaskInput, ctx: Ctx = 
     daysOfWeek: data.daysOfWeek,
   }).returning({ id: schema.recurringTasks.id }).all()
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.create', props: { id: row.id, cadence: data.cadence, days: data.daysOfWeek.length } })
   return { ok: true, data: { id: row.id } }
@@ -72,8 +72,8 @@ export async function updateRecurringTask(id: number, input: RecurringTaskInput,
     daysOfWeek: data.daysOfWeek,
   }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.update', props: { id, cadence: data.cadence, days: data.daysOfWeek.length } })
   return { ok: true }
@@ -83,8 +83,8 @@ export async function archiveRecurringTask(id: number, ctx: Ctx = {}): Promise<R
   const db = ctx.db ?? getDb()
   db.update(schema.recurringTasks).set({ archivedAt: new Date() }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.archive', props: { id } })
   return { ok: true }
@@ -94,8 +94,8 @@ export async function unarchiveRecurringTask(id: number, ctx: Ctx = {}): Promise
   const db = ctx.db ?? getDb()
   db.update(schema.recurringTasks).set({ archivedAt: null }).where(eq(schema.recurringTasks.id, id)).run()
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.unarchive', props: { id } })
   return { ok: true }
@@ -123,8 +123,8 @@ export async function markRecurringDone(taskId: number, dateIso: string, ctx: Ct
   }
   await tryStampToday({ db })
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.done', props: { taskId, dateIso, cadence: task.cadence, already: !!existing } })
   return { ok: true }
@@ -144,8 +144,8 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
     .run()
   await tryStampToday({ db })
   revalidatePath('/recurring')
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'recurring.undone', props: { taskId, dateIso, cadence: task.cadence } })
   return { ok: true }

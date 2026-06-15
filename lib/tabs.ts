@@ -1,4 +1,4 @@
-import { Home, ListChecks, CalendarDays, Camera, GraduationCap, Repeat, Settings } from 'lucide-react'
+import { Home, Smile, CalendarDays, Camera, GraduationCap, Repeat, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 export type Tab = {
@@ -9,6 +9,7 @@ export type Tab = {
 
 export const TABS: readonly Tab[] = [
   { href: '/',                  icon: Home,           label: '홈' },
+  { href: '/kids',              icon: Smile,          label: '아이홈' },
   { href: '/timetable',         icon: CalendarDays,   label: '시간표' },
   { href: '/homework/upload',   icon: Camera,         label: '업로드' },
   { href: '/academies',         icon: GraduationCap,  label: '학원' },
@@ -17,13 +18,12 @@ export const TABS: readonly Tab[] = [
 ] as const
 
 /**
- * 가로/PC(lg+) 사이드바 순서. 모바일 TABS와 달리 '할 일'(/dashboard)이 홈 바로 다음에
+ * 가로/PC(lg+) 사이드바 순서. 홈(`/`)이 부모 관리(할 일)이고, 바로 다음에 아이홈(`/kids`)이
  * 정식 탭으로 들어감 — 사이드바에 보이므로 스와이프도 이 순서를 따라야 함.
- * (홈에서 좌 스와이프 → 할 일, 모바일은 홈 → 시간표 그대로.)
  */
 export const LANDSCAPE_TABS: readonly Tab[] = [
   { href: '/',                  icon: Home,           label: '홈' },
-  { href: '/dashboard',         icon: ListChecks,     label: '할 일' },
+  { href: '/kids',              icon: Smile,          label: '아이홈' },
   { href: '/timetable',         icon: CalendarDays,   label: '시간표' },
   { href: '/academies',         icon: GraduationCap,  label: '학원' },
   { href: '/homework/upload',   icon: Camera,         label: '숙제 추가' },
@@ -33,14 +33,12 @@ export const LANDSCAPE_TABS: readonly Tab[] = [
 
 /**
  * 일부 페이지는 TABS에 없지만 특정 탭과 같은 swipe 위치를 공유해야 함.
- * 예: `/dashboard`(관리)는 홈(`/`)에서 "관리" 링크로 진입하는 자매 페이지로,
- * 모바일에서 좌우 swipe로 인접 탭 이동이 가능해야 함. 홈 위치(idx 0)에 매핑.
+ * 해당 pathname을 대표 탭 href로 매핑. (현재는 아이홈/홈이 모두 정식 탭이라 비어 있음.
+ * 예전 `/dashboard`는 이제 `/`로 리다이렉트되므로 alias 불필요.)
  *
  * key는 정확 매칭만 — sub-page 매칭이 필요하면 항목 추가.
  */
-const TAB_ALIAS: Readonly<Record<string, string>> = {
-  '/dashboard': '/',
-}
+const TAB_ALIAS: Readonly<Record<string, string>> = {}
 
 /**
  * 현재 pathname이 속한 부모 탭의 인덱스. 매칭 없으면 -1.

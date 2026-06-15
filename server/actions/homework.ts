@@ -129,8 +129,8 @@ export async function uploadHomework(input: UploadInput, ctx: Ctx = {}): Promise
     throw e
   }
 
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.upload', props: { batchId: batch.id, academyId: academy.id, fileCount: input.files.length, hasHint: !!input.userHint?.trim() } })
@@ -151,8 +151,8 @@ export async function updateDraftItem(itemId: number, patch: z.infer<typeof Upda
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   if (item.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.update(appSchema.homeworkItems).set(parsed.data).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   // caller가 _실제로 보낸_ 필드만 추출 (zod optional이라 parsed.data는 undefined 키도 포함).
@@ -185,8 +185,8 @@ export async function addDraftItem(
     batchId, academyId: batch.academyId, title: data.title.trim(), notes: data.notes ?? null, dueDate: data.dueDate,
     source: 'manual', isCommitted: false,
   }).returning({ id: appSchema.homeworkItems.id }).all()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.draft_add', props: { itemId: row.id, batchId, academyId: batch.academyId, hasDue: !!data.dueDate, hasNotes: !!data.notes } })
@@ -199,8 +199,8 @@ export async function deleteDraftItem(itemId: number, ctx: Ctx = {}) {
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   if (item.isCommitted) return { ok: false, error: '확정된 항목은 수정할 수 없습니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.draft_delete', props: { itemId, source: item.source, ageMs: Date.now() - new Date(item.createdAt).getTime() } })
@@ -234,8 +234,8 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
   })
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.commit', props: { batchId, itemCount } })
@@ -254,8 +254,8 @@ export async function toggleItemDone(id: number, done: boolean, ctx: Ctx = {}): 
     .get()
   appDb.update(appSchema.homeworkItems).set({ doneAt: done ? new Date() : null }).where(eq(appSchema.homeworkItems.id, id)).run()
   await tryStampToday({ db: appDb })
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   if (row) revalidatePath(`/academies/${row.academyId}`)
   await logServerEvent({ category: 'mutation', event: done ? 'homework.done' : 'homework.undone', props: { itemId: id } })
@@ -542,8 +542,8 @@ export async function rerunBatch(
   ).run()
 
   await enqueue(jobsDb, 'extract_homework', { batchId: newBatch.id })
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.rerun', props: { originalBatchId, newBatchId: newBatch.id, hintChanged: opts.userHint !== undefined } })
@@ -561,8 +561,8 @@ export async function deleteBatch(id: number, ctx: Ctx = {}): Promise<{ ok: bool
   const exists = appDb.select({ id: appSchema.homeworkBatches.id }).from(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).get()
   if (!exists) return { ok: false, error: '존재하지 않는 batch' }
   appDb.delete(appSchema.homeworkBatches).where(eq(appSchema.homeworkBatches.id, id)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/homework/upload')
   await logServerEvent({ category: 'mutation', event: 'homework.batch_delete', props: { batchId: id } })
@@ -637,8 +637,8 @@ export async function deleteHomeworkItem(
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   if (!item.isCommitted) return { ok: false, error: '확정된 항목만 삭제 가능합니다' }
   appDb.delete(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
   await logServerEvent({ category: 'mutation', event: 'homework.item_delete', props: { itemId, source: item.source, ageMs: Date.now() - new Date(item.createdAt).getTime(), wasDone: !!item.doneAt } })
@@ -670,8 +670,8 @@ export async function updateHomeworkItem(
     update.dueDate = patch.dueDate
   }
   appDb.update(appSchema.homeworkItems).set(update).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/academies', 'layout')
   await logServerEvent({ category: 'mutation', event: 'homework.item_update', props: { itemId, fields: Object.keys(update) } })
@@ -694,8 +694,8 @@ export async function deferHomework(
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   if (!item.isCommitted) return { ok: false, error: '확정 후 미루기 가능' }
   appDb.update(appSchema.homeworkItems).set({ dueDate: newDueDate }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath('/academies')
   const academyId = item.academyId
@@ -722,8 +722,8 @@ export async function pinHomeworkToDate(
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   if (!item.isCommitted) return { ok: false, error: '확정된 항목만 미리 보이기 가능' }
   appDb.update(appSchema.homeworkItems).set({ pinnedDate: dateIso }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath(`/academies/${item.academyId}`)
   await logServerEvent({ category: 'mutation', event: 'homework.pin', props: { itemId, dateIso } })
@@ -741,8 +741,8 @@ export async function unpinHomework(
   const item = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, itemId)).get()
   if (!item) return { ok: false, error: '항목을 찾을 수 없습니다' }
   appDb.update(appSchema.homeworkItems).set({ pinnedDate: null }).where(eq(appSchema.homeworkItems.id, itemId)).run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   revalidatePath(`/academies/${item.academyId}`)
   await logServerEvent({ category: 'mutation', event: 'homework.unpin', props: { itemId } })
@@ -772,8 +772,8 @@ export async function bulkToggleItemsDone(
     .set({ doneAt: done ? new Date() : null })
     .where(inArray(appSchema.homeworkItems.id, ids))
     .run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   for (const { academyId } of academyIds) revalidatePath(`/academies/${academyId}`)
   await logServerEvent({ category: 'mutation', event: done ? 'homework.bulk_done' : 'homework.bulk_undone', props: { count: ids.length } })
@@ -794,8 +794,8 @@ export async function bulkDeleteItems(
   appDb.delete(appSchema.homeworkItems)
     .where(inArray(appSchema.homeworkItems.id, ids))
     .run()
+  revalidatePath('/kids')
   revalidatePath('/')
-  revalidatePath('/dashboard')
   revalidatePath('/timetable')
   await logServerEvent({ category: 'mutation', event: 'homework.bulk_delete', props: { count: ids.length } })
   return { ok: true }

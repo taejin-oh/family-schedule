@@ -50,7 +50,7 @@ export async function updateEmptyStates(
     .set({ emptyStateCopy: clean })
     .where(eq(schema.appSettings.id, 1))
     .run()
-  revalidatePath('/')
+  revalidatePath('/kids')
   revalidatePath('/admin/empty-states')
   await logServerEvent({ category: 'mutation', event: 'empty_states.update', props: { count: clean.length } })
   return { ok: true }
@@ -62,7 +62,7 @@ export async function resetEmptyStatesToDefault(): Promise<{ ok: true }> {
     .set({ emptyStateCopy: null })
     .where(eq(schema.appSettings.id, 1))
     .run()
-  revalidatePath('/')
+  revalidatePath('/kids')
   revalidatePath('/admin/empty-states')
   await logServerEvent({ category: 'mutation', event: 'empty_states.reset' })
   return { ok: true }
