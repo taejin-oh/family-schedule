@@ -6,13 +6,8 @@ import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
 import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework } from '@/server/actions/homework'
+import { diffDays } from '@/lib/date'
 import { StarFly } from './star-fly'
-
-function diffDays(due: string, todayIso: string): number {
-  const t = new Date(todayIso + 'T00:00:00')
-  const d = new Date(due + 'T00:00:00')
-  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
-}
 
 function dueLabelOf(due: string | null, todayIso: string): string | null {
   if (!due) return null

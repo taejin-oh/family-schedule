@@ -8,6 +8,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
+import { diffDays, formatDueLabel } from '@/lib/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
 import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
@@ -45,12 +46,6 @@ const BUCKET_META: Record<BucketKey, { label: string; tone?: 'destructive' | 'to
   nodate:   { label: '기한 없음' },
 }
 
-function diffDays(due: string, todayIso: string): number {
-  const t = new Date(todayIso + 'T00:00:00')
-  const d = new Date(due + 'T00:00:00')
-  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
-}
-
 function bucketOf(item: ActiveItem, todayIso: string): BucketKey {
   if (!item.dueDate) return 'nodate'
   const dd = diffDays(item.dueDate, todayIso)
@@ -72,16 +67,6 @@ function bucketize(items: ActiveItem[], todayIso: string): Record<BucketKey, Act
   }
   for (const it of items) out[bucketOf(it, todayIso)].push(it)
   return out
-}
-
-function formatDueLabel(due: string | null, todayIso: string): string | null {
-  if (!due) return null
-  const dd = diffDays(due, todayIso)
-  if (dd < 0) return `${Math.abs(dd)}일 지남`
-  if (dd === 0) return '오늘'
-  if (dd === 1) return '내일'
-  if (dd <= 7) return `${dd}일 후`
-  return due
 }
 
 function formatRelative(doneAt: Date, now: number): string {

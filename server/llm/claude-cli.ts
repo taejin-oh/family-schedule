@@ -3,9 +3,6 @@ import type { VisionProvider, ExtractInput, ExtractOutput } from './types'
 import { buildPrompt } from './prompt'
 import { parseModelResponse } from './response'
 
-// extractJson은 응답 파싱 공유 모듈로 이동. 기존 import 경로 호환을 위해 re-export.
-export { extractJson } from './response'
-
 export class ClaudeCliProvider implements VisionProvider {
   readonly name = 'claude' as const
   readonly defaultModel = 'claude-opus-4-8'  // 교차 셀 추론 필요한 학원 syllabus 추출은 Sonnet으론 부족. 4.8 사용 가능 시 우선.

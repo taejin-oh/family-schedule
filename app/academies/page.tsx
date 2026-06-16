@@ -5,11 +5,8 @@ import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AcademyRow } from './_components/academy-row'
+import { subjectLabel } from '@/lib/subjects'
 
-const SUBJECT_KO: Record<string, string> = {
-  math: '수학', english: '영어', korean: '국어', art: '미술',
-  music: '음악', pe: '체육', science: '과학', other: '기타',
-}
 const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
 
 export default async function AcademiesPage() {
@@ -37,7 +34,7 @@ export default async function AcademiesPage() {
         ) : (
           <div className="lg:columns-2 lg:gap-x-5 space-y-2 lg:space-y-0 [&>div]:lg:mb-2 [&>div]:lg:break-inside-avoid">
             {rows.map((r) => {
-              const sub = SUBJECT_KO[r.subject] ?? r.subject
+              const sub = subjectLabel(r.subject)
               const sched = r.scheduleRule?.slots && r.scheduleRule.slots.length > 0
                 ? r.scheduleRule.slots.map((s) => `${DAY_KO[s.day] ?? s.day} ${s.start}–${s.end}`).join(' · ')
                 : null

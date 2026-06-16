@@ -1,6 +1,6 @@
 const DAY_END_MINUTES = 24 * 60
 
-export type ScheduleSlotDraft = {
+type ScheduleSlotDraft = {
   day: string
   start: string
   end: string
@@ -10,7 +10,7 @@ export function sanitizeTimeDraft(raw: string) {
   return raw.replace(/[^\d:]/g, '').slice(0, 5)
 }
 
-export function timeToMinutes(value: string): number | null {
+function timeToMinutes(value: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value)
   if (!match) return null
   const hour = Number(match[1])

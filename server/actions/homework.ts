@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq, desc, sql, inArray, and, isNull, gte, lt } from 'drizzle-orm'
+import { eq, desc, sql, inArray, and, isNull, gte, lt, count } from 'drizzle-orm'
 import { z } from 'zod'
 import { resolve, dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -229,7 +229,7 @@ export async function commitBatch(batchId: number, ctx: Ctx = {}) {
     }
   }
 
-  const itemCount = appDb.select({ id: appSchema.homeworkItems.id }).from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.batchId, batchId)).all().length
+  const itemCount = appDb.select({ c: count() }).from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.batchId, batchId)).get()?.c ?? 0
   appDb.transaction((tx) => {
     tx.update(appSchema.homeworkItems).set({ isCommitted: true }).where(eq(appSchema.homeworkItems.batchId, batchId)).run()
     tx.update(appSchema.homeworkBatches).set({ status: 'committed' }).where(eq(appSchema.homeworkBatches.id, batchId)).run()
@@ -307,7 +307,6 @@ export async function listTodoByDueWithin(
   return appDb.select({
     id: appSchema.homeworkItems.id,
     title: appSchema.homeworkItems.title,
-    notes: appSchema.homeworkItems.notes,
     dueDate: appSchema.homeworkItems.dueDate,
     pinnedDate: appSchema.homeworkItems.pinnedDate,
     academyId: appSchema.homeworkItems.academyId,
@@ -345,7 +344,6 @@ export async function listTodoByDueBetween(
   return appDb.select({
     id: appSchema.homeworkItems.id,
     title: appSchema.homeworkItems.title,
-    notes: appSchema.homeworkItems.notes,
     dueDate: appSchema.homeworkItems.dueDate,
     pinnedDate: appSchema.homeworkItems.pinnedDate,
     academyId: appSchema.homeworkItems.academyId,

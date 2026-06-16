@@ -5,14 +5,7 @@ import { listTodoByDueBetween } from '@/server/actions/homework'
 import { Card } from '@/components/ui/card'
 import { localDateIso } from '@/server/util/date'
 import { KidsTodoCard } from '@/app/_components/kids-todo-card'
-
-const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
-
-function diffDays(due: string, todayIso: string): number {
-  const t = new Date(todayIso + 'T00:00:00')
-  const d = new Date(due + 'T00:00:00')
-  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
-}
+import { diffDays, WEEKDAYS_KO as DAY_KO } from '@/lib/date'
 
 export default async function DayPage({ params }: { params: Promise<{ date: string }> }) {
   const { date } = await params

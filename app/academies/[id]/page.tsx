@@ -10,11 +10,8 @@ import { ActiveAcademyItems, DoneAcademyItems } from './_components/academy-item
 import { BatchesRollback } from './_components/batches-rollback'
 import { AcademyRail } from '../_components/academy-rail'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
+import { subjectLabel } from '@/lib/subjects'
 
-const SUBJECT_KO: Record<string, string> = {
-  math: '수학', english: '영어', korean: '국어', art: '미술',
-  music: '음악', pe: '체육', science: '과학', other: '기타',
-}
 const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
 
 export default async function AcademyDetailPage({
@@ -70,7 +67,7 @@ export default async function AcademyDetailPage({
             <h1 className="text-[28px] leading-tight font-bold tracking-tight truncate">{academy.name}</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {SUBJECT_KO[academy.subject] ?? academy.subject}
+            {subjectLabel(academy.subject)}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

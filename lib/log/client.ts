@@ -35,7 +35,7 @@ function genId(): string {
 // 첫 호출에 발급/조회 후 lifetime 동안 in-memory reuse. 5년 max-age라 expiry refresh 불필요.
 let _cachedSessionId: string | null = null
 
-export function getSessionId(): string {
+function getSessionId(): string {
   if (typeof window === 'undefined') return ''
   if (_cachedSessionId) return _cachedSessionId
   let id: string | null = null
@@ -51,7 +51,7 @@ export function getSessionId(): string {
   return id
 }
 
-export type TrackProps = Record<string, unknown>
+type TrackProps = Record<string, unknown>
 
 export function track(category: 'navigation' | 'interaction' | 'mutation' | 'error' | 'perf' | 'feature', event: string, props?: TrackProps): void {
   if (typeof window === 'undefined') return

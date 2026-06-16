@@ -9,11 +9,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { PermanentDeleteForm } from './delete-form'
-
-const SUBJECT_KO: Record<string, string> = {
-  math: '수학', english: '영어', korean: '국어', art: '미술',
-  music: '음악', pe: '체육', science: '과학', other: '기타',
-}
+import { subjectLabel } from '@/lib/subjects'
 
 function formatArchivedAt(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -73,7 +69,7 @@ export default async function ArchivedAcademiesPage() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-[15px] text-muted-foreground line-through">{r.name}</div>
                 <div className="text-xs text-muted-foreground/70 mt-0.5">
-                  {SUBJECT_KO[r.subject] ?? r.subject}
+                  {subjectLabel(r.subject)}
                   {r.archivedAt && ` · ${formatArchivedAt(r.archivedAt)} 보관됨`}
                 </div>
               </div>

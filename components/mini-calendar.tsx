@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const DOW = ['일', '월', '화', '수', '목', '금', '토']
+import { WEEKDAYS_KO as DOW } from '@/lib/date'
 
 function parseIso(iso: string): { y: number; m: number; d: number } {
   const [y, m, d] = iso.split('-').map(Number)

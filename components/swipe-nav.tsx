@@ -38,7 +38,6 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
   const startTime = useRef(0)
   const skipRef = useRef(false)
   const directionLockRef = useRef<'none' | 'horizontal' | 'vertical'>('none')
-  const lastSwipeDirRef = useRef<'left' | 'right' | null>(null)
 
   // In-flight swipe state — supports queuing additional swipes during the
   // slide-out animation / router.push pending phase.
@@ -134,7 +133,6 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const track = trackRef.current
     if (!track) return
-    lastSwipeDirRef.current = null
     inFlightDirRef.current = null
     inFlightTargetIdxRef.current = null
     if (inFlightTimeoutRef.current !== null) {
@@ -323,7 +321,6 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
 
     inFlightDirRef.current = direction
     inFlightTargetIdxRef.current = proposedTarget
-    lastSwipeDirRef.current = direction
   }
 
   return (

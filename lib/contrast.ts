@@ -31,7 +31,7 @@ function srgbToLinear(c: number): number {
 }
 
 /** WCAG relative luminance (0=black, 1=white). */
-export function relativeLuminance(hex: string): number {
+function relativeLuminance(hex: string): number {
   const rgb = parseHex(hex)
   if (!rgb) return 0.5
   const r = srgbToLinear(rgb.r)

@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { eq, and, isNull, gte, lt, inArray } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, gte, lt, lte, count, inArray } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import { localDateIso, localDayWindow } from './date'
 
@@ -29,23 +29,26 @@ export function evaluateToday(db: AppDb): TodayEvaluation {
   const todayIso = localDateIso()
   const { start, end } = localDayWindow()
 
-  const activeHw = db.select({ id: schema.homeworkItems.id, dueDate: schema.homeworkItems.dueDate })
+  // today-due(또는 지난) 미완료 숙제 개수 — SQL-side count. dueDate IS NOT NULL은
+  // null 제외(과거엔 JS에서 `dueDate !== null`로 걸렀음)를 명시. (SQL `<=`도 null이면 제외)
+  const todayActiveHw = db.select({ c: count() })
     .from(schema.homeworkItems)
     .where(and(
       eq(schema.homeworkItems.isCommitted, true),
       isNull(schema.homeworkItems.doneAt),
+      isNotNull(schema.homeworkItems.dueDate),
+      lte(schema.homeworkItems.dueDate, todayIso),
     ))
-    .all()
-  const todayActiveHw = activeHw.filter((it) => it.dueDate !== null && it.dueDate <= todayIso).length
+    .get()?.c ?? 0
 
-  const doneHwToday = db.select({ id: schema.homeworkItems.id })
+  const doneHwToday = db.select({ c: count() })
     .from(schema.homeworkItems)
     .where(and(
       eq(schema.homeworkItems.isCommitted, true),
       gte(schema.homeworkItems.doneAt, start),
       lt(schema.homeworkItems.doneAt, end),
     ))
-    .all().length
+    .get()?.c ?? 0
 
   const todayKey: DayKey = DAY_KEYS[new Date().getDay()]
   const dailyTasks = db.select().from(schema.recurringTasks)

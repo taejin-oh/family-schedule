@@ -14,8 +14,7 @@ import { KidsDoneCard } from '@/app/_components/kids-done-card'
 import { KidsRecurringTodoCard, KidsRecurringDoneCard } from '@/app/_components/kids-recurring-card'
 import { StickersRow } from '@/app/_components/stickers-row'
 import { AttendanceBoard } from '@/app/_components/attendance-board'
-
-const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
+import { WEEKDAYS_KO as DAY_KO } from '@/lib/date'
 
 function weekdayLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)

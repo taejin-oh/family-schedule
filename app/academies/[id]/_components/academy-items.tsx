@@ -8,6 +8,7 @@ import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
 import { useMultiSelect } from '@/app/_components/multi-select-bar'
+import { diffDays, formatDueLabel } from '@/lib/date'
 import { cn } from '@/lib/utils'
 
 type Item = {
@@ -20,12 +21,6 @@ type Item = {
 
 type BucketStyle = 'overdue' | 'today' | 'tomorrow' | 'other'
 
-function diffDays(due: string, todayIso: string): number {
-  const t = new Date(todayIso + 'T00:00:00')
-  const d = new Date(due + 'T00:00:00')
-  return Math.round((d.getTime() - t.getTime()) / 86_400_000)
-}
-
 function duePillStyle(due: string | null, todayIso: string): BucketStyle {
   if (!due) return 'other'
   const dd = diffDays(due, todayIso)
@@ -33,16 +28,6 @@ function duePillStyle(due: string | null, todayIso: string): BucketStyle {
   if (dd === 0) return 'today'
   if (dd === 1) return 'tomorrow'
   return 'other'
-}
-
-function formatDueLabel(due: string | null, todayIso: string): string | null {
-  if (!due) return null
-  const dd = diffDays(due, todayIso)
-  if (dd < 0) return `${Math.abs(dd)}일 지남`
-  if (dd === 0) return '오늘'
-  if (dd === 1) return '내일'
-  if (dd <= 7) return `${dd}일 후`
-  return due
 }
 
 function formatRelative(doneAt: Date, now: number): string {

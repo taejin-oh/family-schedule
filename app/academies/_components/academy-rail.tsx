@@ -1,11 +1,7 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const SUBJECT_KO: Record<string, string> = {
-  math: '수학', english: '영어', korean: '국어', art: '미술',
-  music: '음악', pe: '체육', science: '과학', other: '기타',
-}
+import { subjectLabel } from '@/lib/subjects'
 
 type RailAcademy = { id: number; name: string; subject: string; color: string }
 
@@ -53,7 +49,7 @@ export function AcademyRail({
                   {a.name}
                 </div>
                 <div className="text-xs text-muted-foreground truncate">
-                  {SUBJECT_KO[a.subject] ?? a.subject}
+                  {subjectLabel(a.subject)}
                 </div>
               </div>
               {p && p.total > 0 && (

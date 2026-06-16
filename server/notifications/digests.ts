@@ -2,10 +2,9 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import * as schema from '@/server/db/schema'
 import { escTelegramHtml as esc } from './escape'
+import { WEEKDAYS_KO as DAY_KO } from '@/lib/date'
 
 type AppDb = ReturnType<typeof drizzle<typeof schema>>
-
-const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 function dayKo(dateIso: string): string {
   const [y, m, d] = dateIso.split('-').map(Number)
