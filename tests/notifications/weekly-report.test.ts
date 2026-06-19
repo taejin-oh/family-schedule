@@ -5,8 +5,9 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { eq } from 'drizzle-orm'
 import * as appSchema from '@/server/db/schema'
-import { gatherWeeklyStats } from '@/server/notifications/weekly-report'
+import { gatherWeeklyStats, summarizeWeek, buildWeeklyReport } from '@/server/notifications/weekly-report'
 
 function makeDb() {
   const dir = mkdtempSync(join(tmpdir(), 'fs-wr-'))
@@ -48,5 +49,49 @@ describe('gatherWeeklyStats', () => {
     expect(s.byAcademy['영어'].completed).toBe(3)
     expect(s.completed.map((c) => c.title)).toContain('제때 완료 상')
     expect(s.completed.map((c) => c.title)).not.toContain('지난 주 완료')
+  })
+})
+
+const FAKE_STATS = {
+  weekStartIso: '2026-06-15', weekEndIso: '2026-06-21', totalCompleted: 3, lateCount: 1,
+  scoreDist: { '상': 1, '중': 0, '하': 1, '미기록': 1 }, byAcademy: {}, completed: [], openAtWeekEnd: 2,
+}
+
+describe('summarizeWeek', () => {
+  it('주입한 러너의 서술을 트림해서 반환', async () => {
+    const run = async () => '  이번 주 잘했어요.  '
+    const out = await summarizeWeek(FAKE_STATS as never, { provider: 'codex', model: 'gpt-5.5', run })
+    expect(out).toBe('이번 주 잘했어요.')
+  })
+  it('러너가 throw하면 null', async () => {
+    const run = async () => { throw new Error('cli fail') }
+    const out = await summarizeWeek(FAKE_STATS as never, { provider: 'codex', model: 'gpt-5.5', run })
+    expect(out).toBeNull()
+  })
+})
+
+describe('buildWeeklyReport', () => {
+  it('서술 생성 + weekly_reports upsert + 텍스트에 통계·서술 포함', async () => {
+    const db = makeDb()
+    const eng = seedAcademy(db, '영어')
+    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: '상' })
+    const run = async () => 'AI 서술: 영어 숙제를 성실히 끝냈어요.'
+    const r = await buildWeeklyReport(db, '2026-06-15', '2026-06-21', { provider: 'codex', model: 'gpt-5.5', run, now: 1_750_000_000_000 })
+    expect(r.text).toContain('완료')
+    expect(r.text).toContain('AI 서술')
+    const row = db.select().from(appSchema.weeklyReports).where(eq(appSchema.weeklyReports.weekStartIso, '2026-06-15')).get()
+    expect(row?.narrative).toContain('AI 서술')
+    expect(row?.model).toBe('codex/gpt-5.5')
+  })
+  it('LLM 실패 시 템플릿 폴백으로도 저장·발송 가능', async () => {
+    const db = makeDb()
+    const eng = seedAcademy(db, '영어')
+    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: '상' })
+    const run = async () => { throw new Error('fail') }
+    const r = await buildWeeklyReport(db, '2026-06-15', '2026-06-21', { provider: 'codex', model: 'gpt-5.5', run, now: 1_750_000_000_000 })
+    expect(r.model).toBe('template')
+    expect(r.text.length).toBeGreaterThan(0)
+    const row = db.select().from(appSchema.weeklyReports).where(eq(appSchema.weeklyReports.weekStartIso, '2026-06-15')).get()
+    expect(row).toBeTruthy()
   })
 })
