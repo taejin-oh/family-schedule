@@ -8,6 +8,7 @@ import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework } f
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
+import { ScoreChips } from './score-chips'
 
 type DuePillProps = {
   label: string
@@ -47,6 +48,8 @@ export type HomeworkItemProps = {
   done?: boolean
   doneRelativeLabel?: string | null
   onUndo?: (formData: FormData) => Promise<void>
+  score?: '상' | '중' | '하' | null
+  scoreReason?: string | null
 }
 
 export function HomeworkItem({
@@ -63,6 +66,8 @@ export function HomeworkItem({
   done = false,
   doneRelativeLabel,
   onUndo,
+  score,
+  scoreReason,
 }: HomeworkItemProps) {
   const multiSelect = useMultiSelect()
   const isMultiActive = multiSelect?.active ?? false
@@ -178,6 +183,9 @@ export function HomeworkItem({
           <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2">
             {notes}
           </div>
+        )}
+        {done && !isMultiActive && (
+          <ScoreChips id={id} score={score ?? null} reason={scoreReason ?? null} />
         )}
       </div>
     </div>

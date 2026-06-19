@@ -417,6 +417,8 @@ export default async function HomePage({
               done
               doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
               onUndo={onUndo}
+              score={it.score}
+              scoreReason={it.scoreReason}
             />
           ))}
           {recurringDoneToday.map((rt) => (
@@ -501,6 +503,8 @@ export default async function HomePage({
             done
             doneRelativeLabel={it.doneAt ? formatRelative(it.doneAt, now) : null}
             onUndo={onUndo}
+            score={it.score}
+            scoreReason={it.scoreReason}
           />
         ))}
       </div>
