@@ -53,6 +53,8 @@ export default async function SettingsPage() {
       telegramMiddayTime: String(formData.get('telegramMiddayTime') || '12:00'),
       telegramAcademyReminderEnabled: formData.get('telegramAcademyReminderEnabled') === 'on',
       telegramAcademyReminderMinutes: Number(formData.get('telegramAcademyReminderMinutes') || 10),
+      telegramWeeklyEnabled: formData.get('telegramWeeklyEnabled') === 'on',
+      telegramWeeklyTime: String(formData.get('telegramWeeklyTime') || '21:00'),
     })
     if (!res.ok) throw new Error(res.error ?? '저장 실패')
     revalidatePath('/admin/settings')
@@ -314,6 +316,7 @@ export default async function SettingsPage() {
               {[
                 { key: 'Morning', label: '아침', timeKey: 'telegramMorningTime', defTime: '07:00', enabledKey: 'telegramMorningEnabled', enabledVal: s.telegramMorningEnabled ?? true },
                 { key: 'Evening', label: '저녁', timeKey: 'telegramEveningTime', defTime: '21:00', enabledKey: 'telegramEveningEnabled', enabledVal: s.telegramEveningEnabled ?? true },
+                { key: 'Weekly', label: '주간 리포트 (일요일)', timeKey: 'telegramWeeklyTime', defTime: '21:00', enabledKey: 'telegramWeeklyEnabled', enabledVal: ('telegramWeeklyEnabled' in s ? s.telegramWeeklyEnabled : true) ?? true },
               ].map((row) => (
                 <div key={row.key} className="flex items-center gap-3">
                   <label className="flex items-center gap-2 min-w-[80px] text-sm">

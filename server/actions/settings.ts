@@ -30,6 +30,8 @@ export async function getSettings(ctx: Ctx = {}) {
     telegramMiddayTime: '12:00',
     telegramAcademyReminderEnabled: true,
     telegramAcademyReminderMinutes: 10,
+    telegramWeeklyEnabled: true,
+    telegramWeeklyTime: '21:00',
   }
 }
 
@@ -47,6 +49,8 @@ const Input = z.object({
   telegramMiddayTime: timeHHMM.optional(),
   telegramAcademyReminderEnabled: z.boolean().optional(),
   telegramAcademyReminderMinutes: z.coerce.number().int().min(1).max(60).optional(),
+  telegramWeeklyEnabled: z.boolean().optional(),
+  telegramWeeklyTime: timeHHMM.optional(),
 })
 
 export async function updateSettings(input: z.infer<typeof Input>, ctx: Ctx = {}): Promise<{ ok: boolean; error?: string }> {

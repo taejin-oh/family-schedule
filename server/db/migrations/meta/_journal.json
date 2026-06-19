@@ -148,6 +148,13 @@
       "when": 1781878962095,
       "tag": "0020_bouncy_salo",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781879424935,
+      "tag": "0021_mysterious_raider",
+      "breakpoints": true
     }
   ]
 }
