@@ -15,7 +15,7 @@ export const jobs = sqliteTable('jobs', {
 
 export const digestLog = sqliteTable('digest_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  kind: text('kind', { enum: ['morning', 'evening', 'midday'] }).notNull(),
+  kind: text('kind', { enum: ['morning', 'evening', 'midday', 'weekly'] }).notNull(),
   sentAt: integer('sent_at').notNull(),  // unix ms
   dateIso: text('date_iso').notNull(),   // 'YYYY-MM-DD' local (Asia/Seoul)
 }, (t) => [

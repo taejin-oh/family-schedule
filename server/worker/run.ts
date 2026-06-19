@@ -14,6 +14,8 @@ import { getProvider } from '@/server/llm/registry'
 import { sendTelegram } from '@/server/notifications/telegram'
 import { buildMorningDigest, buildEveningDigest, buildMiddayDigest } from '@/server/notifications/digests'
 import { findUpcomingAcademyEvents } from '@/server/notifications/academy-reminders'
+import { buildWeeklyReport } from '@/server/notifications/weekly-report'
+import { mondayOfWeekIso } from '@/server/util/date'
 import { runBatchCleanup } from '@/server/util/batch-cleanup'
 import { runEventsCleanup } from '@/server/util/events-cleanup'
 
@@ -131,6 +133,62 @@ export async function maybeFireDigest(
   return 'sent'
 }
 
+type WeeklyDeps = {
+  build?: (mondayIso: string, sundayIso: string) => Promise<{ text: string }>
+  send?: (text: string) => Promise<{ ok: boolean; reason?: string }>
+}
+
+export async function maybeFireWeekly(
+  appDb: AppDb, jobsDb: JobsDb, enabled: boolean, scheduledTime: string,
+  currentHhmm: string, dateIso: string, deps: WeeklyDeps = {},
+): Promise<DigestResult> {
+  if (!enabled || scheduledTime !== currentHhmm) return 'skipped'
+  // 일요일만 (로컬 파싱). getDay() 0 = 일요일.
+  if (new Date(dateIso + 'T00:00:00').getDay() !== 0) return 'skipped'
+
+  const send = deps.send ?? sendTelegram
+  const build = deps.build ?? (async (monday: string, sunday: string) => {
+    const settings = appDb.select().from(appSchema.appSettings).where(eq(appSchema.appSettings.id, 1)).get()
+    const r = await buildWeeklyReport(appDb, monday, sunday, {
+      provider: settings?.visionProvider ?? 'codex',
+      model: settings?.visionModel ?? 'gpt-5.5',
+    })
+    return { text: r.text }
+  })
+
+  // dedup: digest_log (kind='weekly', dateIso=그 일요일).
+  const ourNonce = Date.now() * 1000 + Math.floor(Math.random() * 1000)
+  try {
+    jobsDb.insert(jobsSchema.digestLog).values({ kind: 'weekly', sentAt: ourNonce, dateIso }).onConflictDoNothing().run()
+  } catch (e) { console.error('[weekly] claim insert failed:', e); return 'retry' }
+  let claimed = false
+  try {
+    const row = jobsDb.select({ sentAt: jobsSchema.digestLog.sentAt }).from(jobsSchema.digestLog)
+      .where(and(eq(jobsSchema.digestLog.kind, 'weekly'), eq(jobsSchema.digestLog.dateIso, dateIso))).get()
+    claimed = row?.sentAt === ourNonce
+  } catch (e) { console.error('[weekly] claim verify failed:', e); return 'retry' }
+  if (!claimed) return 'skipped'
+
+  // 그 일요일이 끝나는 주 = 월요일~그 일요일. mondayOfWeekIso(dateIso).
+  let text: string
+  try {
+    const monday = mondayOfWeekIso(dateIso)
+    const out = await build(monday, dateIso)
+    text = out.text
+  } catch (e) {
+    console.error('[weekly] build failed:', e)
+    jobsDb.delete(jobsSchema.digestLog).where(and(eq(jobsSchema.digestLog.kind, 'weekly'), eq(jobsSchema.digestLog.dateIso, dateIso))).run()
+    return 'retry'
+  }
+  const result = await send(text)
+  if (!result.ok) {
+    jobsDb.delete(jobsSchema.digestLog).where(and(eq(jobsSchema.digestLog.kind, 'weekly'), eq(jobsSchema.digestLog.dateIso, dateIso))).run()
+    return 'retry'
+  }
+  console.log(`[weekly] report sent for week ending ${dateIso}`)
+  return 'sent'
+}
+
 /**
  * Worker 본체. 무한 polling 루프. 호출자가 종료해야 멈춘다 (현재는 종료 훅 없음 —
  * Node.js process 종료 시 함께 끝남).
@@ -187,6 +245,7 @@ export async function runWorker(): Promise<void> {
           // 점심 digest는 사용자 정의에 없어서 제거. schema column은 유지(legacy).
           const morningRes = await maybeFireDigest(appDb, jobsDb, 'morning', settings.telegramMorningEnabled, settings.telegramMorningTime, hhmm, dateIso)
           const eveningRes = await maybeFireDigest(appDb, jobsDb, 'evening', settings.telegramEveningEnabled, settings.telegramEveningTime, hhmm, dateIso)
+          const weeklyRes = await maybeFireWeekly(appDb, jobsDb, settings.telegramWeeklyEnabled ?? true, settings.telegramWeeklyTime ?? '21:00', hhmm, dateIso)
 
           // digest build/send 실패 시 같은 분(scheduledTime) 안에서 다시 시도해야
           // 함. lastCheckedMinute 가드를 비워 다음 polling cycle이 minute block에
@@ -194,7 +253,7 @@ export async function runWorker(): Promise<void> {
           // 발송이 영구 손실되는 문제(이전 동작) 방지.
           // academy reminder는 in-memory dedupe Set, cleanup은 lastCleanupDate
           // 가드가 있어서 재진입해도 중복 실행 안 됨.
-          if (morningRes === 'retry' || eveningRes === 'retry') {
+          if (morningRes === 'retry' || eveningRes === 'retry' || weeklyRes === 'retry') {
             lastCheckedMinute = ''
           }
 
