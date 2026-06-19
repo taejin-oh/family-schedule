@@ -637,6 +637,9 @@ export default async function HomePage({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Link href="/report" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+            📊 리포트
+          </Link>
           <Link href="/kids" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
             🧒 은채 화면
           </Link>
