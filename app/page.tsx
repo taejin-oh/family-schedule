@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check } from 'lucide-react'
-import { listCommittedItems, listDoneToday, listDoneThisWeek, toggleItemDone } from '@/server/actions/homework'
+import { listCommittedItems, listDoneToday, listDoneThisWeek, listCompletedThisWeekUnscored, toggleItemDone } from '@/server/actions/homework'
 import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
 import { buttonVariants } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { diffDays, formatDueLabel } from '@/lib/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
+import { ScoreChips } from '@/app/_components/score-chips'
 import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 import { FilterChipGroup } from './dashboard/_components/filter-chip'
@@ -142,7 +143,7 @@ export default async function HomePage({
   // sqlite sync 호출이라 7개 query 합쳐도 ms 단위. 데이터 일관성 우선.
   // eslint-disable-next-line react-hooks/purity -- server component perf measurement
   const tFetch0 = performance.now()
-  const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies] = await Promise.all([
+  const [active, doneToday, doneThisWeek, todayRecurring, tomorrowRecurring, weekRecurring, academies, unscored] = await Promise.all([
     listCommittedItems(),
     listDoneToday(),
     listDoneThisWeek(),
@@ -150,6 +151,7 @@ export default async function HomePage({
     listDayRecurring(1),
     listThisWeekRecurring(),
     listAcademies(),
+    listCompletedThisWeekUnscored(),
   ])
   await logServerEvent({
     category: 'perf',
@@ -511,6 +513,28 @@ export default async function HomePage({
     </details>
   ) : null
 
+  const unscoredSection = unscored.length > 0 ? (
+    <details className="group rounded-xl ring-1 ring-foreground/10 bg-card overflow-hidden" open>
+      <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/40 transition-colors">
+        <span>📝 점수 미기록 완료 (이번 주) · {unscored.length}</span>
+        <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+        <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+      </summary>
+      <div className="border-t divide-y">
+        {unscored.map((it) => (
+          <div key={it.id} className="p-3 flex items-start gap-3">
+            <span className="w-[5px] h-9 rounded-full flex-shrink-0 mt-0.5" style={{ background: it.academyColor }} aria-hidden />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium break-words line-through decoration-muted-foreground/40">{it.title}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{it.academyName}</div>
+              <ScoreChips id={it.id} score={null} reason={null} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  ) : null
+
   // 버킷 하나를 section으로 렌더 — all/today/tomorrow 브랜치에서 공유.
   const renderBucket = (bk: BucketKey) => {
     const hwList = filteredBuckets[bk]
@@ -688,6 +712,7 @@ export default async function HomePage({
             {weeklySection}
             {weeklyDoneSection}
             {doneThisWeekSection}
+            {unscoredSection}
           </div>
           <div className="space-y-3">
             {(() => {
@@ -728,6 +753,7 @@ export default async function HomePage({
             {doneTodaySection}
             {weeklyDoneSection}
             {doneThisWeekSection}
+            {unscoredSection}
           </div>
           <div className="space-y-3">
             {visibleBuckets.map(renderBucket)}
@@ -741,6 +767,7 @@ export default async function HomePage({
             {renderBucket('today')}
             {weeklySection}
             {doneTodaySection}
+            {unscoredSection}
           </div>
           <div className="space-y-3">
             {renderBucket('tomorrow')}
