@@ -134,6 +134,13 @@
       "when": 1780491296572,
       "tag": "0018_smart_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1781869728669,
+      "tag": "0019_previous_gunslinger",
+      "breakpoints": true
     }
   ]
 }
