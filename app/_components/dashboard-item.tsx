@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMultiSelect } from './multi-select-bar'
-import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework } from '@/server/actions/homework'
+import { deferHomework, deleteHomeworkItem, pinHomeworkToDate, unpinHomework, toggleItemDone } from '@/server/actions/homework'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { useToast } from '@/components/toast'
 import { ScoreChips } from './score-chips'
+import { useScoreSheet } from './score-sheet'
 
 type DuePillProps = {
   label: string
@@ -42,8 +43,6 @@ export type HomeworkItemProps = {
   academyColor: string
   dueLabel: string | null
   bucket: string
-  // active 카드 (기본): 빈 원 체크 → 완료 표시
-  onComplete?: (formData: FormData) => Promise<void>
   // done variant: 체크박스 = 초록 ✓ + 클릭 시 완료 취소.
   done?: boolean
   doneRelativeLabel?: string | null
@@ -62,19 +61,26 @@ export function HomeworkItem({
   academyColor,
   dueLabel,
   bucket,
-  onComplete,
   done = false,
   doneRelativeLabel,
   onUndo,
   score,
   scoreReason,
 }: HomeworkItemProps) {
+  const scoreSheet = useScoreSheet()
   const multiSelect = useMultiSelect()
   const isMultiActive = multiSelect?.active ?? false
   const isChecked = multiSelect?.selected.has(id) ?? false
   const [editOpen, setEditOpen] = useState(false)
   const [hidden, setHidden] = useState(false)
   const toast = useToast()
+
+  // 완료 → 페이지 상단 점수 시트(Provider)를 띄움. (완료의 revalidate가 이 항목을
+  // 언마운트시키므로 시트는 항목이 아니라 Provider가 들고 있음.)
+  async function handleComplete() {
+    await toggleItemDone(id, true)
+    scoreSheet?.open(id, title)
+  }
 
   async function handleDefer(newDate: string) {
     await deferHomework(id, newDate)
@@ -136,16 +142,14 @@ export function HomeworkItem({
           </button>
         </form>
       ) : (
-        <form action={onComplete} className="flex-shrink-0">
-          <input type="hidden" name="id" value={id} />
-          <button
-            type="submit"
-            className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
-            aria-label="완료로 표시"
-          >
-            <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={handleComplete}
+          className="flex-shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
+          aria-label="완료로 표시"
+        >
+          <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
+        </button>
       )}
       <span
         className="w-[5px] h-9 rounded-full flex-shrink-0"

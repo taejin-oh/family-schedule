@@ -11,6 +11,7 @@ import { localDateIso } from '@/server/util/date'
 import { diffDays, formatDueLabel } from '@/lib/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
 import { ScoreChips } from '@/app/_components/score-chips'
+import { ScoreSheetProvider } from '@/app/_components/score-sheet'
 import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
 import { FilterChipGroup } from './dashboard/_components/filter-chip'
@@ -185,15 +186,8 @@ export default async function HomePage({
   // Weekly done — shown in its own '완료한 이번 주 할일' section.
   const weeklyDone = weekRecur.filter((r) => r.doneAt !== null)
 
-  // Server actions for homework
-  async function onComplete(formData: FormData) {
-    'use server'
-    const id = Number(formData.get('id'))
-    await toggleItemDone(id, true)
-    revalidatePath('/kids')
-    revalidatePath('/')
-  }
-
+  // Server actions for homework. (완료는 HomeworkItem이 클라이언트에서 toggleItemDone
+  // 직접 호출 + 점수 시트를 띄우므로 onComplete server action은 더 이상 필요 없음.)
   async function onUndo(formData: FormData) {
     'use server'
     const id = Number(formData.get('id'))
@@ -567,7 +561,6 @@ export default async function HomePage({
               academyColor={it.academyColor}
               dueLabel={formatDueLabel(it.dueDate, todayIso)}
               bucket={bk}
-              onComplete={onComplete}
             />
           ))}
           {recurList.map((rt) => (
@@ -588,8 +581,53 @@ export default async function HomePage({
     )
   }
 
+  // 전체 뷰 전용: 여러 버킷의 숙제 + recurring을 하나의 접이식 그룹으로 묶어 렌더.
+  const activeGroup = (key: string, label: string, hwList: ActiveItem[], recurList: RecurringItem[]) => {
+    const total = hwList.length + recurList.length
+    if (total === 0) return null
+    return (
+      <details key={key} className="group rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden" open>
+        <summary className="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 transition-colors">
+          <span>{label} ({total})</span>
+          <span className="text-xs text-muted-foreground group-open:hidden">펼치기</span>
+          <span className="text-xs text-muted-foreground hidden group-open:inline">접기</span>
+        </summary>
+        <div className="divide-y divide-foreground/10 border-t border-foreground/10">
+          {hwList.map((it) => (
+            <HomeworkItem
+              key={it.id}
+              id={it.id}
+              title={it.title}
+              notes={it.notes}
+              dueDate={it.dueDate}
+              pinnedDate={it.pinnedDate}
+              academyName={it.academyName}
+              academyColor={it.academyColor}
+              dueLabel={formatDueLabel(it.dueDate, todayIso)}
+              bucket={bucketOf(it, todayIso)}
+            />
+          ))}
+          {recurList.map((rt) => (
+            <RecurringItemRow
+              key={`r-${rt.id}`}
+              id={rt.id}
+              title={rt.title}
+              notes={rt.notes}
+              color={rt.color}
+              cadence={rt.cadence}
+              daysOfWeek={rt.daysOfWeek ?? []}
+              dateIso={rt.dateIso}
+              onComplete={onRecurringComplete}
+            />
+          ))}
+        </div>
+      </details>
+    )
+  }
+
   return (
     <MultiSelectProvider activeIds={activeIds} doneIds={doneIds}>
+    <ScoreSheetProvider>
     <div className="space-y-4">
       <header className="px-1 pt-2 pb-1 flex items-end justify-between gap-2">
         <div>
@@ -736,7 +774,6 @@ export default async function HomePage({
                         academyColor={it.academyColor}
                         dueLabel={formatDueLabel(it.dueDate, todayIso)}
                         bucket={bucketOf(it, todayIso)}
-                        onComplete={onComplete}
                       />
                     ))}
                   </Card>
@@ -746,18 +783,16 @@ export default async function HomePage({
           </div>
         </div>
       ) : filter === 'all' ? (
-        /* 전체: 왼쪽=active weekly + 완료들(맨 아래) / 오른쪽=숙제 버킷들 */
-        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-x-5 lg:space-y-0 lg:items-start">
-          <div className="space-y-3">
-            {weeklySection}
-            {doneTodaySection}
-            {weeklyDoneSection}
-            {doneThisWeekSection}
-            {unscoredSection}
-          </div>
-          <div className="space-y-3">
-            {visibleBuckets.map(renderBucket)}
-          </div>
+        /* 전체: 단일 컬럼 고정 순서 — 오늘 할일 → 이번주 할일 → 오늘 한일 →
+           이번 주 완료한 숙제 → (완료한 매주 할일) → 점수 미기록 → 다음주 숙제. 모두 접기 가능. */
+        <div className="space-y-3">
+          {activeGroup('today-group', '📌 오늘 할일', [...filteredBuckets.overdue, ...filteredBuckets.today, ...filteredBuckets.tomorrow], recurringActive)}
+          {activeGroup('week-group', '🗓️ 이번주 할일', filteredBuckets.thisweek, weeklyActive)}
+          {doneTodaySection}
+          {doneThisWeekSection}
+          {weeklyDoneSection}
+          {unscoredSection}
+          {activeGroup('next-group', '⏭️ 다음주 숙제', filteredBuckets.nextweek, [])}
         </div>
       ) : filter === 'today' ? (
         /* 오늘: 왼쪽=지남+오늘 버킷+이번주할일+오늘한일(맨 아래) / 오른쪽=내일 버킷 */
@@ -783,6 +818,7 @@ export default async function HomePage({
       )}
 
     </div>
+    </ScoreSheetProvider>
     </MultiSelectProvider>
   )
 }

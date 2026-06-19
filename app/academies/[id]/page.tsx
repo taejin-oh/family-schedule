@@ -10,6 +10,7 @@ import { ActiveAcademyItems, DoneAcademyItems } from './_components/academy-item
 import { BatchesRollback } from './_components/batches-rollback'
 import { AcademyRail } from '../_components/academy-rail'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
+import { ScoreSheetProvider } from '@/app/_components/score-sheet'
 import { subjectLabel } from '@/lib/subjects'
 
 const DAY_KO: Record<string, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
@@ -46,6 +47,7 @@ export default async function AcademyDetailPage({
 
   return (
     <MultiSelectProvider activeIds={activeIds} doneIds={doneIds} mode="delete-only">
+    <ScoreSheetProvider>
     {/* lg: 좌측 학원 마스터 레일 + 우측 상세 (모바일은 상세만) */}
     <div className="lg:flex lg:gap-6 lg:items-start">
       <AcademyRail academies={allAcademies} progress={progressMap} activeId={numId} />
@@ -145,6 +147,7 @@ export default async function AcademyDetailPage({
       <BatchesRollback batches={batches} />
       </div>
     </div>
+    </ScoreSheetProvider>
     </MultiSelectProvider>
   )
 }

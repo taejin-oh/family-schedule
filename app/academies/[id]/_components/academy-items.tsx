@@ -7,6 +7,7 @@ import { deferHomework, deleteHomeworkItem, toggleItemDone } from '@/server/acti
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
 import { ScoreChips } from '@/app/_components/score-chips'
+import { useScoreSheet } from '@/app/_components/score-sheet'
 import { useToast } from '@/components/toast'
 import { useMultiSelect } from '@/app/_components/multi-select-bar'
 import { diffDays, formatDueLabel } from '@/lib/date'
@@ -91,6 +92,7 @@ function ActiveRow({ item, todayIso }: { item: Item; todayIso: string }) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [hidden, setHidden] = useState(false)
+  const scoreSheet = useScoreSheet()
   const toast = useToast()
   const ms = useMultiSelect()
   const selectMode = ms?.active ?? false
@@ -100,14 +102,10 @@ function ActiveRow({ item, todayIso }: { item: Item; todayIso: string }) {
     await deferHomework(item.id, newDate)
     router.refresh()
   }
+  // 완료 → 페이지 상단 점수 시트(Provider). 닫힐 때 새로고침으로 완료 목록 이동.
   async function handleComplete() {
-    setHidden(true)
-    try {
-      await toggleItemDone(item.id, true)
-      router.refresh()
-    } catch {
-      setHidden(false)
-    }
+    await toggleItemDone(item.id, true)
+    scoreSheet?.open(item.id, item.title)
   }
   async function handleDelete() {
     setHidden(true)
