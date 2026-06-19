@@ -778,6 +778,56 @@ export async function bulkToggleItemsDone(
   return { ok: true }
 }
 
+const SCORE_VALUES = ['상', '중', '하'] as const
+export type HomeworkScore = (typeof SCORE_VALUES)[number]
+
+export async function setHomeworkScore(
+  id: number,
+  score: HomeworkScore | null,
+  reason: string | null,
+  ctx: Ctx = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (score !== null && !SCORE_VALUES.includes(score)) {
+    return { ok: false, error: '잘못된 점수' }
+  }
+  const appDb = ctx.appDb ?? getDb()
+  const row = appDb.select({ academyId: appSchema.homeworkItems.academyId })
+    .from(appSchema.homeworkItems)
+    .where(eq(appSchema.homeworkItems.id, id))
+    .get()
+  const cleanReason = score === null ? null : (reason?.trim() || null)
+  appDb.update(appSchema.homeworkItems)
+    .set({ score, scoreReason: cleanReason })
+    .where(eq(appSchema.homeworkItems.id, id))
+    .run()
+  revalidatePath('/')
+  if (row) revalidatePath(`/academies/${row.academyId}`)
+  return { ok: true }
+}
+
+export async function listCompletedThisWeekUnscored(ctx: Ctx = {}) {
+  const appDb = ctx.appDb ?? getDb()
+  const { start, end } = localWeekWindow()
+  return appDb.select({
+    id: appSchema.homeworkItems.id,
+    title: appSchema.homeworkItems.title,
+    dueDate: appSchema.homeworkItems.dueDate,
+    doneAt: appSchema.homeworkItems.doneAt,
+    academyName: appSchema.academies.name,
+    academyColor: appSchema.academies.color,
+  })
+  .from(appSchema.homeworkItems)
+  .innerJoin(appSchema.academies, eq(appSchema.homeworkItems.academyId, appSchema.academies.id))
+  .where(and(
+    eq(appSchema.homeworkItems.isCommitted, true),
+    isNull(appSchema.homeworkItems.score),
+    gte(appSchema.homeworkItems.doneAt, start),
+    lt(appSchema.homeworkItems.doneAt, end),
+  ))
+  .orderBy(desc(appSchema.homeworkItems.doneAt))
+  .all()
+}
+
 /**
  * Bulk delete items by ID.
  * Uses the same cascade-safe delete path as deleteDraftItem
