@@ -7,7 +7,7 @@ const NOW = new Date('2026-05-28T12:00:00').getTime()
 // 지난 주 시작: 2026-05-18 (월) 00:00
 
 function item(id: number, title: string, doneAt: Date | null, dueDate: string | null = null): Item {
-  return { id, title, notes: null, dueDate, doneAt }
+  return { id, title, notes: null, dueDate, doneAt, score: null, scoreReason: null }
 }
 
 describe('groupDone', () => {

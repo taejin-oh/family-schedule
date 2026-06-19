@@ -6,6 +6,7 @@ import { Check } from 'lucide-react'
 import { deferHomework, deleteHomeworkItem, toggleItemDone } from '@/server/actions/homework'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditHomeworkDialog } from '@/components/edit-homework-dialog-lazy'
+import { ScoreChips } from '@/app/_components/score-chips'
 import { useToast } from '@/components/toast'
 import { useMultiSelect } from '@/app/_components/multi-select-bar'
 import { diffDays, formatDueLabel } from '@/lib/date'
@@ -17,6 +18,8 @@ type Item = {
   notes: string | null
   dueDate: string | null
   doneAt: Date | null
+  score: '상' | '중' | '하' | null
+  scoreReason: string | null
 }
 
 type BucketStyle = 'overdue' | 'today' | 'tomorrow' | 'other'
@@ -299,6 +302,10 @@ function DoneRow({ item, now }: { item: Item; now: number }) {
           {body}
         </button>
       </ItemActionsMenu>
+      {/* 점수 칩 — 행 복원 버튼 바깥(형제)에 둬서 버튼 중첩/탭 충돌 방지 */}
+      <div className="px-3 pb-2 -mt-1">
+        <ScoreChips id={item.id} score={item.score} reason={item.scoreReason} />
+      </div>
       <EditHomeworkDialog
         open={editOpen}
         onClose={() => setEditOpen(false)}
