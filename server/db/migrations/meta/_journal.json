@@ -141,6 +141,13 @@
       "when": 1781869728669,
       "tag": "0019_previous_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1781878962095,
+      "tag": "0020_bouncy_salo",
+      "breakpoints": true
     }
   ]
 }

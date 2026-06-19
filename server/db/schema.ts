@@ -171,6 +171,16 @@ export const events = sqliteTable('events', {
   index('events_event_idx').on(t.event),
 ])
 
+export const weeklyReports = sqliteTable('weekly_reports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  weekStartIso: text('week_start_iso').notNull().unique(),  // 월요일 'YYYY-MM-DD'
+  weekEndIso: text('week_end_iso').notNull(),               // 일요일 'YYYY-MM-DD'
+  stats: text('stats', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  narrative: text('narrative').notNull(),
+  model: text('model').notNull(),                           // 'codex/gpt-5.5' 또는 'template'
+  generatedAt: integer('generated_at', { mode: 'timestamp' }).notNull(),
+})
+
 // 적립된 스티커. auto=오늘 active 0 도달 시 자동, manual=부모 수동 추가.
 // auto 스티커는 forDate UNIQUE (한 날짜에 하나). manual은 forDate NULL.
 // 보상으로 redeem 된 스티커는 redemptionId가 세팅됨 (회수 불가, 카운트에서 제외).
