@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { localDateIso } from '@/server/util/date'
 import { diffDays, formatDueLabel } from '@/lib/date'
 import { HomeworkItem } from '@/app/_components/dashboard-item'
-import { ScoreChips } from '@/app/_components/score-chips'
+import { ScoreChips, RecurringScoreChips } from '@/app/_components/score-chips'
 import { ScoreSheetProvider } from '@/app/_components/score-sheet'
 import { RecurringItem as RecurringItemRow } from '@/app/_components/recurring-item'
 import { MultiSelectProvider, MultiSelectToggle } from '@/app/_components/multi-select-bar'
@@ -32,6 +32,8 @@ type RecurringItem = {
   cadence: 'daily' | 'weekly'
   daysOfWeek?: DayKey[]
   doneAt: Date | null
+  score: number | null
+  scoreReason: string | null
   dateIso: string  // value to send to markRecurringDone (today/tomorrow for daily, anything-in-week for weekly)
 }
 
@@ -424,6 +426,7 @@ export default async function HomePage({
                   <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">🔁 매일</span>
                   {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
                 </div>
+                <RecurringScoreChips taskId={rt.id} dateIso={rt.dateIso} score={rt.score} reason={rt.scoreReason} />
               </div>
             </div>
           ))}
@@ -458,6 +461,7 @@ export default async function HomePage({
                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-soft text-brand">🔁 이번 주 안에</span>
                 {rt.doneAt && <> · {formatRelative(rt.doneAt, now)} 완료</>}
               </div>
+              <RecurringScoreChips taskId={rt.id} dateIso={rt.dateIso} score={rt.score} reason={rt.scoreReason} />
             </div>
           </div>
         ))}

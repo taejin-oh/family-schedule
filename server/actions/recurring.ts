@@ -197,18 +197,23 @@ export async function listDayRecurring(daysFromToday: number, ctx: Ctx = {}) {
       inArray(schema.recurringTaskCompletions.taskId, dayTasks.map((t) => t.id)),
     ))
     .all()
-  const doneMap = new Map(completions.map((c) => [c.taskId, c.doneAt]))
+  const compMap = new Map(completions.map((c) => [c.taskId, c]))
 
-  return dayTasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    notes: t.notes,
-    color: t.color,
-    cadence: t.cadence,
-    daysOfWeek: t.daysOfWeek as DayKey[],
-    doneAt: doneMap.get(t.id) ?? null,
-    targetDateIso: targetIso,
-  }))
+  return dayTasks.map((t) => {
+    const c = compMap.get(t.id)
+    return {
+      id: t.id,
+      title: t.title,
+      notes: t.notes,
+      color: t.color,
+      cadence: t.cadence,
+      daysOfWeek: t.daysOfWeek as DayKey[],
+      doneAt: c?.doneAt ?? null,
+      score: c?.score ?? null,
+      scoreReason: c?.scoreReason ?? null,
+      targetDateIso: targetIso,
+    }
+  })
 }
 
 export async function listTodayRecurring(ctx: Ctx = {}) {
@@ -231,15 +236,20 @@ export async function listThisWeekRecurring(ctx: Ctx = {}) {
       inArray(schema.recurringTaskCompletions.taskId, tasks.map((t) => t.id)),
     ))
     .all()
-  const doneMap = new Map(completions.map((c) => [c.taskId, c.doneAt]))
+  const compMap = new Map(completions.map((c) => [c.taskId, c]))
 
-  return tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    notes: t.notes,
-    color: t.color,
-    cadence: t.cadence,
-    doneAt: doneMap.get(t.id) ?? null,
-    weekStartIso: weekKey,
-  }))
+  return tasks.map((t) => {
+    const c = compMap.get(t.id)
+    return {
+      id: t.id,
+      title: t.title,
+      notes: t.notes,
+      color: t.color,
+      cadence: t.cadence,
+      doneAt: c?.doneAt ?? null,
+      score: c?.score ?? null,
+      scoreReason: c?.scoreReason ?? null,
+      weekStartIso: weekKey,
+    }
+  })
 }
