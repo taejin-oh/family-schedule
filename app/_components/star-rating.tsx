@@ -25,11 +25,12 @@ export function StarRating({
         aria-label="별 0개"
         aria-pressed={value === 0}
         className={cn(
-          'px-1.5 py-0.5 rounded text-xs font-semibold transition-colors disabled:opacity-50',
-          value === 0 ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
+          'leading-none rounded px-1 py-0.5 transition-all disabled:opacity-50',
+          size === 'lg' ? 'text-2xl' : 'text-base',
+          value === 0 ? 'opacity-100 bg-foreground/10 ring-1 ring-foreground/25' : 'opacity-40 hover:opacity-100',
         )}
       >
-        0
+        😞
       </button>
       {[1, 2, 3, 4, 5].map((i) => {
         const filled = value !== null && i <= value
