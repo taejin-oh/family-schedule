@@ -220,6 +220,44 @@ export async function listTodayRecurring(ctx: Ctx = {}) {
   return listDayRecurring(0, ctx)
 }
 
+/**
+ * /recurring 관리 페이지용 — 오늘 스케줄 여부와 무관하게 모든 daily task를 반환.
+ * 완료 상태(doneAt/score)는 오늘 날짜 기준. listDayRecurring(0)에서 요일 필터만 뺀 것.
+ */
+export async function listAllDailyRecurring(ctx: Ctx = {}) {
+  const db = ctx.db ?? getDb()
+  const todayIso = localDateIso()
+
+  const dailyTasks = db.select().from(schema.recurringTasks)
+    .where(and(isNull(schema.recurringTasks.archivedAt), eq(schema.recurringTasks.cadence, 'daily')))
+    .orderBy(asc(schema.recurringTasks.id)).all()
+
+  const completions = dailyTasks.length === 0 ? [] : db.select()
+    .from(schema.recurringTaskCompletions)
+    .where(and(
+      eq(schema.recurringTaskCompletions.completionDate, todayIso),
+      inArray(schema.recurringTaskCompletions.taskId, dailyTasks.map((t) => t.id)),
+    ))
+    .all()
+  const compMap = new Map(completions.map((c) => [c.taskId, c]))
+
+  return dailyTasks.map((t) => {
+    const c = compMap.get(t.id)
+    return {
+      id: t.id,
+      title: t.title,
+      notes: t.notes,
+      color: t.color,
+      cadence: t.cadence,
+      daysOfWeek: t.daysOfWeek as DayKey[],
+      doneAt: c?.doneAt ?? null,
+      score: c?.score ?? null,
+      scoreReason: c?.scoreReason ?? null,
+      targetDateIso: todayIso,
+    }
+  })
+}
+
 export async function listThisWeekRecurring(ctx: Ctx = {}) {
   const db = ctx.db ?? getDb()
   const todayIso = localDateIso()

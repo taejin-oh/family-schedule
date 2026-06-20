@@ -13,6 +13,7 @@ import {
   markRecurringDone,
   markRecurringUndone,
   listTodayRecurring,
+  listAllDailyRecurring,
   listThisWeekRecurring,
   listRecurringTasks,
 } from '@/server/actions/recurring'
@@ -143,6 +144,56 @@ describe('listTodayRecurring', () => {
     const result = await listTodayRecurring({ db })
     expect(result).toHaveLength(1)
     expect(result[0].doneAt).toBeNull()
+  })
+})
+
+describe('listAllDailyRecurring', () => {
+  it('includes every daily task regardless of day-of-week schedule', async () => {
+    const { db } = makeDb()
+    const today = todayKey()
+    const notToday = notTodayKey()
+
+    await createRecurringTask({ title: '오늘 과제', daysOfWeek: [today] }, { db })
+    await createRecurringTask({ title: '다른 날 과제', daysOfWeek: [notToday] }, { db })
+
+    const result = await listAllDailyRecurring({ db })
+    const titles = result.map((r) => r.title).sort()
+    expect(titles).toEqual(['다른 날 과제', '오늘 과제'])
+    // daysOfWeek round-trips so the row can render its schedule
+    const other = result.find((r) => r.title === '다른 날 과제')!
+    expect(other.daysOfWeek).toEqual([notToday])
+  })
+
+  it('excludes weekly and archived tasks', async () => {
+    const { db } = makeDb()
+    const notToday = notTodayKey()
+
+    await createRecurringTask({ title: '주간 것', cadence: 'weekly', daysOfWeek: [] }, { db })
+    const archived = await createRecurringTask({ title: '보관됨', daysOfWeek: [notToday] }, { db })
+    expect(archived.ok).toBe(true)
+    if (!archived.ok) return
+    await archiveRecurringTask(archived.data!.id, { db })
+
+    const result = await listAllDailyRecurring({ db })
+    expect(result).toHaveLength(0)
+  })
+
+  it("reflects today's completion state", async () => {
+    const { db } = makeDb()
+    const notToday = notTodayKey()
+
+    // A task NOT scheduled for today — still listed, and can carry today's done state
+    const r = await createRecurringTask({ title: '다른 날 과제', daysOfWeek: [notToday] }, { db })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    await createRecurringTask({ title: '안 한 것', daysOfWeek: [notToday] }, { db })
+
+    await markRecurringDone(r.data!.id, localDateIso(), { db })
+
+    const result = await listAllDailyRecurring({ db })
+    expect(result).toHaveLength(2)
+    expect(result.find((x) => x.title === '다른 날 과제')!.doneAt).not.toBeNull()
+    expect(result.find((x) => x.title === '안 한 것')!.doneAt).toBeNull()
   })
 })
 

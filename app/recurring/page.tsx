@@ -1,5 +1,5 @@
 import {
-  listTodayRecurring,
+  listAllDailyRecurring,
   listThisWeekRecurring,
   createRecurringTask,
 } from '@/server/actions/recurring'
@@ -18,14 +18,14 @@ export default async function RecurringPage({
   searchParams: Promise<{ action?: string }>
 }) {
   const sp = await searchParams
-  const [todayTasks, weekTasks] = await Promise.all([
-    listTodayRecurring(),
+  const [dailyTasks, weekTasks] = await Promise.all([
+    listAllDailyRecurring(),
     listThisWeekRecurring(),
   ])
 
   const showNew = sp.action === 'new'
 
-  const dailyCount = todayTasks.length
+  const dailyCount = dailyTasks.length
   const weeklyCount = weekTasks.length
 
   return (
@@ -34,7 +34,7 @@ export default async function RecurringPage({
         <div>
           <h1 className="text-[30px] leading-tight font-bold tracking-tight">매일/매주 할 일</h1>
           <div className="text-sm text-muted-foreground mt-0.5">
-            오늘 매일 {dailyCount}개 · 이번 주 매주 {weeklyCount}개
+            매일 {dailyCount}개 · 이번 주 매주 {weeklyCount}개
           </div>
         </div>
         {!showNew && (
@@ -85,15 +85,15 @@ export default async function RecurringPage({
 
         <section className="space-y-2">
           <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1">
-            오늘의 매일 할 일
+            매일 할 일
           </h2>
-          {todayTasks.length === 0 ? (
+          {dailyTasks.length === 0 ? (
             <Card className="p-6 text-center text-muted-foreground text-sm">
-              오늘은 매일 할 일이 없어요
+              매일 할 일이 없어요
             </Card>
           ) : (
             <Card className="p-0 gap-0 divide-y divide-foreground/10">
-              {todayTasks.map((t) => (
+              {dailyTasks.map((t) => (
                 <RecurringToggleRow
                   key={t.id}
                   id={t.id}

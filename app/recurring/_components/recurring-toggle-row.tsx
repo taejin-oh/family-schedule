@@ -11,6 +11,15 @@ import { cn } from '@/lib/utils'
 type Cadence = 'daily' | 'weekly'
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
+const DAY_KO: Record<DayKey, string> = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }
+const DAY_ORDER: DayKey[] = ['mon','tue','wed','thu','fri','sat','sun']
+
+/** daily 스케줄을 한국어 라벨로. 7일 전부(또는 미지정)면 '매일', 아니면 '월·수·금'. */
+function dailyScheduleLabel(days: DayKey[] | undefined): string {
+  if (!days || days.length === 0 || days.length === 7) return '매일'
+  return DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_KO[d]).join('·')
+}
+
 /**
  * Recurring task 한 줄. 완료 토글은 아이홈/대시보드 전용이므로 여기서는
  * 표시만 (체크박스 클릭 X). 매일/매주 cadence 배지 + ⋮ 메뉴(수정/보관).
@@ -45,7 +54,7 @@ export function RecurringToggleRow({
       'inline-block px-2 py-0.5 rounded-full font-medium text-[10px]',
       isWeekly ? 'bg-brand-soft text-brand' : 'bg-muted text-muted-foreground',
     )}>
-      🔁 {isWeekly ? '이번 주 안에' : '매일'}
+      🔁 {isWeekly ? '이번 주 안에' : dailyScheduleLabel(daysOfWeek)}
     </span>
   )
 
