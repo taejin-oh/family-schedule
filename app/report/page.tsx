@@ -3,6 +3,7 @@ import { getDb } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
 import { Card } from '@/components/ui/card'
 import { regenerateThisWeekReport } from './actions'
+import { RegenerateButton } from './regenerate-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ type WeeklyStats = {
   avgStars?: number | null
   starDist?: Record<number, number>
   byAcademy?: Record<string, { completed: number; late: number; rated?: number; avgStars?: number | null }>
+  recurring?: Array<{ title: string; cadence: 'daily' | 'weekly'; scheduled: number; completed: number; ratedCount?: number; avgStars?: number | null }>
 }
 
 export default async function ReportPage() {
@@ -32,12 +34,7 @@ export default async function ReportPage() {
           <p className="text-sm text-muted-foreground mt-0.5">이번 주 숙제 진행 요약</p>
         </div>
         <form action={regenerateThisWeekReport}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2 bg-foreground text-background hover:opacity-90 transition-opacity"
-          >
-            이번 주 리포트 생성/재생성
-          </button>
+          <RegenerateButton />
         </form>
       </header>
 
@@ -132,6 +129,21 @@ function ReportCard({
               <span>{name}</span>
               <span className="text-muted-foreground tabular-nums">
                 완료 {v.completed}{v.late > 0 ? ` · 지연 ${v.late}` : ''}{v.avgStars != null ? ` · ★${v.avgStars}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 매일/매주 할일 */}
+      {stats.recurring && stats.recurring.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">매일/매주 할일</div>
+          {stats.recurring.map((r, i) => (
+            <div key={i} className="flex items-center justify-between text-sm">
+              <span>{r.cadence === 'weekly' ? '🔁 ' : ''}{r.title}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {r.scheduled}번 중 {r.completed}번{r.avgStars != null ? ` · ★${r.avgStars}` : ''}
               </span>
             </div>
           ))}

@@ -55,12 +55,30 @@ describe('gatherWeeklyStats', () => {
     expect(s.completed.map((c) => c.title)).toContain('제때 완료 별5')
     expect(s.completed.map((c) => c.title)).not.toContain('지난 주 완료')
   })
+
+  it('매일/매주 할일: 예정 횟수 대비 완료·별점 평균', () => {
+    const db = makeDb()
+    const [task] = db.insert(appSchema.recurringTasks).values({
+      title: '독서', cadence: 'daily', daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
+    }).returning().all()
+    // 이번 주(2026-06-15~21) 완료 2건(별점 4 / 미기록), 지난 주 1건은 제외.
+    db.insert(appSchema.recurringTaskCompletions).values({ taskId: task.id, completionDate: '2026-06-16', score: 4 }).run()
+    db.insert(appSchema.recurringTaskCompletions).values({ taskId: task.id, completionDate: '2026-06-17', score: null }).run()
+    db.insert(appSchema.recurringTaskCompletions).values({ taskId: task.id, completionDate: '2026-06-08', score: 5 }).run()
+
+    const s = gatherWeeklyStats(db, '2026-06-15', '2026-06-21')
+    const r = s.recurring.find((x) => x.title === '독서')!
+    expect(r.scheduled).toBe(5)   // mon-fri
+    expect(r.completed).toBe(2)   // 이번 주 2건
+    expect(r.ratedCount).toBe(1)
+    expect(r.avgStars).toBe(4)
+  })
 })
 
 const FAKE_STATS = {
   weekStartIso: '2026-06-15', weekEndIso: '2026-06-21', totalCompleted: 3, lateCount: 1,
   ratedCount: 2, unscoredCount: 1, avgStars: 3, starDist: { 0: 0, 1: 1, 2: 0, 3: 0, 4: 0, 5: 1 },
-  byAcademy: {}, completed: [], openAtWeekEnd: 2,
+  byAcademy: {}, completed: [], openAtWeekEnd: 2, recurring: [],
 }
 
 describe('summarizeWeek', () => {

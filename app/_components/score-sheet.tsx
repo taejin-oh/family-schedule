@@ -3,11 +3,19 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { setHomeworkScore } from '@/server/actions/homework'
+import { setRecurringScore } from '@/server/actions/recurring'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { StarRating } from './star-rating'
 
-type ScoreSheetCtx = { open: (itemId: number, itemTitle: string) => void }
+type Target =
+  | { kind: 'homework'; id: number; title: string }
+  | { kind: 'recurring'; taskId: number; dateIso: string; title: string }
+
+type ScoreSheetCtx = {
+  open: (itemId: number, itemTitle: string) => void
+  openRecurring: (taskId: number, dateIso: string, title: string) => void
+}
 const Context = createContext<ScoreSheetCtx | null>(null)
 
 /** 완료 후 점수 시트를 띄우는 훅. Provider 밖이면 null → 시트 없이 완료만. */
@@ -25,13 +33,17 @@ export function useScoreSheet() {
  */
 export function ScoreSheetProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const [target, setTarget] = useState<{ id: number; title: string } | null>(null)
+  const [target, setTarget] = useState<Target | null>(null)
   const [reason, setReason] = useState('')
   const [pending, setPending] = useState(false)
 
   const open = (itemId: number, itemTitle: string) => {
     setReason('')
-    setTarget({ id: itemId, title: itemTitle })
+    setTarget({ kind: 'homework', id: itemId, title: itemTitle })
+  }
+  const openRecurring = (taskId: number, dateIso: string, title: string) => {
+    setReason('')
+    setTarget({ kind: 'recurring', taskId, dateIso, title })
   }
   function close() {
     setTarget(null)
@@ -42,13 +54,14 @@ export function ScoreSheetProvider({ children }: { children: ReactNode }) {
   async function pick(s: number) {
     if (!target) return
     setPending(true)
-    await setHomeworkScore(target.id, s, reason.trim() || null)
+    if (target.kind === 'homework') await setHomeworkScore(target.id, s, reason.trim() || null)
+    else await setRecurringScore(target.taskId, target.dateIso, s, reason.trim() || null)
     setPending(false)
     close()
   }
 
   return (
-    <Context.Provider value={{ open }}>
+    <Context.Provider value={{ open, openRecurring }}>
       {children}
       <Sheet open={target !== null} onOpenChange={(o) => { if (!o) close() }}>
         <SheetContent>

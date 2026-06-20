@@ -124,6 +124,9 @@ export const recurringTaskCompletions = sqliteTable('recurring_task_completions'
   taskId: integer('task_id').notNull().references(() => recurringTasks.id, { onDelete: 'cascade' }),
   completionDate: text('completion_date').notNull(),  // 'YYYY-MM-DD' (the local day this counts as done for)
   doneAt: integer('done_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  // 완료 시점에 부모가 매기는 별점(0~5). null = 미기록.
+  score: integer('score'),
+  scoreReason: text('score_reason'),
 }, (t) => [
   uniqueIndex('rtc_task_date_unique').on(t.taskId, t.completionDate),
 ])

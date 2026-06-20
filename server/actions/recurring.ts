@@ -151,6 +151,26 @@ export async function markRecurringUndone(taskId: number, dateIso: string, ctx: 
   return { ok: true }
 }
 
+/** 완료된 recurring 항목에 별점(0~5) 기록/수정. score=null이면 미기록 + 이유 비움. */
+export async function setRecurringScore(taskId: number, dateIso: string, score: number | null, reason: string | null, ctx: Ctx = {}): Promise<Result> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return { ok: false, error: '잘못된 날짜 형식' }
+  if (score !== null && !(Number.isInteger(score) && score >= 0 && score <= 5)) return { ok: false, error: '잘못된 점수' }
+  const db = ctx.db ?? getDb()
+  const task = db.select({ cadence: schema.recurringTasks.cadence }).from(schema.recurringTasks).where(eq(schema.recurringTasks.id, taskId)).get()
+  if (!task) return { ok: false, error: 'task not found' }
+  const key = completionKey(task.cadence, dateIso)
+  const cleanReason = score === null ? null : (reason?.trim() || null)
+  db.update(schema.recurringTaskCompletions)
+    .set({ score, scoreReason: cleanReason })
+    .where(and(
+      eq(schema.recurringTaskCompletions.taskId, taskId),
+      eq(schema.recurringTaskCompletions.completionDate, key),
+    ))
+    .run()
+  revalidatePath('/')
+  return { ok: true }
+}
+
 const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 

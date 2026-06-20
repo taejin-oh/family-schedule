@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { Check } from 'lucide-react'
 import { listCommittedItems, listDoneToday, listDoneThisWeek, listCompletedThisWeekUnscored, toggleItemDone } from '@/server/actions/homework'
-import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringDone, markRecurringUndone } from '@/server/actions/recurring'
+import { listTodayRecurring, listThisWeekRecurring, listDayRecurring, markRecurringUndone } from '@/server/actions/recurring'
 import { listAcademies } from '@/server/actions/academies'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -196,16 +196,8 @@ export default async function HomePage({
     revalidatePath('/')
   }
 
-  // Server actions for recurring
-  async function onRecurringComplete(formData: FormData) {
-    'use server'
-    const taskId = Number(formData.get('taskId'))
-    const dateIso = formData.get('dateIso')?.toString() ?? localDateIso()
-    await markRecurringDone(taskId, dateIso)
-    revalidatePath('/kids')
-    revalidatePath('/')
-  }
-
+  // Server actions for recurring. (완료는 RecurringItem이 클라이언트에서 markRecurringDone
+  // 직접 호출 + 별점 시트를 띄우므로 onRecurringComplete server action은 불필요.)
   async function onRecurringUndo(formData: FormData) {
     'use server'
     const taskId = Number(formData.get('taskId'))
@@ -363,7 +355,6 @@ export default async function HomePage({
             cadence={rt.cadence}
             daysOfWeek={[]}
             dateIso={rt.dateIso}
-            onComplete={onRecurringComplete}
           />
         ))}
       </Card>
@@ -573,7 +564,6 @@ export default async function HomePage({
               cadence={rt.cadence}
               daysOfWeek={rt.daysOfWeek ?? []}
               dateIso={rt.dateIso}
-              onComplete={onRecurringComplete}
             />
           ))}
         </Card>
@@ -617,7 +607,6 @@ export default async function HomePage({
               cadence={rt.cadence}
               daysOfWeek={rt.daysOfWeek ?? []}
               dateIso={rt.dateIso}
-              onComplete={onRecurringComplete}
             />
           ))}
         </div>

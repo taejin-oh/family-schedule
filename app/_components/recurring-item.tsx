@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { archiveRecurringTask, unarchiveRecurringTask } from '@/server/actions/recurring'
+import { archiveRecurringTask, unarchiveRecurringTask, markRecurringDone } from '@/server/actions/recurring'
 import { ItemActionsMenu } from '@/components/item-actions-menu'
 import { EditRecurringDialog } from '@/components/edit-recurring-dialog-lazy'
 import { useToast } from '@/components/toast'
+import { useScoreSheet } from '@/app/_components/score-sheet'
 
 type DayKey = 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun'
 
@@ -18,7 +19,6 @@ export type RecurringItemProps = {
   cadence: 'daily' | 'weekly'
   daysOfWeek: DayKey[]
   dateIso: string
-  onComplete: (formData: FormData) => Promise<void>
 }
 
 export function RecurringItem({
@@ -29,11 +29,17 @@ export function RecurringItem({
   cadence,
   daysOfWeek,
   dateIso,
-  onComplete,
 }: RecurringItemProps) {
   const [editOpen, setEditOpen] = useState(false)
   const router = useRouter()
   const toast = useToast()
+  const scoreSheet = useScoreSheet()
+
+  // 완료 → 별점 시트(Provider)가 올라옴. 시트 닫힐 때 새로고침.
+  async function handleComplete() {
+    await markRecurringDone(id, dateIso)
+    scoreSheet?.openRecurring(id, dateIso, title)
+  }
 
   async function handleArchive() {
     // ItemActionsMenu.runAction already wraps in startTransition + catches errors.
@@ -50,17 +56,14 @@ export function RecurringItem({
 
   const rowContent = (
     <div className="px-4 py-3 pr-12 flex items-center gap-3">
-      <form action={onComplete} className="flex-shrink-0">
-        <input type="hidden" name="taskId" value={id} />
-        <input type="hidden" name="dateIso" value={dateIso} />
-        <button
-          type="submit"
-          className="flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
-          aria-label="완료로 표시"
-        >
-          <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
-        </button>
-      </form>
+      <button
+        type="button"
+        onClick={handleComplete}
+        className="flex-shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] -mx-2.5 -my-3"
+        aria-label="완료로 표시"
+      >
+        <span className="w-[22px] h-[22px] rounded-full border-2 border-muted-foreground/40 hover:border-foreground hover:bg-accent transition-colors" />
+      </button>
       <span
         className="w-[5px] h-9 rounded-full flex-shrink-0"
         style={{ background: color }}

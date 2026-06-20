@@ -169,6 +169,13 @@
       "when": 1781914018467,
       "tag": "0023_convert_legacy_scores",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1781915908795,
+      "tag": "0024_modern_wonder_man",
+      "breakpoints": true
     }
   ]
 }
