@@ -47,7 +47,7 @@ export type HomeworkItemProps = {
   done?: boolean
   doneRelativeLabel?: string | null
   onUndo?: (formData: FormData) => Promise<void>
-  score?: '상' | '중' | '하' | null
+  score?: number | null
   scoreReason?: string | null
 }
 

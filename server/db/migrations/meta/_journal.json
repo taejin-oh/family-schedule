@@ -155,6 +155,20 @@
       "when": 1781879424935,
       "tag": "0021_mysterious_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1781913385118,
+      "tag": "0022_equal_puma",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1781914018467,
+      "tag": "0023_convert_legacy_scores",
+      "breakpoints": true
     }
   ]
 }

@@ -10,8 +10,11 @@ type WeeklyStats = {
   totalCompleted?: number
   lateCount?: number
   openAtWeekEnd?: number
-  scoreDist?: { '상': number; '중': number; '하': number; '미기록': number }
-  byAcademy?: Record<string, { completed: number; late: number }>
+  ratedCount?: number
+  unscoredCount?: number
+  avgStars?: number | null
+  starDist?: Record<number, number>
+  byAcademy?: Record<string, { completed: number; late: number; rated?: number; avgStars?: number | null }>
 }
 
 export default async function ReportPage() {
@@ -104,14 +107,19 @@ function ReportCard({
         </div>
       </div>
 
-      {/* 점수 분포 */}
-      {stats.scoreDist && (
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-xs text-muted-foreground">점수</span>
-          <span className="font-medium">상 {stats.scoreDist['상']}</span>
-          <span className="font-medium">중 {stats.scoreDist['중']}</span>
-          <span className="font-medium">하 {stats.scoreDist['하']}</span>
-          <span className="text-muted-foreground">미기록 {stats.scoreDist['미기록']}</span>
+      {/* 별점 요약 */}
+      {((stats.ratedCount ?? 0) + (stats.unscoredCount ?? 0)) > 0 && (
+        <div className="flex items-center gap-2 text-sm flex-wrap">
+          <span className="text-xs text-muted-foreground">별점</span>
+          <span className="font-semibold text-amber-500">
+            {stats.avgStars != null ? `평균 ★${stats.avgStars}` : '미기록'}
+          </span>
+          <span className="text-muted-foreground">채점 {stats.ratedCount ?? 0} · 미기록 {stats.unscoredCount ?? 0}</span>
+          {stats.starDist && (
+            <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+              {[5, 4, 3, 2, 1, 0].filter((n) => (stats.starDist?.[n] ?? 0) > 0).map((n) => `${n}★ ${stats.starDist![n]}`).join(' · ')}
+            </span>
+          )}
         </div>
       )}
 
@@ -123,7 +131,7 @@ function ReportCard({
             <div key={name} className="flex items-center justify-between text-sm">
               <span>{name}</span>
               <span className="text-muted-foreground tabular-nums">
-                완료 {v.completed}{v.late > 0 ? ` · 지연 ${v.late}` : ''}
+                완료 {v.completed}{v.late > 0 ? ` · 지연 ${v.late}` : ''}{v.avgStars != null ? ` · ★${v.avgStars}` : ''}
               </span>
             </div>
           ))}

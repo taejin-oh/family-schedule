@@ -74,8 +74,8 @@ export const homeworkItems = sqliteTable('homework_items', {
   sourcePhotoId: integer('source_photo_id').references(() => homeworkPhotos.id, { onDelete: 'set null' }),
   isCommitted: integer('is_committed', { mode: 'boolean' }).notNull().default(false),
   doneAt: integer('done_at', { mode: 'timestamp' }),
-  // 완료 후 부모가 매기는 품질 점수(선택). null = 미기록.
-  score: text('score', { enum: ['상', '중', '하'] }),
+  // 완료 후 부모가 매기는 별점(0~5). null = 미기록.
+  score: integer('score'),
   scoreReason: text('score_reason'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 }, (t) => [

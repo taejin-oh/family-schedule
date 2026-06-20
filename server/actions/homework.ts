@@ -782,8 +782,8 @@ export async function bulkToggleItemsDone(
   return { ok: true }
 }
 
-const SCORE_VALUES = ['상', '중', '하'] as const
-export type HomeworkScore = (typeof SCORE_VALUES)[number]
+// 별점 0~5. null = 미기록.
+export type HomeworkScore = number
 
 export async function setHomeworkScore(
   id: number,
@@ -791,7 +791,7 @@ export async function setHomeworkScore(
   reason: string | null,
   ctx: Ctx = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (score !== null && !SCORE_VALUES.includes(score)) {
+  if (score !== null && !(Number.isInteger(score) && score >= 0 && score <= 5)) {
     return { ok: false, error: '잘못된 점수' }
   }
   const appDb = ctx.appDb ?? getDb()

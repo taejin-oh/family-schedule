@@ -33,30 +33,39 @@ function seedDoneItem(appDb: ReturnType<typeof makeDb>, doneAt: Date) {
 }
 
 describe('setHomeworkScore', () => {
-  it('점수와 이유를 기록한다', async () => {
+  it('별점과 이유를 기록한다', async () => {
     const appDb = makeDb()
     const item = seedDoneItem(appDb, new Date())
-    const res = await setHomeworkScore(item.id, '상', '깔끔하게 다 풀었음', { appDb })
+    const res = await setHomeworkScore(item.id, 5, '깔끔하게 다 풀었음', { appDb })
     expect(res.ok).toBe(true)
     const row = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, item.id)).get()
-    expect(row?.score).toBe('상')
+    expect(row?.score).toBe(5)
     expect(row?.scoreReason).toBe('깔끔하게 다 풀었음')
+  })
+
+  it('0점도 유효한 점수로 저장(미기록 null과 구분)', async () => {
+    const appDb = makeDb()
+    const item = seedDoneItem(appDb, new Date())
+    const res = await setHomeworkScore(item.id, 0, null, { appDb })
+    expect(res.ok).toBe(true)
+    const row = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, item.id)).get()
+    expect(row?.score).toBe(0)
   })
 
   it('score=null이면 이유도 비운다', async () => {
     const appDb = makeDb()
     const item = seedDoneItem(appDb, new Date())
-    await setHomeworkScore(item.id, '중', '보통', { appDb })
+    await setHomeworkScore(item.id, 3, '보통', { appDb })
     await setHomeworkScore(item.id, null, '남아있던 이유', { appDb })
     const row = appDb.select().from(appSchema.homeworkItems).where(eq(appSchema.homeworkItems.id, item.id)).get()
     expect(row?.score).toBeNull()
     expect(row?.scoreReason).toBeNull()
   })
 
-  it('잘못된 점수는 거부한다', async () => {
+  it('범위 밖(6) 점수는 거부한다', async () => {
     const appDb = makeDb()
     const item = seedDoneItem(appDb, new Date())
-    const res = await setHomeworkScore(item.id, 'A' as never, null, { appDb })
+    const res = await setHomeworkScore(item.id, 6, null, { appDb })
     expect(res.ok).toBe(false)
   })
 })
@@ -66,7 +75,7 @@ describe('listCompletedThisWeekUnscored', () => {
     const appDb = makeDb()
     const inWeekUnscored = seedDoneItem(appDb, new Date())            // 이번 주, 미기록
     const inWeekScored = seedDoneItem(appDb, new Date())              // 이번 주, 채점됨
-    await setHomeworkScore(inWeekScored.id, '상', null, { appDb })
+    await setHomeworkScore(inWeekScored.id, 5, null, { appDb })
     seedDoneItem(appDb, new Date('2000-01-03T10:00:00'))             // 옛날 완료 → 제외
 
     const rows = await listCompletedThisWeekUnscored({ appDb })

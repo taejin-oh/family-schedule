@@ -22,7 +22,7 @@ function seedAcademy(db: ReturnType<typeof makeDb>, name: string) {
   return { academyId: a.id, batchId: b.id }
 }
 function seedItem(db: ReturnType<typeof makeDb>, ctx: { academyId: number; batchId: number }, o: {
-  title: string; dueDate?: string | null; doneAt?: Date | null; score?: '상'|'중'|'하'|null
+  title: string; dueDate?: string | null; doneAt?: Date | null; score?: number | null
 }) {
   db.insert(appSchema.homeworkItems).values({
     batchId: ctx.batchId, academyId: ctx.academyId, title: o.title, source: 'manual',
@@ -36,8 +36,8 @@ describe('gatherWeeklyStats', () => {
     const eng = seedAcademy(db, '영어')
     // 주: 2026-06-15(월) ~ 2026-06-21(일). 완료시각은 그 주 안.
     const inWeek = new Date('2026-06-17T10:00:00')
-    seedItem(db, eng, { title: '제때 완료 상', dueDate: '2026-06-18', doneAt: inWeek, score: '상' })   // 마감 전 완료
-    seedItem(db, eng, { title: '지연 완료 하', dueDate: '2026-06-16', doneAt: inWeek, score: '하' })   // 마감 후 완료(지연)
+    seedItem(db, eng, { title: '제때 완료 별5', dueDate: '2026-06-18', doneAt: inWeek, score: 5 })   // 마감 전 완료
+    seedItem(db, eng, { title: '지연 완료 별1', dueDate: '2026-06-16', doneAt: inWeek, score: 1 })   // 마감 후 완료(지연)
     seedItem(db, eng, { title: '점수 미기록', dueDate: '2026-06-18', doneAt: inWeek, score: null })
     seedItem(db, eng, { title: '지난 주 완료', dueDate: '2026-06-10', doneAt: new Date('2026-06-10T10:00:00') }) // 제외
     seedItem(db, eng, { title: '미완료', dueDate: '2026-06-19', doneAt: null })                          // 완료 아님 → 제외
@@ -45,16 +45,22 @@ describe('gatherWeeklyStats', () => {
     const s = gatherWeeklyStats(db, '2026-06-15', '2026-06-21')
     expect(s.totalCompleted).toBe(3)
     expect(s.lateCount).toBe(1)
-    expect(s.scoreDist).toEqual({ '상': 1, '중': 0, '하': 1, '미기록': 1 })
+    expect(s.ratedCount).toBe(2)
+    expect(s.unscoredCount).toBe(1)
+    expect(s.avgStars).toBe(3)            // (5 + 1) / 2
+    expect(s.starDist[5]).toBe(1)
+    expect(s.starDist[1]).toBe(1)
     expect(s.byAcademy['영어'].completed).toBe(3)
-    expect(s.completed.map((c) => c.title)).toContain('제때 완료 상')
+    expect(s.byAcademy['영어'].avgStars).toBe(3)
+    expect(s.completed.map((c) => c.title)).toContain('제때 완료 별5')
     expect(s.completed.map((c) => c.title)).not.toContain('지난 주 완료')
   })
 })
 
 const FAKE_STATS = {
   weekStartIso: '2026-06-15', weekEndIso: '2026-06-21', totalCompleted: 3, lateCount: 1,
-  scoreDist: { '상': 1, '중': 0, '하': 1, '미기록': 1 }, byAcademy: {}, completed: [], openAtWeekEnd: 2,
+  ratedCount: 2, unscoredCount: 1, avgStars: 3, starDist: { 0: 0, 1: 1, 2: 0, 3: 0, 4: 0, 5: 1 },
+  byAcademy: {}, completed: [], openAtWeekEnd: 2,
 }
 
 describe('summarizeWeek', () => {
@@ -74,7 +80,7 @@ describe('buildWeeklyReport', () => {
   it('서술 생성 + weekly_reports upsert + 텍스트에 통계·서술 포함', async () => {
     const db = makeDb()
     const eng = seedAcademy(db, '영어')
-    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: '상' })
+    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: 5 })
     const run = async () => 'AI 서술: 영어 숙제를 성실히 끝냈어요.'
     const r = await buildWeeklyReport(db, '2026-06-15', '2026-06-21', { provider: 'codex', model: 'gpt-5.5', run, now: 1_750_000_000_000 })
     expect(r.text).toContain('완료')
@@ -86,7 +92,7 @@ describe('buildWeeklyReport', () => {
   it('LLM 실패 시 템플릿 폴백으로도 저장·발송 가능', async () => {
     const db = makeDb()
     const eng = seedAcademy(db, '영어')
-    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: '상' })
+    seedItem(db, eng, { title: 'A', dueDate: '2026-06-18', doneAt: new Date('2026-06-17T10:00:00'), score: 5 })
     const run = async () => { throw new Error('fail') }
     const r = await buildWeeklyReport(db, '2026-06-15', '2026-06-21', { provider: 'codex', model: 'gpt-5.5', run, now: 1_750_000_000_000 })
     expect(r.model).toBe('template')

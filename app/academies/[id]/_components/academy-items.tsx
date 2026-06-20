@@ -19,7 +19,7 @@ type Item = {
   notes: string | null
   dueDate: string | null
   doneAt: Date | null
-  score: '상' | '중' | '하' | null
+  score: number | null
   scoreReason: string | null
 }
 

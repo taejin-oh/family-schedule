@@ -2,11 +2,10 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { setHomeworkScore, type HomeworkScore } from '@/server/actions/homework'
+import { setHomeworkScore } from '@/server/actions/homework'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-
-const SCORES: HomeworkScore[] = ['상', '중', '하']
+import { StarRating } from './star-rating'
 
 type ScoreSheetCtx = { open: (itemId: number, itemTitle: string) => void }
 const Context = createContext<ScoreSheetCtx | null>(null)
@@ -40,7 +39,7 @@ export function ScoreSheetProvider({ children }: { children: ReactNode }) {
     // 완료된 항목을 완료 목록으로 이동 + (점수 매겼으면) 칩 반영.
     router.refresh()
   }
-  async function pick(s: HomeworkScore) {
+  async function pick(s: number) {
     if (!target) return
     setPending(true)
     await setHomeworkScore(target.id, s, reason.trim() || null)
@@ -57,18 +56,8 @@ export function ScoreSheetProvider({ children }: { children: ReactNode }) {
             <SheetTitle>완료! 점수를 매길까요?</SheetTitle>
           </SheetHeader>
           <div className="text-sm text-muted-foreground mt-1 line-clamp-2 break-words">{target?.title}</div>
-          <div className="flex gap-2 mt-4">
-            {SCORES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={pending}
-                onClick={() => pick(s)}
-                className="flex-1 py-3 rounded-xl border text-lg font-bold bg-card hover:bg-accent active:bg-accent/70 transition-colors disabled:opacity-50"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="mt-4 flex justify-center">
+            <StarRating value={null} onChange={(v) => { if (v !== null) pick(v) }} disabled={pending} size="lg" />
           </div>
           <input
             value={reason}
